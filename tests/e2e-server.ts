@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { FoundationService } from "../src/server/foundation/service";
 import { app } from "../src/server/app";
 import { ReferenceService } from "../src/server/references/service";
 import { referenceRoutes } from "../src/server/references/routes";
@@ -32,7 +33,30 @@ const service = new ReferenceService(
 );
 app.route(
   "/api/references",
-  referenceRoutes(service, "e2e-pair-code", undefined, [3100, 3101]),
+  referenceRoutes(
+    service,
+    "e2e-pair-code",
+    undefined,
+    [3100, 3101],
+    new FoundationService(service.db, async (design) => ({
+      candidates: [
+        {
+          design: {
+            ...design,
+            radius: design.constraints.radius?.locked ? design.radius : 4,
+          },
+          explanation: "角丸を小さくします",
+        },
+        {
+          design: {
+            ...design,
+            radius: design.constraints.radius?.locked ? design.radius : 2,
+          },
+          explanation: "直線的に整えます",
+        },
+      ],
+    })),
+  ),
 );
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 3101 });
 for (const signal of ["SIGTERM", "SIGINT"])

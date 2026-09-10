@@ -45,6 +45,18 @@ export const app = new Hono()
           message:
             "モックでは「角丸を弱く」「余白を詰めたい」「青に変更」「影をなくす」を試せます。自由な対話はCodex連携で追加します。",
         });
+      if (
+        Object.keys(next).some(
+          (key) =>
+            design.constraints[key]?.locked &&
+            JSON.stringify(next[key as keyof typeof next]) !==
+              JSON.stringify(design[key as keyof typeof design]),
+        )
+      )
+        return c.json({
+          supported: false as const,
+          message: "ロックした項目は変更できません。",
+        });
       return c.json({
         supported: true as const,
         design: next,

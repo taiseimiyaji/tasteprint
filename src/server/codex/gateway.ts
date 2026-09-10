@@ -60,7 +60,15 @@ export class CodexGateway {
       return { state: "login-required" as const };
     }
   }
-  analyze: Analyze = async (reference, imagePath, signal) => {
+  analyze: Analyze = async (reference, imagePath, signal) =>
+    this.run(buildAnalysisPrompt(reference), analysisSchema, signal, imagePath);
+
+  async run<T extends z.ZodType>(
+    prompt: string,
+    schema: T,
+    signal: AbortSignal,
+    imagePath?: string,
+  ): Promise<z.infer<T>> {
     const auth = await this.authentication();
     signal.throwIfAborted();
     const runtime = await mkdtemp(join(tmpdir(), "tasteprint-codex-"));
@@ -70,8 +78,7 @@ export class CodexGateway {
       await mkdir(codexHome, { mode: 0o700 });
       await mkdir(inputDir, { mode: 0o700 });
       await writeFile(join(codexHome, "auth.json"), auth, { mode: 0o600 });
-      await copyFile(imagePath, join(inputDir, "reference.png"));
-      const prompt = buildAnalysisPrompt(reference);
+      if (imagePath) await copyFile(imagePath, join(inputDir, "reference.png"));
       await writeFile(join(inputDir, "input.txt"), prompt, { mode: 0o600 });
       // Clean HOME/CODEX_HOME and an explicit environment prevent inheriting user
       // MCP servers, hooks, skills, provider configuration or API billing keys.
@@ -110,12 +117,19 @@ export class CodexGateway {
       const result = await thread.run(
         [
           { type: "text", text: prompt },
-          { type: "local_image", path: join(inputDir, "reference.png") },
+          ...(imagePath
+            ? [
+                {
+                  type: "local_image" as const,
+                  path: join(inputDir, "reference.png"),
+                },
+              ]
+            : []),
         ],
-        { signal, outputSchema: z.toJSONSchema(analysisSchema) },
+        { signal, outputSchema: z.toJSONSchema(schema) },
       );
       signal.throwIfAborted();
-      return analysisSchema.parse(JSON.parse(result.finalResponse));
+      return schema.parse(JSON.parse(result.finalResponse));
     } catch (error) {
       if (signal.aborted) throw signal.reason;
       if (error instanceof CaptureError) throw error;
@@ -142,5 +156,5 @@ export class CodexGateway {
     } finally {
       await rm(runtime, { recursive: true, force: true });
     }
-  };
+  }
 }

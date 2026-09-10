@@ -1,6 +1,28 @@
 import { test, expect } from "@playwright/test";
 import sharp from "sharp";
+import { readFile } from "node:fs/promises";
 import { initialState } from "../src/client/state";
+
+let session = "";
+test.beforeAll(async ({ request }) => {
+  const response = await request.post("/api/references/pair", {
+    headers: { Origin: "http://127.0.0.1:3100" },
+    data: { code: "e2e-pair-code" },
+  });
+  expect(response.ok()).toBe(true);
+  session = response.headers()["set-cookie"].split(";")[0].split("=")[1];
+});
+test.beforeEach(async ({ context }) => {
+  await context.addCookies([
+    {
+      name: "tasteprint_session",
+      value: session,
+      url: "http://127.0.0.1:3100",
+      httpOnly: true,
+      sameSite: "Strict",
+    },
+  ]);
+});
 
 test("foundation, proposal staging, undo, persistence, and export work together", async ({
   page,
@@ -11,22 +33,80 @@ test("foundation, proposal staging, undo, persistence, and export work together"
   await expect(
     page.getByRole("heading", { name: "Foundation." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Accent Slate blue" }).click();
+  await expect(page.getByText(/確定履歴（revision 1/)).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "accent", exact: true })
+    .fill("#526f99");
+  await page
+    .getByRole("textbox", { name: "accent", exact: true })
+    .fill("invalid");
   await expect(
-    page.getByRole("button", { name: "Accent Slate blue" }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("button", { name: "変更を保存", exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator(".sample-app")).toHaveCSS(
+    "--preview-accent",
+    "#526f99",
+  );
+  await page
+    .getByRole("textbox", { name: "accent", exact: true })
+    .fill("#526f99");
+  await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(page.getByText(/確定履歴（revision 2/)).toBeVisible();
   await page.getByRole("button", { name: "角丸をもう少し弱くしたい" }).click();
   await expect(page.getByText("プレビューに仮反映しています")).toBeVisible();
+  await page.getByRole("button", { name: "候補 2", exact: true }).click();
+  await expect(page.locator(".sample-app")).toHaveCSS("border-radius", "2px");
   await page.getByRole("button", { name: "採用する" }).click();
+  await expect(page.getByText(/確定履歴（revision 3/)).toBeVisible();
   await page.getByRole("tab", { name: "Radius", exact: true }).click();
-  await expect(page.getByRole("slider", { name: "面の角丸" })).toHaveValue("4");
+  await expect(
+    page.getByRole("spinbutton", { name: "radius", exact: true }),
+  ).toHaveValue("2");
+  await page.getByLabel("radiusをAI変更からロック", { exact: true }).check();
+  await page
+    .locator(".foundation-field")
+    .filter({
+      has: page.getByRole("spinbutton", { name: "radius", exact: true }),
+    })
+    .getByText("適用範囲・例外・決定理由・出典", { exact: true })
+    .click();
+  await page
+    .getByLabel("radius rationale", { exact: true })
+    .fill("一覧性を優先");
+  await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(page.getByText(/確定履歴（revision 4/)).toBeVisible();
   await page.reload();
   await page.getByRole("tab", { name: "Radius", exact: true }).click();
-  await expect(page.getByRole("slider", { name: "面の角丸" })).toHaveValue("4");
-  await page.getByRole("slider", { name: "面の角丸" }).fill("12");
+  await expect(
+    page.getByRole("spinbutton", { name: "radius", exact: true }),
+  ).toHaveValue("2");
+  await expect(
+    page.getByLabel("radiusをAI変更からロック", { exact: true }),
+  ).toBeChecked();
+  await page
+    .getByRole("spinbutton", { name: "radius", exact: true })
+    .fill("12");
   await page.getByRole("button", { name: "元に戻す", exact: true }).click();
-  await expect(page.getByRole("slider", { name: "面の角丸" })).toHaveValue("4");
+  await expect(
+    page.getByRole("spinbutton", { name: "radius", exact: true }),
+  ).toHaveValue("2");
+  await page.getByText(/確定履歴（revision/).click();
+  await page.getByRole("button", { name: "r2を復元", exact: true }).click();
+  await expect(page.getByText(/確定履歴（revision 5/)).toBeVisible();
+  await expect(
+    page.getByRole("spinbutton", { name: "radius", exact: true }),
+  ).toHaveValue("6");
+  await page
+    .getByRole("spinbutton", { name: "radius", exact: true })
+    .fill("14");
   await page.locator("nav").getByRole("link", { name: "Export" }).click();
+  const jsonDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "JSON", exact: true }).click();
+  const exported = JSON.parse(
+    await readFile((await (await jsonDownload).path())!, "utf8"),
+  );
+  expect(exported.revision).toBe(5);
+  expect(exported.design.radius).toBe(6);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "DESIGN.md" }).click();
   expect((await download).suggestedFilename()).toBe("DESIGN.md");
@@ -54,8 +134,6 @@ test("reference and taste workflow preserves explicit choices", async ({
       );
   }, initialState);
   await page.goto("/inspiration");
-  await page.getByLabel("接続コード").fill("e2e-pair-code");
-  await page.getByRole("button", { name: "接続する", exact: true }).click();
   await page.getByRole("button", { name: "以前の参考を取り込む" }).click();
   await expect(
     page.getByRole("heading", { name: "Earlier reference", exact: true }),

@@ -109,3 +109,76 @@ it("passes the exact image and selected data with a clean environment, structure
   });
   expect(existsSync(sdk.options.env.CODEX_HOME)).toBe(false);
 });
+
+it("generates text-only Foundation patches with locked paths excluded from structured output", async () => {
+  const { FoundationService } =
+    await import("../src/server/foundation/service");
+  const { DatabaseSync } = await import("node:sqlite");
+  const { defaultDesign } = await import("../src/domain/design");
+  const { emptyDecision } = await import("../src/domain/foundation");
+  const dir = directory();
+  writeFileSync(
+    join(dir, "auth.json"),
+    JSON.stringify({
+      auth_mode: "chatgpt",
+      tokens: { access_token: "fake-test-token" },
+    }),
+  );
+  vi.stubEnv("CODEX_HOME", dir);
+  const db = new DatabaseSync(":memory:");
+  try {
+    const service = new FoundationService(db);
+    service.initialize({
+      ...defaultDesign,
+      constraints: {
+        radius: {
+          ...emptyDecision,
+          locked: true,
+          scope: "一覧",
+          exceptions: "Dialog",
+          source: "ユーザー",
+        },
+      },
+    });
+    sdk.run.mockImplementation(async (input, options) => {
+      expect(input).toHaveLength(1);
+      expect(input[0].type).toBe("text");
+      expect(input[0].text).toContain('"locked":true');
+      const targets =
+        options.outputSchema.properties.candidates.items.properties.changes
+          .items.properties.target.enum;
+      expect(targets).not.toContain("radius");
+      expect(targets).toContain("duration");
+      expect(targets).not.toContain("constraints");
+      return {
+        finalResponse: JSON.stringify({
+          candidates: [
+            {
+              explanation: "短い遷移",
+              changes: [{ target: "duration", value: 100 }],
+            },
+          ],
+        }),
+      };
+    });
+    const [candidate] = await service.propose(
+      1,
+      "動きを短く",
+      new AbortController().signal,
+    );
+    expect(candidate.design.duration).toBe(100);
+    expect(candidate.design.radius).toBe(6);
+    const applied = service.apply(candidate.id);
+    expect(applied.decisions).toEqual([
+      {
+        targetPath: "duration",
+        rationale: "短い遷移",
+        source: "Codex",
+        author: "ai",
+      },
+    ]);
+    expect(existsSync(sdk.options.env.CODEX_HOME)).toBe(false);
+  } finally {
+    db.close();
+  }
+});
