@@ -79,7 +79,17 @@ export function profile(answers: Record<string, Choice>) {
 export function designMarkdown(
   design: Design,
   answers: Record<string, Choice>,
-  references: { name: string; url: string; aspects: string[] }[],
+  references: {
+    name: string;
+    url: string;
+    aspects: string[];
+    principles?: {
+      aspect: string;
+      recommendation: string;
+      evidence: string;
+      interpretation: string;
+    }[];
+  }[],
 ) {
-  return `# Design System\n\n> Draft · Tasteprint mockup export\n> Codexによる分析・レビューは未実施。数値はユーザーが現在選択した設定です。\n\n## Design Philosophy\n\n自分が選んだ理由を大切にし、情報の見やすさを実画面で確認する。\n\n## Foundation\n\n- Accent: ${design.accent}\n- Body font size: ${design.fontSize}px\n- Row padding: ${design.spacing}px\n- Surface radius: ${design.radius}px\n- Row separators: ${design.border ? "enabled" : "disabled"}\n- Static surface shadow: ${design.shadow ? "enabled" : "disabled"}\n\n## Taste Profile\n\n${JSON.stringify(profile(answers), null, 2)}\n\n## Application Patterns\n\n### List\nPageHeader → FilterBar → Table / EmptyState\n\n### Settings\nPageHeader → SettingsSection → SaveAction\n\n### Form\nPageHeader → FormSection → Validation → SubmitAction\n\n## References\n\n${references.map((r) => `- ${r.name}${r.url ? ` (${r.url})` : ""}: ${r.aspects.join(", ")}`).join("\n")}\n\n## Open Questions\n\n- 参考の分析と設計原則の採用\n- コンポーネントの全状態とアクセシビリティ検証\n- 実アプリでの設計レビュー\n`;
+  return `# Design System\n\n> Draft · Tasteprint mockup export\n> ${references.some((r) => r.principles?.length) ? "採用済みの参考分析を含みます。設計全体のAIレビューは未実施。" : "Codexによる分析・レビューは未実施。"}数値はユーザーが現在選択した設定です。\n\n## Design Philosophy\n\n自分が選んだ理由を大切にし、情報の見やすさを実画面で確認する。\n\n## Foundation\n\n- Accent: ${design.accent}\n- Body font size: ${design.fontSize}px\n- Row padding: ${design.spacing}px\n- Surface radius: ${design.radius}px\n- Row separators: ${design.border ? "enabled" : "disabled"}\n- Static surface shadow: ${design.shadow ? "enabled" : "disabled"}\n\n## Taste Profile\n\n${JSON.stringify(profile(answers), null, 2)}\n\n## Application Patterns\n\n### List\nPageHeader → FilterBar → Table / EmptyState\n\n### Settings\nPageHeader → SettingsSection → SaveAction\n\n### Form\nPageHeader → FormSection → Validation → SubmitAction\n\n## References\n\n${references.map((r) => `- ${r.name}${r.url ? ` (${r.url})` : ""}: ${r.aspects.join(", ")}`).join("\n")}\n\n## Adopted Reference Principles\n\n${references.flatMap((r) => (r.principles ?? []).map((p) => `- ${p.aspect}: ${p.recommendation}\n  理由: ${p.interpretation}\n  根拠: ${p.evidence}（出典: ${r.url || r.name}）`)).join("\n") || "未採用"}\n\n## Open Questions\n\n- 未採用の参考分析の確認\n- コンポーネントの全状態とアクセシビリティ検証\n- 実アプリでの設計レビュー\n`;
 }

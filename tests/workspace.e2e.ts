@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import sharp from "sharp";
+import { initialState } from "../src/client/state";
 
 test("foundation, proposal staging, undo, persistence, and export work together", async ({
   page,
@@ -34,7 +36,38 @@ test("foundation, proposal staging, undo, persistence, and export work together"
 test("reference and taste workflow preserves explicit choices", async ({
   page,
 }) => {
+  await page.addInitScript((state) => {
+    if (!localStorage.getItem("tasteprint.mock.v1"))
+      localStorage.setItem(
+        "tasteprint.mock.v1",
+        JSON.stringify({
+          ...state,
+          references: [
+            {
+              id: "legacy-ref",
+              name: "Earlier reference",
+              url: "https://earlier.example",
+              aspects: ["Colors"],
+            },
+          ],
+        }),
+      );
+  }, initialState);
   await page.goto("/inspiration");
+  await page.getByLabel("接続コード").fill("e2e-pair-code");
+  await page.getByRole("button", { name: "接続する", exact: true }).click();
+  await page.getByRole("button", { name: "以前の参考を取り込む" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Earlier reference", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("article")
+    .filter({ has: page.getByRole("heading", { name: "Earlier reference" }) })
+    .getByRole("button", { name: "削除", exact: true })
+    .click();
+  expect(
+    await page.evaluate(() => localStorage.getItem("tasteprint.mock.v1")),
+  ).toContain("legacy-ref");
   await page
     .getByRole("textbox", { name: "Reference URL" })
     .fill("https://example.com");
@@ -42,6 +75,37 @@ test("reference and taste workflow preserves explicit choices", async ({
   await expect(
     page.getByRole("heading", { name: "example.com" }),
   ).toBeVisible();
+  await expect(
+    page.getByText(
+      "30秒以内に取得できませんでした。画像アップロードで続行できます。",
+    ),
+  ).toBeVisible();
+  const png = await sharp({
+    create: { width: 1440, height: 1000, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  await page.getByLabel("example.comの画像をアップロード").setInputFiles({
+    name: "reference.png",
+    mimeType: "image/png",
+    buffer: png,
+  });
+  await expect(page.getByAltText("example.comの参考画像")).toBeVisible();
+  await page.getByLabel("好きな点", { exact: true }).fill("見出しの強弱");
+  await page.getByRole("button", { name: "観点・メモを保存" }).click();
+  await page.getByLabel("送信対象を確認しました").check();
+  await page.getByRole("button", { name: "Codexで分析する" }).click();
+  await expect(
+    page.getByText("画像上部の見出し", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "設計方針として採用" }).click();
+  await expect(page.getByRole("button", { name: "採用済み" })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "採用済み" })).toBeVisible();
+  await page.screenshot({
+    path: "test-results/inspiration-desktop.png",
+    fullPage: true,
+  });
   await page.getByRole("link", { name: "好みを見比べる" }).click();
   await page.getByRole("button", { name: "A 余白で呼吸をつくる" }).click();
   await expect(page.getByText("1 answered")).toBeVisible();

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { findingSchema } from "../domain/reference";
 import { defaultDesign, designSchema } from "../domain/design";
 const referenceSchema = z.object({
   id: z.string(),
@@ -6,6 +7,7 @@ const referenceSchema = z.object({
   url: z.string(),
   aspects: z.array(z.string()),
   image: z.string().optional(),
+  principles: z.array(findingSchema).optional(),
 });
 export type Reference = z.infer<typeof referenceSchema>;
 export const stateSchema = z.object({
@@ -40,12 +42,35 @@ export const initialState: WorkspaceState = {
     },
   ],
 };
-export const storageKey = "tasteprint.mock.v1";
+export const legacyStorageKey = "tasteprint.mock.v1";
+export const storageKey = "tasteprint.workspace.v2";
 export function loadState(): WorkspaceState {
   try {
-    const value = localStorage.getItem(storageKey);
+    const value =
+      localStorage.getItem(storageKey) ??
+      localStorage.getItem(legacyStorageKey);
     return value ? stateSchema.parse(JSON.parse(value)) : initialState;
   } catch {
     return initialState;
+  }
+}
+
+export function loadLegacyReferences(): Reference[] {
+  try {
+    const value = localStorage.getItem(legacyStorageKey);
+    const imported: string[] = JSON.parse(
+      localStorage.getItem("tasteprint.references.imported") || "[]",
+    );
+    return value
+      ? stateSchema
+          .parse(JSON.parse(value))
+          .references.filter(
+            (r) =>
+              !["linear", "stripe", "vercel"].includes(r.id) &&
+              !imported.includes(r.id),
+          )
+      : [];
+  } catch {
+    return [];
   }
 }

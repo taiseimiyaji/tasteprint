@@ -2439,3 +2439,68 @@ svg {
     max-width: 110px;
   }
 }
+
+.reference-connect {
+  padding: 24px;
+}
+.reference-connect form,
+.reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.reference-details fieldset {
+  border: 1px solid var(--border, #deddd7);
+  margin: 16px 0;
+  padding: 12px;
+}
+.reference-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+}
+.reference-details select {
+  max-width: 130px;
+  padding: 5px;
+}
+.reference-details textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  margin: 6px 0 12px;
+}
+.reference-details pre {
+  font-size: 11px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reference-details p {
+  overflow-wrap: anywhere;
+}
+.reference-details input[type="file"],
+.reference-form input[type="file"] {
+  display: block;
+  max-width: 170px;
+  font-size: 11px;
+}
+.reference-analysis,
+.reference-finding {
+  border-top: 1px solid #deddd7;
+  padding: 16px 0;
+}
+.reference-analysis .button {
+  margin-top: 10px;
+}
+.reference-finding dt {
+  font-weight: 650;
+  margin-top: 10px;
+}
+.reference-finding dd {
+  margin: 4px 0 12px;
+  line-height: 1.6;
+}

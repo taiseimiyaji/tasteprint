@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "./api";
+import { References } from "./components/References";
 import { Preview } from "./components/Preview";
 import {
   initialState,
@@ -144,12 +145,9 @@ export function Workspace() {
   const [notice, setNotice] = useState("");
   const [saveError, setSaveError] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [refUrl, setRefUrl] = useState("");
-  const [refError, setRefError] = useState("");
   const [reviewed, setReviewed] = useState<Design | null>(null);
   const [component, setComponent] = useState("Button");
   const [pattern, setPattern] = useState("ListPage");
-  const fileInput = useRef<HTMLInputElement>(null);
   const connection = useQuery({
     queryKey: ["connection"],
     queryFn: async () => {
@@ -211,58 +209,6 @@ export function Workspace() {
     setPrompt(text);
     proposal.mutate(text);
   };
-  function addReference() {
-    try {
-      const url = new URL(refUrl);
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error();
-      setState((s) => ({
-        ...s,
-        references: [
-          ...s.references,
-          {
-            id: crypto.randomUUID(),
-            name: url.hostname.replace("www.", ""),
-            url: url.href,
-            aspects: ["Typography"],
-          },
-        ],
-      }));
-      setRefUrl("");
-      setRefError("");
-      setNotice("参考URLを保存しました。自動取得は今後対応します");
-    } catch {
-      setRefError("https:// から始まるWebサイトのURLを入力してください");
-    }
-  }
-  async function addImage(file?: File) {
-    if (!file) return;
-    if (
-      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
-      file.size > 2 * 1024 * 1024
-    ) {
-      setRefError("モックでは2MB以下のPNG・JPEG・WebPを選んでください");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setState((s) => ({
-        ...s,
-        references: [
-          ...s.references,
-          {
-            id: crypto.randomUUID(),
-            name: file.name,
-            url: "",
-            aspects: ["Typography"],
-            image: String(reader.result),
-          },
-        ],
-      }));
-      setRefError("");
-    };
-    reader.onerror = () => setRefError("画像を読み込めませんでした");
-    reader.readAsDataURL(file);
-  }
   function answer(choice: Choice) {
     const question = questions[questionIndex];
     setState((s) => ({
@@ -590,139 +536,22 @@ export function Workspace() {
             )}
             {current.id === "inspiration" && (
               <>
-                <div className="intro-strip">
-                  <Image size={20} />
-                  <p>
-                    サイト全体ではなく、<strong>好きな部分</strong>
-                    を集めましょう。
-                    <small>
-                      初期参照はサンプルです。サイトの画像取得・AI分析は未接続です。
-                    </small>
-                  </p>
-                </div>
-                <form
-                  className="reference-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    addReference();
-                  }}
-                >
-                  <Search size={17} />
-                  <input
-                    aria-label="Reference URL"
-                    type="url"
-                    placeholder="https://your-inspiration.com"
-                    value={refUrl}
-                    onChange={(e) => setRefUrl(e.target.value)}
-                    required
-                  />
-                  <button className="button primary">
-                    <Plus size={15} /> 参考を追加
-                  </button>
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    画像を追加
-                  </button>
-                  <input
-                    ref={fileInput}
-                    hidden
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={(e) => {
-                      void addImage(e.target.files?.[0]);
-                      e.target.value = "";
-                    }}
-                  />
-                </form>
-                {refError && (
-                  <p role="alert" className="error-text">
-                    {refError}
-                  </p>
-                )}
-                <div className="reference-grid">
-                  {state.references.map((r, i) => (
-                    <article className="reference-card" key={r.id}>
-                      {r.image ? (
-                        <img
-                          className="reference-image"
-                          src={r.image}
-                          alt={r.name}
-                        />
-                      ) : (
-                        <div className={`reference-art art-${i % 3}`}>
-                          <span className="reference-art-name">{r.name}</span>
-                          <div className="art-window">
-                            <div className="art-sidebar" />
-                            <div className="art-lines">
-                              <i />
-                              <i />
-                              <i />
-                              <i />
-                            </div>
-                          </div>
-                          <span className="art-caption">
-                            ILLUSTRATIVE REFERENCE
-                          </span>
-                        </div>
-                      )}
-                      <div className="reference-details">
-                        <div>
-                          <h3>{r.name}</h3>
-                          <button
-                            className="icon-button"
-                            aria-label={`${r.name}を削除`}
-                            onClick={() =>
-                              setState((s) => ({
-                                ...s,
-                                references: s.references.filter(
-                                  (ref) => ref.id !== r.id,
-                                ),
-                              }))
-                            }
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        <p>{r.url || "Uploaded image"}</p>
-                        <div className="aspect-list">
-                          {[
-                            "Typography",
-                            "Colors",
-                            "Density",
-                            "Navigation",
-                            "Spacing",
-                            "Forms",
-                          ].map((a) => (
-                            <button
-                              key={a}
-                              aria-pressed={r.aspects.includes(a)}
-                              onClick={() =>
-                                setState((s) => ({
-                                  ...s,
-                                  references: s.references.map((ref) =>
-                                    ref.id === r.id
-                                      ? {
-                                          ...ref,
-                                          aspects: ref.aspects.includes(a)
-                                            ? ref.aspects.filter((v) => v !== a)
-                                            : [...ref.aspects, a],
-                                        }
-                                      : ref,
-                                  ),
-                                }))
-                              }
-                            >
-                              {r.aspects.includes(a) && <Check size={10} />} {a}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                <References
+                  onChange={(references) =>
+                    setState((s) => ({
+                      ...s,
+                      references: references.map((r) => ({
+                        id: r.id,
+                        name: r.name,
+                        url: r.url,
+                        aspects: r.selections.map((s) => s.aspect),
+                        principles: r.accepted.map(
+                          (i) => r.analysis!.findings[i],
+                        ),
+                      })),
+                    }))
+                  }
+                />
                 <div className="bottom-next">
                   <span>「好き」の輪郭を、少しずつ。</span>
                   <Link
