@@ -38,7 +38,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { api } from "./api";
+import { FoundationEditor } from "./components/FoundationEditor";
+import {
+  foundationRequest,
+  parseRevision,
+  type Revision,
+  type Candidate,
+} from "./foundation-api";
+import { designCss } from "../domain/tokens";
 import { References } from "./components/References";
 import { Preview } from "./components/Preview";
 import {
@@ -112,14 +119,10 @@ const tabs = [
   "Radius",
   "Borders",
   "Shadows",
+  "Motion",
+  "Breakpoints",
 ];
-const accents = [
-  { color: "#65764d", name: "Moss" },
-  { color: "#526f99", name: "Slate blue" },
-  { color: "#a3664c", name: "Terracotta" },
-  { color: "#847298", name: "Muted violet" },
-  { color: "#3e807b", name: "Eucalyptus" },
-];
+
 function download(name: string, text: string, type = "text/plain") {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const link = document.createElement("a");
@@ -137,6 +140,58 @@ export function Workspace() {
   const current = steps.find((s) => s.id === path.slice(1)) || steps[2];
   const [state, setState] = useState<WorkspaceState>(loadState);
   const [history, setHistory] = useState<Design[]>([]);
+  const [saved, setSaved] = useState<Revision | null>(null);
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [foundationError, setFoundationError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [validInput, setValidInput] = useState(true);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  useEffect(() => {
+    if (saved) return;
+    let active = true;
+    foundationRequest<{ current: Revision | null; history: Revision[] }>("/")
+      .then(async (data) => {
+        const current =
+          data.current ??
+          (await foundationRequest<Revision>("/initialize", {
+            design: loadState().design,
+          }));
+        if (!active) return;
+        setSaved(parseRevision(current));
+        setRevisions(data.history.length ? data.history : [current]);
+        setState((s) => ({ ...s, design: parseRevision(current).design }));
+        setFoundationError("");
+      })
+      .catch((e) => {
+        if (active)
+          setFoundationError(
+            `${e.message} Inspirationで接続後、Foundationに戻ってください。`,
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [path]);
+  async function commit(path: string, body: unknown) {
+    setBusy(true);
+    try {
+      const result = parseRevision(
+        await foundationRequest<Revision>(path, body),
+      );
+      setSaved(result);
+      setState((s) => ({ ...s, design: result.design }));
+      const data = await foundationRequest<{ history: Revision[] }>("/");
+      setRevisions(data.history);
+      setFoundationError("");
+      proposal.reset();
+      setHistory([]);
+      setNotice("Foundationを保存しました");
+    } catch (e) {
+      setFoundationError(e instanceof Error ? e.message : "保存に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  }
   const [tab, setTab] = useState("Colors");
   const [screen, setScreen] = useState("list");
   const [width, setWidth] = useState("desktop");
@@ -149,23 +204,31 @@ export function Workspace() {
   const [component, setComponent] = useState("Button");
   const [pattern, setPattern] = useState("ListPage");
   const connection = useQuery({
-    queryKey: ["connection"],
+    queryKey: ["foundation-connection", !!saved],
+    enabled: !!saved,
     queryFn: async () => {
-      const response = await api.api.connection.$get();
-      if (!response.ok) throw new Error("API connection failed");
-      return response.json();
+      const response = await fetch("/api/references/connection");
+      if (!response.ok) throw new Error("接続できません");
+      return response.json() as Promise<{ state: "ready" | "login-required" }>;
     },
   });
   const proposal = useMutation({
     mutationFn: async (text: string) => {
-      const response = await api.api.proposals.$post({
-        json: { prompt: text, design: state.design },
-      });
-      if (!response.ok)
-        throw new Error(
-          "提案を取得できませんでした。APIの起動状態を確認してください。",
-        );
-      return response.json();
+      if (
+        !saved ||
+        JSON.stringify(saved.design) !== JSON.stringify(state.design)
+      )
+        throw new Error("先にFoundationの変更を保存してください。");
+      const data = await foundationRequest<{ candidates: Candidate[] }>(
+        "/proposals",
+        { baseRevision: saved.revision, prompt: text },
+      );
+      setCandidateIndex(0);
+      return {
+        supported: true as const,
+        ...data.candidates[0],
+        candidates: data.candidates,
+      };
     },
   });
   useEffect(() => {
@@ -197,12 +260,13 @@ export function Workspace() {
   const answered = Object.keys(state.answers).length;
   const dna = profile(state.answers);
   const displayDesign = proposal.data?.supported
-    ? proposal.data.design
+    ? proposal.data.candidates[candidateIndex].design
     : state.design;
   const markdown = designMarkdown(
-    state.design,
+    saved?.design ?? state.design,
     state.answers,
     state.references,
+    saved ?? undefined,
   );
   const ask = (text: string) => {
     if (!text.trim()) return;
@@ -276,7 +340,11 @@ export function Workspace() {
                 "保存容量が不足しています"
               ) : (
                 <>
-                  <span className="local-dot" /> ブラウザに保存済み
+                  <span className="local-dot" />{" "}
+                  {saved &&
+                  JSON.stringify(saved.design) === JSON.stringify(state.design)
+                    ? `Foundation r${saved.revision} 保存済み`
+                    : "Foundation 未確定"}
                 </>
               )}
             </span>
@@ -354,157 +422,82 @@ export function Workspace() {
                         : `${String(tabs.indexOf(tab) + 1).padStart(2, "0")} — ${tab.toUpperCase()}`}
                     </span>
                   </div>
-                  {tab === "Colors" ? (
-                    <>
-                      <div className="palette-row">
-                        {[
-                          { name: "Canvas", color: "#f8f8f4", hex: "#F8F8F4" },
-                          { name: "Surface", color: "#ffffff", hex: "#FFFFFF" },
-                          { name: "Ink", color: "#282c25", hex: "#282C25" },
-                          { name: "Muted", color: "#878b80", hex: "#878B80" },
-                          {
-                            name: "Accent",
-                            color: state.design.accent,
-                            hex: state.design.accent.toUpperCase(),
-                          },
-                        ].map((c) => (
-                          <div className="palette-item" key={c.name}>
-                            <div
-                              className="swatch"
-                              style={{ background: c.color }}
-                            >
-                              {c.name === "Accent" && (
-                                <Check size={21} color="white" />
-                              )}
-                            </div>
-                            <strong>{c.name}</strong>
-                            <span>{c.hex}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="accent-picker">
-                        <div>
-                          <span className="field-caption">
-                            Accent direction
-                          </span>
-                          <strong>
-                            {accents.find(
-                              (a) => a.color === state.design.accent,
-                            )?.name || "Custom color"}{" "}
-                            <span>控えめな色で、意図を伝える。</span>
-                          </strong>
-                        </div>
-                        <div className="accent-options">
-                          {accents.map((a) => (
-                            <button
-                              key={a.color}
-                              aria-label={`Accent ${a.name}`}
-                              aria-pressed={state.design.accent === a.color}
-                              title={a.name}
-                              style={{ background: a.color }}
-                              onClick={() => updateDesign({ accent: a.color })}
-                            >
-                              {state.design.accent === a.color && (
-                                <Check size={13} />
-                              )}
-                            </button>
-                          ))}
-                          <label
-                            className="custom-color"
-                            title="カスタムカラー"
-                          >
-                            <Plus size={15} />
-                            <input
-                              type="color"
-                              aria-label="Custom accent color"
-                              value={state.design.accent}
-                              onChange={(e) =>
-                                updateDesign({ accent: e.target.value })
-                              }
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="property-editor">
-                      {tab === "Typography" ? (
-                        <>
-                          <p
-                            className="type-specimen"
-                            style={{ fontSize: state.design.fontSize + 16 }}
-                          >
-                            Words give an interface its voice.
-                          </p>
-                          <Range
-                            label="本文サイズ"
-                            value={state.design.fontSize}
-                            min={12}
-                            max={18}
-                            onChange={(fontSize) => updateDesign({ fontSize })}
-                          />
-                        </>
-                      ) : tab === "Spacing" ? (
-                        <Range
-                          label="行の上下余白"
-                          value={state.design.spacing}
-                          min={8}
-                          max={24}
-                          onChange={(spacing) => updateDesign({ spacing })}
-                        />
-                      ) : tab === "Radius" ? (
-                        <>
-                          <div className="radius-samples">
-                            {[0, 4, 6, 12, 20].map((r) => (
-                              <button
-                                key={r}
-                                className={
-                                  state.design.radius === r ? "selected" : ""
-                                }
-                                style={{ borderRadius: r }}
-                                onClick={() => updateDesign({ radius: r })}
-                              >
-                                {r}px
-                              </button>
-                            ))}
-                          </div>
-                          <Range
-                            label="面の角丸"
-                            value={state.design.radius}
-                            min={0}
-                            max={20}
-                            onChange={(radius) => updateDesign({ radius })}
-                          />
-                        </>
-                      ) : (
-                        <label className="toggle-row">
-                          <span>
-                            {tab === "Borders"
-                              ? "一覧に区切り線を使う"
-                              : "静的な面に影を使う"}
-                            <small>
-                              下の実画面で、情報のまとまり方を確かめてください。
-                            </small>
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={
-                              tab === "Borders"
-                                ? state.design.border
-                                : state.design.shadow
-                            }
-                            onChange={(e) =>
-                              updateDesign(
-                                tab === "Borders"
-                                  ? { border: e.target.checked }
-                                  : { shadow: e.target.checked },
-                              )
-                            }
-                          />
-                        </label>
-                      )}
-                    </div>
+                  <fieldset
+                    className="foundation-inputs"
+                    disabled={!saved || busy}
+                  >
+                    <FoundationEditor
+                      design={state.design}
+                      tab={tab}
+                      onChange={updateDesign}
+                      onValidityChange={setValidInput}
+                    />
+                  </fieldset>
+                  {foundationError && (
+                    <p className="error-text" role="alert">
+                      {foundationError}
+                    </p>
                   )}
+                  <div className="proposal-actions">
+                    <button
+                      className="button primary"
+                      disabled={
+                        !saved ||
+                        !validInput ||
+                        busy ||
+                        JSON.stringify(saved.design) ===
+                          JSON.stringify(state.design)
+                      }
+                      onClick={() =>
+                        void commit("/save", {
+                          baseRevision: saved!.revision,
+                          design: state.design,
+                          reason: "手動でFoundationを編集",
+                          requestId: crypto.randomUUID(),
+                        })
+                      }
+                    >
+                      変更を保存
+                    </button>
+                    <button
+                      className="button"
+                      disabled={!saved || busy}
+                      onClick={() => {
+                        setState((s) => ({ ...s, design: saved!.design }));
+                        proposal.reset();
+                        setHistory([]);
+                      }}
+                    >
+                      未保存の変更を取り消す
+                    </button>
+                  </div>
+                  <details>
+                    <summary>
+                      確定履歴（revision {saved?.revision ?? "未接続"}）
+                    </summary>
+                    {revisions
+                      .slice()
+                      .reverse()
+                      .map((r) => (
+                        <div key={r.revision}>
+                          r{r.revision} · {r.reason} ·{" "}
+                          {new Date(r.createdAt).toLocaleString()}{" "}
+                          <button
+                            className="button small"
+                            disabled={busy || r.revision === saved?.revision}
+                            onClick={() =>
+                              void commit("/restore", {
+                                baseRevision: saved!.revision,
+                                target: r.revision,
+                                requestId: crypto.randomUUID(),
+                              })
+                            }
+                          >
+                            r{r.revision}を復元
+                          </button>
+                        </div>
+                      ))}
+                  </details>
                 </section>
                 <div className="section-heading">
                   <div>
@@ -888,12 +881,16 @@ export function Workspace() {
                   <div>
                     <Code2 size={24} />
                     <h2>Your taste, written down.</h2>
-                    <p>現在の設定と回答を、次の制作に持ち出せます。</p>
+                    <p>
+                      Foundationの確定revision {saved?.revision ?? "未接続"}{" "}
+                      と回答を出力します。未保存の編集と未採用候補は含みません。
+                    </p>
                   </div>
                   <Pill>Draft export</Pill>
                 </div>
                 <div className="export-actions">
                   <button
+                    disabled={!saved || busy}
                     className="button primary"
                     onClick={() => {
                       download("DESIGN.md", markdown, "text/markdown");
@@ -903,15 +900,18 @@ export function Workspace() {
                     <ArrowDownToLine size={15} /> DESIGN.md
                   </button>
                   <button
+                    disabled={!saved || busy}
                     className="button"
                     onClick={() =>
                       download(
                         "design-system.json",
                         JSON.stringify(
                           {
-                            schemaVersion: 1,
+                            schemaVersion: 2,
+                            revision: saved?.revision ?? null,
+                            decisions: saved?.decisions ?? [],
                             status: "mock-draft",
-                            design: state.design,
+                            design: saved?.design ?? state.design,
                             taste: dna,
                             references: state.references.map(
                               ({ image: _image, ...r }) => r,
@@ -927,11 +927,12 @@ export function Workspace() {
                     JSON
                   </button>
                   <button
+                    disabled={!saved || busy}
                     className="button"
                     onClick={() =>
                       download(
                         "variables.css",
-                        `:root {\n  --color-accent: ${state.design.accent};\n  --radius-md: ${state.design.radius}px;\n  --space-row: ${state.design.spacing}px;\n  --font-size-body: ${state.design.fontSize}px;\n  --row-border: ${state.design.border ? "1px solid #e9e9e3" : "none"};\n  --surface-shadow: ${state.design.shadow ? "0 5px 18px #22222213" : "none"};\n}\n`,
+                        designCss(saved?.design ?? state.design),
                         "text/css",
                       )
                     }
@@ -975,8 +976,12 @@ export function Workspace() {
                 <span
                   className={connection.isError ? "offline-dot" : "local-dot"}
                 />
-                {connection.isError ? "APIに接続できません" : "Mock mode"}
-                <span>Codex未接続</span>
+                {connection.isError
+                  ? "APIに接続できません"
+                  : connection.data?.state === "ready"
+                    ? "Codex接続準備完了"
+                    : "Codex認証を確認してください"}
+                <span>ChatGPT認証を使用</span>
               </div>
               <div className="conversation-content">
                 <div className="companion-avatar">
@@ -1029,7 +1034,7 @@ export function Workspace() {
                 {proposal.isPending && (
                   <p className="muted" role="status">
                     <LoaderCircle size={14} className="spin" />{" "}
-                    モック提案を作成中…
+                    Codex候補を作成中…
                   </p>
                 )}
                 {proposal.isError && (
@@ -1039,14 +1044,33 @@ export function Workspace() {
                 )}
                 {proposal.data && (
                   <div className="proposal" role="status">
-                    <span className="context-label">MOCK PROPOSAL</span>
+                    <span className="context-label">CODEX PROPOSAL</span>
                     {proposal.data.supported ? (
                       <>
-                        <p>{proposal.data.explanation}</p>
+                        <div className="proposal-actions">
+                          {proposal.data.candidates.map((c, i) => (
+                            <button
+                              className="button small"
+                              aria-pressed={candidateIndex === i}
+                              key={c.id}
+                              onClick={() => setCandidateIndex(i)}
+                            >
+                              候補 {i + 1}
+                            </button>
+                          ))}
+                        </div>
+                        <p>
+                          {proposal.data.candidates[candidateIndex].explanation}
+                        </p>
                         <div className="proposal-diff">
-                          {Object.entries(proposal.data.design)
+                          {Object.entries(
+                            proposal.data.candidates[candidateIndex].design,
+                          )
                             .filter(
-                              ([k, v]) => state.design[k as keyof Design] !== v,
+                              ([k, v]) =>
+                                JSON.stringify(
+                                  state.design[k as keyof Design],
+                                ) !== JSON.stringify(v),
                             )
                             .map(([k, v]) => (
                               <div key={k}>
@@ -1055,7 +1079,7 @@ export function Workspace() {
                                   {String(state.design[k as keyof Design])}
                                 </del>
                                 <ArrowRight size={11} />
-                                <strong>{String(v)}</strong>
+                                <strong>{JSON.stringify(v)}</strong>
                               </div>
                             ))}
                         </div>
@@ -1063,10 +1087,13 @@ export function Workspace() {
                         <div className="proposal-actions">
                           <button
                             className="button primary small"
+                            disabled={busy}
                             onClick={() => {
                               if (proposal.data?.supported) {
-                                updateDesign(proposal.data.design);
-                                setNotice("提案を採用しました");
+                                void commit("/apply", {
+                                  id: proposal.data.candidates[candidateIndex]
+                                    .id,
+                                });
                               }
                             }}
                           >
@@ -1081,7 +1108,7 @@ export function Workspace() {
                         </div>
                       </>
                     ) : (
-                      <p>{proposal.data.message}</p>
+                      <p>候補はありません。</p>
                     )}
                   </div>
                 )}
@@ -1113,7 +1140,7 @@ export function Workspace() {
                     </button>
                   </div>
                 </form>
-                <p>モック提案 · AIへの送信は行いません</p>
+                <p>確定したFoundationとリクエストをCodexへ送信します</p>
               </div>
             </aside>
           )}

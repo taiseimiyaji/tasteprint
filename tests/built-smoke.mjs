@@ -42,6 +42,40 @@ try {
     "Content-Type": "application/json",
     Cookie: pair.headers.get("set-cookie").split(";")[0],
   };
+  const foundationPath = base + "/api/references/foundation";
+  const initial = await fetch(foundationPath, { headers });
+  assert.equal(initial.status, 200);
+  assert.equal((await initial.json()).current, null);
+  const imported = await fetch(foundationPath + "/initialize", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      design: {
+        accent: "#123456",
+        radius: 12,
+        spacing: 16,
+        fontSize: 14,
+        border: true,
+        shadow: false,
+      },
+    }),
+  });
+  assert.equal(imported.status, 200);
+  const foundation = await imported.json();
+  assert.equal(foundation.design.radius, 12);
+  assert.equal(foundation.design.duration, 160);
+  const saved = await fetch(foundationPath + "/save", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      baseRevision: foundation.revision,
+      design: { ...foundation.design, duration: 80 },
+      reason: "built smoke",
+      requestId: crypto.randomUUID(),
+    }),
+  });
+  assert.equal(saved.status, 200);
+  assert.equal((await saved.json()).revision, 2);
   const ref = await (
     await fetch(base + "/api/references", {
       method: "POST",

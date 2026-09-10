@@ -2504,3 +2504,173 @@ svg {
   margin: 4px 0 12px;
   line-height: 1.6;
 }
+
+.foundation-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.foundation-fields > p {
+  grid-column: 1 / -1;
+}
+.foundation-field {
+  border: 1px solid #e4e5df;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.foundation-field label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.foundation-field input:not([type="checkbox"]),
+.foundation-field select {
+  width: 55%;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #d6d9d0;
+  border-radius: 4px;
+  background: white;
+}
+.foundation-field .lock-field {
+  justify-content: flex-start;
+}
+.foundation-field summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #65764d;
+}
+@media (max-width: 700px) {
+  .foundation-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.sample-app {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-family);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height);
+  font-weight: var(--body-weight);
+  border-color: var(--color-border-color);
+}
+.sample-app .sample-sidebar,
+.sample-app th {
+  background: var(--color-canvas);
+}
+.sample-app .sample-content {
+  padding: var(--page-padding);
+}
+.sample-app .sample-heading {
+  margin-bottom: var(--section-gap);
+}
+.sample-app .sample-heading h3 {
+  font: var(--heading-weight) var(--heading1)/var(--line-height)
+    var(--font-family);
+}
+.sample-app h4 {
+  font-size: var(--heading2);
+  font-weight: var(--heading-weight);
+}
+.sample-app h5 {
+  font-size: var(--heading3);
+  font-weight: var(--heading-weight);
+}
+.sample-app .sample-heading p,
+.sample-app small,
+.sample-app th,
+.sample-app .sample-footer,
+.sample-app .sample-breadcrumb {
+  color: var(--color-muted);
+}
+.sample-app td {
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  border-bottom: var(--row-border);
+  height: var(--row-height);
+  padding-block: var(--space-row);
+}
+.sample-app td:first-child,
+.sample-app .sample-settings > label {
+  color: var(--color-ink);
+}
+.sample-app button,
+.sample-app input:not([type="checkbox"]),
+.sample-app select {
+  min-height: var(--control-height);
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--motion-duration) var(--motion-easing),
+    filter var(--motion-duration) var(--motion-easing);
+}
+.sample-app input:not([type="checkbox"]),
+.sample-app select {
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border-color: var(--color-border-color);
+  border-width: var(--border-width);
+}
+.sample-app :focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.sample-app .sample-status {
+  border-radius: var(--radius-pill);
+  color: var(--color-warning);
+}
+.sample-app .sample-status.done {
+  color: var(--color-success);
+}
+.sample-app .sample-status.done i {
+  background: var(--color-success);
+}
+.sample-app .error-text,
+.sample-app .danger {
+  color: var(--color-danger);
+}
+.sample-app .sample-settings {
+  gap: var(--section-gap);
+}
+.sample-app[data-layout="compact"] .sample-sidebar,
+.sample-app[data-layout="medium"] .sample-sidebar {
+  display: none;
+}
+.sample-app[data-layout="wide"] .sample-sidebar,
+.sample-app[data-layout="regular"] .sample-sidebar {
+  display: block;
+}
+.sample-app[data-layout="compact"] .sample-heading,
+.sample-app[data-layout="compact"] .sample-tools {
+  flex-wrap: wrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sample-app[data-reduced-motion="none"] {
+    --motion-duration: 0ms !important;
+  }
+  .sample-app[data-reduced-motion="instant"] {
+    --motion-duration: 1ms !important;
+  }
+}
+.foundation-inputs {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.foundation-inputs:disabled {
+  opacity: 0.65;
+}
+.token-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #d6d9d0;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: middle;
+}

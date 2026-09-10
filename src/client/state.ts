@@ -10,15 +10,30 @@ const referenceSchema = z.object({
   principles: z.array(findingSchema).optional(),
 });
 export type Reference = z.infer<typeof referenceSchema>;
-export const stateSchema = z.object({
-  version: z.literal(1),
-  design: designSchema,
-  answers: z.record(z.string(), z.enum(["a", "b", "both", "neither", "skip"])),
-  references: z.array(referenceSchema),
-});
+export const stateSchema = z.preprocess(
+  (value) => {
+    if (
+      value &&
+      typeof value === "object" &&
+      "version" in value &&
+      value.version === 1
+    )
+      return { ...value, version: 2 };
+    return value;
+  },
+  z.object({
+    version: z.literal(2),
+    design: designSchema,
+    answers: z.record(
+      z.string(),
+      z.enum(["a", "b", "both", "neither", "skip"]),
+    ),
+    references: z.array(referenceSchema),
+  }),
+);
 export type WorkspaceState = z.infer<typeof stateSchema>;
 export const initialState: WorkspaceState = {
-  version: 1,
+  version: 2,
   design: defaultDesign,
   answers: {},
   references: [
@@ -43,11 +58,12 @@ export const initialState: WorkspaceState = {
   ],
 };
 export const legacyStorageKey = "tasteprint.mock.v1";
-export const storageKey = "tasteprint.workspace.v2";
+export const storageKey = "tasteprint.workspace.v3";
 export function loadState(): WorkspaceState {
   try {
     const value =
       localStorage.getItem(storageKey) ??
+      localStorage.getItem("tasteprint.workspace.v2") ??
       localStorage.getItem(legacyStorageKey);
     return value ? stateSchema.parse(JSON.parse(value)) : initialState;
   } catch {

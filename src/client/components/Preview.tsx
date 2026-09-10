@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import {
   ArrowUpRight,
   Search,
@@ -11,6 +11,7 @@ import {
   CircleHelp,
 } from "lucide-react";
 import type { Design } from "../../domain/design";
+import { designVariables, shadowValue } from "../../domain/tokens";
 export const previewRows = [
   {
     name: "Website redesign",
@@ -68,13 +69,32 @@ export function Preview({
   const [saved, setSaved] = useState(false);
   const [rows, setRows] = useState(previewRows);
   const [name, setName] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+  const [pixelWidth, setPixelWidth] = useState(1440);
+  useEffect(() => {
+    if (!root.current) return;
+    const observer = new ResizeObserver((entries) =>
+      setPixelWidth(entries[0].contentRect.width),
+    );
+    observer.observe(root.current);
+    return () => observer.disconnect();
+  }, []);
+  const layout =
+    pixelWidth < design.compactBreakpoint
+      ? "compact"
+      : pixelWidth < design.mediumBreakpoint
+        ? "medium"
+        : pixelWidth < design.wideBreakpoint
+          ? "regular"
+          : "wide";
   const style = {
+    ...designVariables(design),
     "--preview-accent": design.accent,
     "--preview-radius": `${design.radius}px`,
     "--preview-space": `${design.spacing}px`,
     "--preview-font": `${design.fontSize}px`,
-    "--preview-border": design.border ? "#e9e9e3" : "transparent",
-    "--preview-shadow": design.shadow ? "0 5px 18px #22222213" : "none",
+    "--preview-border": design.border ? design.borderColor : "transparent",
+    "--preview-shadow": design.shadow ? shadowValue(design) : "none",
   } as CSSProperties;
   const filtered = rows.filter(
     (r) =>
@@ -83,6 +103,9 @@ export function Preview({
   );
   return (
     <div
+      ref={root}
+      data-layout={layout}
+      data-reduced-motion={design.reducedMotion}
       className={`sample-app ${compact ? "sample-compact" : ""}`}
       style={style}
     >

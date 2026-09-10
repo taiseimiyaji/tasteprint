@@ -25,16 +25,16 @@ npm start
 
 通常実行も初期ポートは3000です。開発サーバーを終了してから起動してください。通常実行のポートは `PORT` で変更できます。
 
-## モックで試せること
+## 試せること
 
 - 8段階の画面遷移、参考URL・画像と観点の登録
 - 14問のTaste比較とProfile
-- Foundationの変更、3画面Preview、取り消し
-- 定型の提案の仮反映・採用・見送り
+- Foundationの8分類の詳細編集、項目ロック・適用範囲・例外・理由・出典、3画面Preview
+- Codex候補の比較・採用・見送り、Foundationの保存履歴と復元
 - 部品・パターンの操作例、簡易チェック
 - Markdown / JSON / CSSの個別ダウンロード
 
-参考情報はサーバーのSQLiteと画像ファイルに保存します。その他の設定はブラウザのlocalStorageです。対話パネルの定型提案は引き続きモックです。複数プロジェクト、Tunnel、DTCG / React / PNG / ZIP一括出力は未実装です。
+参考情報とFoundationの確定履歴はサーバーのSQLiteに保存します。FoundationはInspirationで接続後に編集できます。Taste回答などはブラウザのlocalStorageです。対話パネルは確定したFoundationと要求をCodexへ送信し、候補を明示採用します。複数プロジェクト、Tunnel、DTCG / React / PNG / ZIP一括出力は未実装です。
 
 ## 検証
 
@@ -49,6 +49,7 @@ npm run test:e2e
 
 - [SPEC.md](./SPEC.md) — MVP仕様と現在のモック範囲
 - [Architecture](./docs/architecture.md) — 技術比較と採用理由
+- [Foundation](./docs/foundation.md) — 詳細編集・保存・ロック・候補比較の仕様
 - [Mockup guide](./docs/mockup.md) — 操作ガイド
 
 ## 参考URLの取得と分析
