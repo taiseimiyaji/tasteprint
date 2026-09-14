@@ -10,12 +10,19 @@ import { CaptureError } from "../capture/proxy";
 import { CodexGateway } from "../codex/gateway";
 import { FoundationService } from "../foundation/service";
 import { foundationRoutes } from "../foundation/routes";
+import { ReviewService } from "../review/service";
+import { reviewCapture } from "../review/capture";
+import { reviewRoutes } from "../review/routes";
 export function referenceRoutes(
   service: ReferenceService,
   pairingCode: string,
   gateway = new CodexGateway(),
   allowedPorts = [3000, 3001],
   foundation = new FoundationService(service.db),
+  reviews = new ReviewService(
+    foundation,
+    reviewCapture(`http://127.0.0.1:${allowedPorts.at(-1)}`),
+  ),
 ) {
   const sessions = new Set<string>();
   let paired = false;
@@ -66,6 +73,7 @@ export function referenceRoutes(
       return c.json({ message: "処理に失敗しました。" }, 500);
     })
     .route("/foundation", foundationRoutes(foundation))
+    .route("/reviews", reviewRoutes(reviews))
     .post(
       "/pair",
       zValidator("json", z.object({ code: z.string().max(128) })),

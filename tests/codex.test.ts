@@ -182,3 +182,35 @@ it("generates text-only Foundation patches with locked paths excluded from struc
     db.close();
   }
 });
+
+it("passes all review images in order and removes isolated copies", async () => {
+  const dir = directory();
+  writeFileSync(
+    join(dir, "auth.json"),
+    JSON.stringify({ auth_mode: "chatgpt", tokens: { access_token: "fake" } }),
+  );
+  const images = ["list", "settings", "form"].map((name) => {
+    const path = join(dir, `${name}.png`);
+    writeFileSync(path, name);
+    return path;
+  });
+  const { readFileSync } = await import("node:fs");
+  const { reviewOutput } = await import("../src/domain/review");
+  let copies: string[] = [];
+  sdk.run.mockImplementation(async (input) => {
+    copies = input.slice(1).map((item: { path: string }) => item.path);
+    expect(copies.map((path) => readFileSync(path, "utf8"))).toEqual([
+      "list",
+      "settings",
+      "form",
+    ]);
+    return { finalResponse: JSON.stringify({ findings: [] }) };
+  });
+  await new CodexGateway(dir).run(
+    "Review",
+    reviewOutput,
+    new AbortController().signal,
+    images,
+  );
+  expect(copies.every((path) => !existsSync(path))).toBe(true);
+});

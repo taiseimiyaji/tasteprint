@@ -43,7 +43,7 @@ test("foundation, proposal staging, undo, persistence, and export work together"
   await expect(
     page.getByRole("button", { name: "変更を保存", exact: true }),
   ).toBeDisabled();
-  await expect(page.locator(".sample-app")).toHaveCSS(
+  await expect(page.frameLocator("iframe").locator(".sample-app")).toHaveCSS(
     "--preview-accent",
     "#526f99",
   );
@@ -55,7 +55,10 @@ test("foundation, proposal staging, undo, persistence, and export work together"
   await page.getByRole("button", { name: "角丸をもう少し弱くしたい" }).click();
   await expect(page.getByText("プレビューに仮反映しています")).toBeVisible();
   await page.getByRole("button", { name: "候補 2", exact: true }).click();
-  await expect(page.locator(".sample-app")).toHaveCSS("border-radius", "2px");
+  await expect(page.frameLocator("iframe").locator(".sample-app")).toHaveCSS(
+    "border-radius",
+    "2px",
+  );
   await page.getByRole("button", { name: "採用する" }).click();
   await expect(page.getByText(/確定履歴（revision 3/)).toBeVisible();
   await page.getByRole("tab", { name: "Radius", exact: true }).click();
@@ -197,12 +200,20 @@ test("preview search, form, dialog, and narrow layout are usable", async ({
   page,
 }) => {
   await page.goto("/preview");
-  await page.getByRole("textbox", { name: "Search projects" }).fill("Brand");
-  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await page
+    .frameLocator("iframe")
+    .getByRole("textbox", { name: "Search projects" })
+    .fill("Brand");
+  await expect(page.frameLocator("iframe").locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page
+    .frameLocator("iframe")
+    .getByRole("button", { name: "Save changes", exact: true })
+    .click();
   await expect(
-    page.getByRole("button", { name: "Saved in preview" }),
+    page
+      .frameLocator("iframe")
+      .getByRole("button", { name: "Saved in preview" }),
   ).toBeVisible();
   await page.goto("/components");
   await page.getByRole("button", { name: "Dialog", exact: true }).click();
@@ -244,4 +255,44 @@ test("all routes render and foundation screenshot is captured", async ({
     path: "test-results/foundation-desktop.png",
     fullPage: true,
   });
+});
+
+test("review images, evidence, dismissal, preview and explicit revision apply", async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await page.goto("/review");
+  await page.getByRole("button", { name: "3画面を撮影してレビュー" }).click();
+  await expect(page.getByText("要判断の指摘数:", { exact: false })).toBeVisible(
+    { timeout: 90000 },
+  );
+  await expect(page.getByText("検証未完了:", { exact: false })).toHaveCount(0);
+  await page.screenshot({ path: "test-results/review-desktop.png" });
+  await page.getByText("入力画像・DNA・関連ルール", { exact: true }).click();
+  await expect(page.locator(".review-results img")).toHaveCount(3);
+  await page
+    .getByRole("button", { name: "見送る", exact: true })
+    .first()
+    .click();
+  await expect(page.getByText("見送り済み: 理由なし")).toBeVisible();
+  await page.getByRole("button", { name: "修正案を作成", exact: true }).click();
+  await page
+    .getByRole("button", { name: "仮Preview:", exact: false })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "仮Preview · 未適用" }),
+  ).toBeVisible();
+  await expect(page.locator("iframe")).toHaveCount(3);
+  await page.getByRole("button", { name: "まとめて適用", exact: true }).click();
+  await expect(
+    page.getByText("古い結果 · 再レビューしてください", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "修正案を作成", exact: true }),
+  ).toBeDisabled();
+  await page.reload();
+  await expect(
+    page.getByText("古い結果 · 再レビューしてください", { exact: false }),
+  ).toBeVisible();
 });

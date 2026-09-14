@@ -555,3 +555,7 @@ MVP完成はM4までとする。途中段階のデモを、全仕様の完成と
 Foundationは8分類の詳細トークン、項目ロック、適用範囲・例外・理由・出典の編集に対応する。確定スナップショットと変更理由をSQLiteへ保存し、Codex候補の比較・採用、履歴復元、確定revisionからのMarkdown / JSON / CSS出力を接続した。ロックは生成対象スキーマとサーバー適用時の両方で保護し、古いrevisionの候補を拒否する。既存6項目のブラウザデータは初回のみ移行する。
 
 Foundation単位のrevisionを追加した段階であり、全プロジェクトのDesignSystem正本への統合、DTCG・React・PNG・ZIP出力は引き続き別実装。自由記述の適用方針は保存・AI文脈として扱い、任意の文章をPreviewコードとして実行しない。操作・データ・検証範囲は [Foundation](./docs/foundation.md) を参照。
+
+## 20. 実画面レビューの実装状況（Issue #4）
+
+§5.10の実画面レビューを実装。確定Foundation revisionのDNA・設定・ルールと、独立したPreviewレンダラーによる3画面PNGを保存し、機械検証とCodex解釈を区別する。根拠・関連ルール・検証範囲、候補の仮Preview／明示適用、見送り理由と古いrevisionの保護に対応する。§17の簡易チェック・iframe未対応の記載はこの実装で置き換える。検査対象と制約、テストは [AI Review](./docs/review.md) を参照。

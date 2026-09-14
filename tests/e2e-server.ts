@@ -8,6 +8,8 @@ import { app } from "../src/server/app";
 import { ReferenceService } from "../src/server/references/service";
 import { referenceRoutes } from "../src/server/references/routes";
 import { CaptureError } from "../src/server/capture/proxy";
+import { ReviewService } from "../src/server/review/service";
+import { reviewCapture } from "../src/server/review/capture";
 const dir = mkdtempSync(join(tmpdir(), "tasteprint-e2e-"));
 const service = new ReferenceService(
   dir,
@@ -31,6 +33,24 @@ const service = new ReferenceService(
     ],
   }),
 );
+const foundation = new FoundationService(service.db, async (design) => ({
+  candidates: [
+    {
+      design: {
+        ...design,
+        radius: design.constraints.radius?.locked ? design.radius : 4,
+      },
+      explanation: "角丸を小さくします",
+    },
+    {
+      design: {
+        ...design,
+        radius: design.constraints.radius?.locked ? design.radius : 2,
+      },
+      explanation: "直線的に整えます",
+    },
+  ],
+}));
 app.route(
   "/api/references",
   referenceRoutes(
@@ -38,24 +58,23 @@ app.route(
     "e2e-pair-code",
     undefined,
     [3100, 3101],
-    new FoundationService(service.db, async (design) => ({
-      candidates: [
-        {
-          design: {
-            ...design,
-            radius: design.constraints.radius?.locked ? design.radius : 4,
+    foundation,
+    new ReviewService(
+      foundation,
+      reviewCapture("http://127.0.0.1:3100"),
+      async () => ({
+        findings: [
+          {
+            ruleId: "visual-hierarchy",
+            targetPath: "list:heading",
+            severity: "warning",
+            evidence: "見出しと本文の強弱が小さい",
+            explanation: "情報階層を確認",
+            suggestedChange: "見出しを強調",
           },
-          explanation: "角丸を小さくします",
-        },
-        {
-          design: {
-            ...design,
-            radius: design.constraints.radius?.locked ? design.radius : 2,
-          },
-          explanation: "直線的に整えます",
-        },
-      ],
-    })),
+        ],
+      }),
+    ),
   ),
 );
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 3101 });
