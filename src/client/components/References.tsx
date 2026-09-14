@@ -6,8 +6,8 @@ import {
   type SavedReference,
   type ReferenceInput,
 } from "../../domain/reference";
-import { loadLegacyReferences } from "../state";
-const base = "/api/references";
+import { useScope } from "../scope";
+import type { Principle } from "../../domain/projects";
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -16,7 +16,8 @@ class ApiError extends Error {
     super(message);
   }
 }
-async function request<T>(
+async function referenceRequest<T>(
+  base: string,
   path = "",
   method = "GET",
   body?: unknown,
@@ -47,17 +48,21 @@ const defaults = (name: string, url = ""): ReferenceInput => ({
 });
 export function References({
   onChange,
+  onAdopt,
 }: {
   onChange: (references: SavedReference[]) => void;
+  onAdopt?: (principle: Principle) => void;
 }) {
+  const scope = useScope(),
+    base = `${scope.api}/references`;
+  const request = <T,>(path = "", method = "GET", body?: unknown) =>
+    referenceRequest<T>(base, path, method, body);
   const client = useQueryClient();
-  const [legacy, setLegacy] = useState(loadLegacyReferences);
   const [url, setUrl] = useState("");
-  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const query = useQuery({
-    queryKey: ["references"],
+    queryKey: ["references", scope.id],
     queryFn: () => request<{ references: SavedReference[]; jobs: Job[] }>(),
     retry: false,
     refetchInterval: (q) =>
@@ -79,7 +84,7 @@ export function References({
     setBusy(true);
     try {
       await action();
-      await client.invalidateQueries({ queryKey: ["references"] });
+      await client.invalidateQueries({ queryKey: ["references", scope.id] });
     } catch (e) {
       setError(e instanceof Error ? e.message : "処理に失敗しました。");
     } finally {
@@ -90,30 +95,13 @@ export function References({
     query.error instanceof ApiError && query.error.status === 401;
   if (needsPair)
     return (
-      <section className="reference-connect">
-        <p>
-          参考画像と分析結果をこのホストに保存します。起動ターミナルの接続コードを入力してください。
+      <section>
+        <p role="alert">
+          接続が切れています。起動ターミナルの接続コードを確認してください。
         </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(() => request("/pair", "POST", { code }));
-          }}
-        >
-          <label>
-            接続コード{" "}
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              autoComplete="off"
-              required
-            />
-          </label>
-          <button className="button primary" disabled={busy}>
-            接続する
-          </button>
-        </form>
-        {error && <p role="alert">{error}</p>}
+        <button className="button" onClick={() => location.reload()}>
+          接続画面を開く
+        </button>
       </section>
     );
   return (
@@ -126,65 +114,6 @@ export function References({
           </small>
         </p>
       </div>
-      {legacy.length > 0 && (
-        <section className="reference-connect">
-          <p>
-            以前このブラウザに保存した参考が{legacy.length}
-            件あります。元の保存データを残したまま取り込めます。
-          </p>
-          <button
-            className="button"
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                for (const old of legacy) {
-                  const selections = old.aspects
-                    .filter((a): a is (typeof aspects)[number] =>
-                      aspects.includes(a as (typeof aspects)[number]),
-                    )
-                    .map((aspect) => ({
-                      aspect,
-                      intent: "reference" as const,
-                    }));
-                  const created = await request<SavedReference>("", "POST", {
-                    ...defaults(old.name, old.url),
-                    ...(selections.length ? { selections } : {}),
-                  });
-                  try {
-                    if (old.image) {
-                      if (
-                        !/^data:image\/(png|jpeg|webp);base64,/.test(old.image)
-                      )
-                        throw new Error("保存画像の形式を確認してください。");
-                      const blob = await (await fetch(old.image)).blob();
-                      const form = new FormData();
-                      form.set("image", blob, "reference.png");
-                      form.set("version", String(created.version));
-                      await request(`/${created.id}/image`, "POST", form);
-                    }
-                  } catch (e) {
-                    await request(`/${created.id}`, "DELETE", {
-                      version: created.version,
-                    });
-                    throw e;
-                  }
-                  const imported: string[] = JSON.parse(
-                    localStorage.getItem("tasteprint.references.imported") ||
-                      "[]",
-                  );
-                  localStorage.setItem(
-                    "tasteprint.references.imported",
-                    JSON.stringify([...imported, old.id]),
-                  );
-                  setLegacy((list) => list.filter((r) => r.id !== old.id));
-                }
-              })
-            }
-          >
-            以前の参考を取り込む
-          </button>
-        </section>
-      )}
       <form
         className="reference-form"
         onSubmit={(e) => {
@@ -255,6 +184,7 @@ export function References({
           <ReferenceCard
             key={ref.id}
             reference={ref}
+            onAdopt={onAdopt}
             jobs={query.data.jobs.filter((j) => j.referenceId === ref.id)}
             run={run}
             busy={busy}
@@ -269,19 +199,37 @@ export function References({
 }
 function ReferenceCard({
   reference: r,
+  onAdopt,
   jobs,
   run,
   busy,
 }: {
   reference: SavedReference;
+  onAdopt?: (principle: Principle) => void;
   jobs: Job[];
   run: (action: () => Promise<unknown>) => Promise<void>;
   busy: boolean;
 }) {
-  const [draft, setDraft] = useState<ReferenceInput>(r);
+  const scope = useScope(),
+    base = `${scope.api}/references`;
+  const request = <T,>(path = "", method = "GET", body?: unknown) =>
+    referenceRequest<T>(base, path, method, body);
+  const key = `tasteprint.${scope.id}.reference.${r.id}`;
+  const [draft, setDraft] = useState<ReferenceInput>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(key) || "null") ?? r;
+    } catch {
+      return r;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(draft));
+    } catch {}
+  }, [draft]);
   const [consent, setConsent] = useState(false);
   useEffect(() => {
-    setDraft(r);
+    setDraft((d) => (JSON.stringify(d) === JSON.stringify(r) ? r : d));
     setConsent(false);
   }, [r.version]);
   const job = jobs.at(-1);
@@ -523,6 +471,15 @@ function ReferenceCard({
                   request(`/${r.id}/accept`, "POST", {
                     version: r.version,
                     index: i,
+                  }).then(() => {
+                    onAdopt?.({
+                      id: `reference:${r.id}:${i}`,
+                      target: finding.aspect,
+                      text: finding.recommendation,
+                      reason: finding.interpretation,
+                      sources: [r.url || r.name, finding.evidence],
+                      locked: false,
+                    });
                   }),
                 )
               }

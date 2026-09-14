@@ -2674,3 +2674,152 @@ svg {
   margin-right: 5px;
   vertical-align: middle;
 }
+
+.global-navigation {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 24px;
+  background: #fbfcf9;
+  border-bottom: 1px solid #dce1d7;
+  flex-wrap: wrap;
+}
+.global-navigation a,
+.project-summary a {
+  color: #3d5330;
+  text-decoration: none;
+  font-weight: 600;
+}
+.global-navigation label {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.global-navigation select {
+  max-width: 240px;
+}
+.project-summary {
+  padding: 12px 24px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: #edf1e7;
+}
+.projects-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 28px 100px;
+  line-height: 1.7;
+}
+.projects-page h1 {
+  font-size: 32px;
+  margin: 0 0 16px;
+}
+.projects-page h2 {
+  margin-top: 32px;
+}
+.projects-page form,
+.project-list article,
+.taste-diff {
+  border: 1px solid #dde2d7;
+  border-radius: 8px;
+  padding: 24px;
+  margin: 20px 0;
+  background: #fff;
+}
+.projects-page label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+.projects-page label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+}
+.projects-page input:not([type="checkbox"]),
+.projects-page select,
+.projects-page textarea {
+  padding: 10px;
+  border: 1px solid #bec8b5;
+  border-radius: 4px;
+  width: 100%;
+  background: #fff;
+}
+.projects-page input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+.projects-page .button {
+  margin: 8px 8px 8px 0;
+}
+.projects-page pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+.brief-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 24px;
+}
+.principle-fields,
+.taste-question {
+  padding: 16px;
+  margin: 16px 0;
+  border: 1px solid #dce1d7;
+  min-width: 0;
+}
+.project-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.projects-page [role="alert"] {
+  color: #9b342c;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .global-navigation {
+    gap: 12px;
+    padding: 12px;
+  }
+  .global-navigation label {
+    margin-left: 0;
+  }
+  .projects-page {
+    padding: 24px 16px;
+  }
+  .brief-fields {
+    grid-template-columns: 1fr;
+  }
+  .projects-page form {
+    padding: 16px;
+  }
+}
+
+.workspace {
+  align-items: flex-start;
+}
+.workspace .sidebar {
+  position: sticky;
+  inset: auto;
+  top: 64px;
+  height: calc(100vh - 64px);
+}
+.workspace .workspace-body {
+  margin-left: 0;
+  flex: 1;
+}
+@media (max-width: 720px) {
+  .workspace .sidebar {
+    top: 100px;
+    height: calc(100vh - 100px);
+  }
+}

@@ -30,8 +30,8 @@ try {
   for (let i = 0; i < 50 && !ready && child.exitCode === null; i++)
     await new Promise((resolve) => setTimeout(resolve, 100));
   assert(ready, `Built server did not start: ${logs}`);
-  assert.equal((await fetch(base + "/api/references")).status, 401);
-  const pair = await fetch(base + "/api/references/pair", {
+  assert.equal((await fetch(base + "/api/profile/references")).status, 401);
+  const pair = await fetch(base + "/api/pair", {
     method: "POST",
     headers: { Origin: base, "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
@@ -42,27 +42,18 @@ try {
     "Content-Type": "application/json",
     Cookie: pair.headers.get("set-cookie").split(";")[0],
   };
-  const foundationPath = base + "/api/references/foundation";
-  const initial = await fetch(foundationPath, { headers });
-  assert.equal(initial.status, 200);
-  assert.equal((await initial.json()).current, null);
-  const imported = await fetch(foundationPath + "/initialize", {
+  const created = await fetch(base + "/api/projects", {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      design: {
-        accent: "#123456",
-        radius: 12,
-        spacing: 16,
-        fontSize: 14,
-        border: true,
-        shadow: false,
-      },
-    }),
+    body: JSON.stringify({ brief: { name: "Built smoke" }, useTaste: false }),
   });
-  assert.equal(imported.status, 200);
-  const foundation = await imported.json();
-  assert.equal(foundation.design.radius, 12);
+  assert.equal(created.status, 201);
+  const project = await created.json();
+  const foundationPath = base + `/api/projects/${project.id}/foundation`;
+  const initial = await fetch(foundationPath, { headers });
+  assert.equal(initial.status, 200);
+  const foundation = (await initial.json()).current;
+  assert.equal(foundation.design.radius, 6);
   assert.equal(foundation.design.duration, 160);
   const saved = await fetch(foundationPath + "/save", {
     method: "POST",
@@ -77,7 +68,7 @@ try {
   assert.equal(saved.status, 200);
   assert.equal((await saved.json()).revision, 2);
   const ref = await (
-    await fetch(base + "/api/references", {
+    await fetch(base + "/api/profile/references", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -87,7 +78,7 @@ try {
       }),
     })
   ).json();
-  const started = await fetch(base + `/api/references/${ref.id}/jobs`, {
+  const started = await fetch(base + `/api/profile/references/${ref.id}/jobs`, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -101,7 +92,7 @@ try {
   let result;
   for (let i = 0; i < 50; i++) {
     result = await (
-      await fetch(base + `/api/references/jobs/${job.id}`, { headers })
+      await fetch(base + `/api/profile/references/jobs/${job.id}`, { headers })
     ).json();
     if (result.job.state === "failed") break;
     await new Promise((resolve) => setTimeout(resolve, 100));

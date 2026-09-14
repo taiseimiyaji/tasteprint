@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command:
       "npx concurrently -k 'tsx tests/e2e-server.ts' 'TASTEPRINT_WEB_PORT=3100 TASTEPRINT_API_PORT=3101 vite'",
-    url: "http://127.0.0.1:3100/api/connection",
+    url: "http://127.0.0.1:3100/api/health",
     reuseExistingServer: false,
   },
 });

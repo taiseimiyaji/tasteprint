@@ -33,6 +33,7 @@ export function reviewRoutes(service: ReviewService) {
       zValidator(
         "json",
         z.object({
+          baseRevision: z.number().int().positive(),
           findingId: z.string().uuid(),
           reason: z.string().max(2000),
         }),
@@ -40,7 +41,12 @@ export function reviewRoutes(service: ReviewService) {
       (c) => {
         const v = c.req.valid("json");
         return c.json(
-          service.dismiss(c.req.param("id"), v.findingId, v.reason),
+          service.dismiss(
+            c.req.param("id"),
+            v.findingId,
+            v.reason,
+            v.baseRevision,
+          ),
         );
       },
     )

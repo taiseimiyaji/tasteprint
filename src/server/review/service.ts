@@ -84,6 +84,14 @@ export class ReviewService {
           "Foundation保存時に確定したTaste集計と方針。未回答はnull、旧revisionにDNAがない場合は未確認",
       },
       rules: [
+        ...(base.snapshot?.policies ?? []).map((p) => ({
+          id: `project.${p.id}`,
+          description: JSON.stringify(p),
+        })),
+        ...(base.snapshot?.taste.principles ?? []).map((p) => ({
+          id: `taste.${p.id}`,
+          description: JSON.stringify(p),
+        })),
         ...machineRules,
         ...Object.entries(base.design.constraints).map(([id, value]) => ({
           id: `foundation.${id}`,
@@ -155,7 +163,13 @@ export class ReviewService {
     }
     return this.put(review);
   }
-  dismiss(id: string, findingId: string, reason: string) {
+  dismiss(
+    id: string,
+    findingId: string,
+    reason: string,
+    baseRevision?: number,
+  ) {
+    if (baseRevision !== undefined) this.current(baseRevision);
     const review = this.get(id);
     const f = review.findings.find((f) => f.id === findingId);
     if (!f) throw new ServiceError(404, "指摘がありません。");
