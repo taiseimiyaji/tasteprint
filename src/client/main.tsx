@@ -5,38 +5,23 @@ import {
   createRoute,
   createRouter,
   RouterProvider,
-  redirect,
-  notFound,
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Workspace, steps } from "./workspace";
 import "./styles.css";
 import { PreviewRenderer } from "./components/PreviewFrame";
-const root = createRootRoute({
-  component: Workspace,
-  notFoundComponent: () => (
-    <main className="not-found">
-      <h1>ページが見つかりません</h1>
-      <a href="/foundation">ワークスペースに戻る</a>
-    </main>
-  ),
-});
+import { ProjectsApp } from "./projects";
+const root = createRootRoute({ component: ProjectsApp });
 const index = createRoute({
   getParentRoute: () => root,
   path: "/",
-  beforeLoad: () => {
-    throw redirect({ to: "/$step", params: { step: "foundation" } });
-  },
-});
-const step = createRoute({
-  getParentRoute: () => root,
-  path: "/$step",
-  beforeLoad: ({ params }) => {
-    if (!steps.some((s) => s.id === params.step)) throw notFound();
-  },
   component: () => null,
 });
-const router = createRouter({ routeTree: root.addChildren([index, step]) });
+const all = createRoute({
+  getParentRoute: () => root,
+  path: "/$",
+  component: () => null,
+});
+const router = createRouter({ routeTree: root.addChildren([index, all]) });
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;

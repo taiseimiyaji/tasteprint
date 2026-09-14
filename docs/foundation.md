@@ -1,5 +1,6 @@
 # Foundation editing and revisions (Issue #2)
 
+> Issue #9以降、共通の好みとプロジェクトの保存先・ルートを分離しています。現行の操作・API・移行手順は [projects.md](projects.md) を参照してください。以下の旧グローバルAPI・localStorageの記述は移行前の説明です。
 Foundation now has eight editable groups: semantic colors; typography families, heading levels, line height and weights; spacing scale and layout dimensions; named radii and usage; border width/color/policy; shadow geometry/color/opacity/allowed uses; motion; and breakpoints with responsive policies.
 
 ## Workflow

@@ -23,12 +23,17 @@ export function referenceRoutes(
     foundation,
     reviewCapture(`http://127.0.0.1:${allowedPorts.at(-1)}`),
   ),
+  trusted = false,
 ) {
   const sessions = new Set<string>();
   let paired = false;
   const version = z.number().int().positive();
   return new Hono()
     .use("*", async (c, next) => {
+      if (trusted) {
+        await next();
+        return;
+      }
       const host = c.req.header("host") || new URL(c.req.url).host;
       if (
         !allowedPorts.some(

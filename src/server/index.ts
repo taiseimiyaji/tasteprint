@@ -1,24 +1,23 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { fileURLToPath } from "node:url";
-import { app } from "./app";
+import { Hono } from "hono";
+const app = new Hono();
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { ReferenceService } from "./references/service";
-import { referenceRoutes } from "./references/routes";
+import { ProjectService } from "./projects/service";
+import { projectRoutes } from "./projects/routes";
 const built = import.meta.url.includes("/dist/");
 const port = Number(process.env.PORT || (built ? 3000 : 3001));
-const references = new ReferenceService(
+const references = new ProjectService(
   process.env.TASTEPRINT_DATA_DIR || join(homedir(), ".tasteprint"),
+  { previewOrigin: `http://127.0.0.1:${built ? port : 3000}` },
 );
 const pairingCode = randomBytes(16).toString("hex");
 app.route(
-  "/api/references",
-  referenceRoutes(references, pairingCode, undefined, [
-    port,
-    ...(built ? [] : [3000]),
-  ]),
+  "/api",
+  projectRoutes(references, pairingCode, [port, ...(built ? [] : [3000])]),
 );
 console.log(`Tasteprint 接続コード: ${pairingCode}`);
 if (built) {

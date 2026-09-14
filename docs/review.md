@@ -1,5 +1,6 @@
 # 実画面レビュー（Issue #4）
 
+> Issue #9以降、共通の好みとプロジェクトの保存先・ルートを分離しています。現行の操作・API・移行手順は [projects.md](projects.md) を参照してください。以下の旧グローバルAPI・localStorageの記述は移行前の説明です。
 Inspirationで接続してFoundationを保存した後、AI Reviewの「3画面を撮影してレビュー」を実行する。確定revisionの設定・constraints・決定履歴と、Foundation保存時に確定したTaste集計（DNA）を使用する。未回答はnull、DNA保存以前のrevisionは未確認として扱う。保存後のTaste回答や未保存の編集は入力に含まない。
 
 Previewと撮影は `/preview-render` の同じReactレンダラーを使用する。編集画面はiframeで分離し、同一originの準備完了通知後に検証済み設定を送信する。内部撮影はサーバーが指定する固定loopback originだけに接続する。参考URL取得の外部サイト用プロキシとは別経路で、リクエストから撮影URLは指定できない。

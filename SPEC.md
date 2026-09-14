@@ -41,7 +41,7 @@ CodexなどでWebアプリを開発し、見た目の好みはあるが、具体
 
 | 領域 | MVPで提供するもの | 後続で追加するもの |
 | --- | --- | --- |
-| Project | 複数プロジェクトの作成・一覧・再開・アーカイブ | 複製、インポート、プロジェクト間の好みの継承 |
+| Project | 共通の好み、複数プロジェクトの作成・一覧・再開・アーカイブ／解除、確定好みのsnapshot継承・差分採用 | 複製、成果物の移動、チーム共有、複数プロフィール |
 | Inspiration | 公開URL取得、画像アップロード、参照する観点の選択、分析 | 認証サイト、動画、領域切り抜き、ブラウザ拡張 |
 | Taste | 固定14問のA/B比較、スキップ、理由メモ、回答変更 | 適応的な質問、ユーザー独自の比較 |
 | Foundation | 色・文字・余白・角丸・境界・影・動き・画面幅の編集と提案 | ダークモード、複数テーマ、高度な色生成 |
@@ -57,10 +57,10 @@ CodexなどでWebアプリを開発し、見た目の好みはあるが、具体
 ## 4. 中核となる操作フロー
 
 ```text
-プロジェクト作成（用途・対象ユーザー・目指す印象）
-  → Inspiration: 何のどこが好きかを選ぶ
-  → Taste: 見比べて判断する
-  → Design DNAの仮説を確認・採用する
+自分の好み（プロジェクト未作成でも利用可能）
+  → 共通Inspiration / Taste / 理由 / Design DNAの確認・確定
+  → プロジェクト作成（名前必須、用途など任意、採用する共通版を確認）
+  → 概要・プロジェクト固有の方針・例外
   → Foundation: 値の候補を実画面で選ぶ
   → Components / Patterns: 振る舞いと構成を確認する
   → Preview: 「もう少し詰めたい」などを対話で調整する
@@ -74,7 +74,8 @@ CodexなどでWebアプリを開発し、見た目の好みはあるが、具体
 
 ### 5.1 共通レイアウト
 
-- 左: プロジェクト切り替え、8段階のナビゲーション、進捗。
+- 全体ナビゲーション: 「自分の好み」「プロジェクト」、現在のプロジェクト名、切り替え。
+- 左: プロジェクト内の各段階のナビゲーション、進捗。
 - 中央: 各段階の編集・比較・プレビュー。
 - 右: 開閉可能なCodex対話パネル。現在の対象、提案、根拠、適用ボタンを表示。
 - 上部: プロジェクト名、保存状態、変更履歴、Export。
@@ -85,11 +86,15 @@ CodexなどでWebアプリを開発し、見た目の好みはあるが、具体
 
 ### 5.2 Project / 初回設定
 
-入力項目は名前（必須）、用途、対象ユーザー、目指す印象、避けたい印象。用途は管理画面を初期値にする。
+入力項目は名前（必須）、用途、対象ユーザー、目指す印象、避けたい印象。用途などは任意入力とする。作成時は「共通の好みを使う」を初期選択とし、採用する確定版と回答・原則数を表示する。未入力でも未確認を保持して作成できる。
+
+一覧は名前・用途・更新日時・確定revisionによる進捗・最新Exportへの導線を表示し、作成・再開・アーカイブ／解除に対応する。プロジェクト内は「共通の好みから採用」と「このプロジェクト固有」を区別する。
 
 Codex接続状態を `ready / login-required / unavailable / limit-reached / unknown` で表示する。未接続でも手動編集と既存データのExportは可能。ログインはホストのターミナルで行い、Web UIは操作案内のみを表示する。
 
 ### 5.3 Inspiration
+
+共通用／プロジェクト用の保存先を明示し、現在の場所を既定とする。採用元の版・根拠をsnapshotに保存し、共通参考の削除後も過去の理由・画像を保持する。
 
 参照ごとにURLまたはPNG/JPEG/WebP画像、タイトル、好きな点、避けたい点を保存する。画像上限は1枚10MB、1プロジェクト20参照。
 
@@ -117,7 +122,7 @@ Codexには画像、取得できた限定的な構造情報、選択観点、ユ
 
 ### 5.4 Taste
 
-7軸を各2問、計14問で比較する。A/Bは同じ内容・画面幅を使い、原則1軸だけを変える。
+回答と理由は共通の「自分の好み」に保存する。プロジェクトは作成時の確定版を取り込み、再回答は必須にしない。7軸を各2問、計14問で比較する。A/Bは同じ内容・画面幅を使い、原則1軸だけを変える。
 
 | 軸 | 0側 | 1側 |
 | --- | --- | --- |
@@ -246,15 +251,16 @@ ZIPに参考サイト画像・認証情報・Codex会話ログは含めない。
 | エンティティ | 主なデータ |
 | --- | --- |
 | Project | id、name、brief、activeRevision、archivedAt、timestamps |
-| Reference | projectId、source、aspects、notes、captureMetadata、assetIds、analysis |
-| TasteAnswer | projectId、questionSetVersion、questionId、choice、reason、candidateValues |
+| TasteProfile / TasteProfileRevision | 単一ユーザーの共通プロフィール、不変revision、回答・理由・質問版・比較条件・採用原則・参考・根拠 |
+| Reference | scope（共通／projectId）、source、aspects、notes、captureMetadata、assetIds、analysis |
+| TasteAnswer | profileRevision、questionSetVersion、questionId、choice、reason、candidateValues（プロジェクトにはsnapshotコピー） |
 | DesignRevision | projectId、revision、schemaVersion、snapshot、changeReason、createdAt |
 | Proposal | projectId、baseRevision、summary、changes、evidence、status |
 | Conversation | projectId、codexThreadId、contextVersion |
 | Message | conversationId、role、text、jobId、createdAt |
 | Job / JobEvent | projectId、type、state、inputRevision、sequence、result、error |
 | Review | projectId、revision、findings、coverage、status |
-| Export | projectId、revision、manifest、artifactPath、status |
+| Export | projectId、revision、sourceTasteProfileRevision、manifest、凍結したファイル内容、createdAt |
 
 ### 6.2 DesignSystemの論理構造
 
@@ -266,6 +272,10 @@ type DesignSystem = {
   projectId: string;
   revision: number;
   brief: ProjectBrief;
+  sourceTasteProfileRevision: number | null;
+  adoptedTaste: TasteSnapshot; // 回答・質問条件・採用原則・参考・根拠のコピー
+  policies: ProjectPrinciple[]; // 固有指定・例外・ロック
+  maintained: MaintenanceDecision[];
   dna: {
     profile: Record<TasteAxis, number | null>;
     principles: Principle[]; // id, statement, rationale, scope, evidence, status
@@ -281,6 +291,12 @@ type DesignSystem = {
 色・余白などは意味上の名前で参照し、各コンポーネントに同じ値をコピーしない。DTCG形式のtokensはこの構造から変換する。採用するDTCG版を固定し、色・寸法・参照のシリアライズを検証する。
 
 ### 6.3 変更と競合
+
+共通プロフィールは `baseProfileRevision`、プロジェクトは `baseRevision` を検証する。作成時に確定した共通版をsnapshotとして取り込み、その後のPreview・AI入力・Exportはプロジェクトの確定データだけを使用する。共通更新で既存具体値を再生成しない。
+
+「差分を確認」では共通の最新版を単位に追加・変更・削除ごとに取り込み／維持を選び、選択を確定して新revisionを作る。維持した変更は固有の維持方針として保存する。固有指定・例外・項目ロックと競合する変更を上書きせず、明示指定同士の矛盾を解消するまで取り込みを拒否する。プロジェクトからの昇格は選択した保存済み原則・理由・出典だけを明示確認する。
+
+ルート・Queryキャッシュ・localStorageの下書きキーにprojectIdを含める。切り替え時はコンポーネントとリクエストの所有を分離し、遅れて届く保存・提案・ポーリング結果を別プロジェクトへ反映しない。
 
 AI提案は `baseRevision` と許可されたパスへの変更一覧を返す。サーバーは型・範囲・ロック・参照整合性を検証し、適用時に新revisionを1トランザクションで作る。
 
@@ -384,14 +400,32 @@ tasteprint/
 
 ```text
 ~/.tasteprint/
-├── tasteprint.sqlite
-└── projects/<project-id>/
-    ├── references/
-    ├── jobs/<job-id>/
-    └── exports/<revision>/
+├── workspace.sqlite                 # 共通の不変revision・Project台帳・移行台帳
+├── profile/                         # 共通のreferences.sqlite・assets
+├── projects/<project-id>/
+│   ├── references.sqlite             # 設計・参考・提案・会話・ジョブ・レビュー・Export
+│   └── assets/
+└── backup-before-projects/           # 変更前のSQLite・assets・ブラウザJSON
 ```
 
 ## 10. APIの境界
+
+Issue #9の実装済みAPIは以下。以降のMVP全体の表は後続機能も含む。詳細は [共通プロフィール・プロジェクトの実装](docs/projects.md) を参照。
+
+| Path | 現行の責務 |
+| --- | --- |
+| `/api/pair` | 単一ユーザーの接続コード認証 |
+| `/api/profile` | 共通の確定版・履歴、baseProfileRevisionによる保存 |
+| `/api/profile/references/...` | 共通参考・分析・ジョブ |
+| `/api/projects` | 一覧・作成、共通参照版の検証 |
+| `/api/projects/:id` | 概要・確定snapshot、baseRevisionによる固有方針保存 |
+| `/api/projects/:id/{archive,taste-diff,promote}` | アーカイブ／解除、差分選択、明示昇格 |
+| `/api/projects/:id/{foundation,references,reviews}/...` | 既存サービスを所有スコープ別に実行 |
+| `/api/projects/:id/conversations` | プロジェクトの要求履歴 |
+| `/api/projects/:id/exports` | 確定revisionから生成・履歴 |
+| `/api/projects/:id/exports/:exportId/:filename` | 凍結済みファイルの所有関係を検証したダウンロード |
+| `/api/migration/browser` | バックアップ付き・再実行可能な一度きりの移行 |
+
 
 すべてプロジェクト所有関係をサーバーで検証する。変更APIはrevisionまたは冪等キーを受け取る。
 
@@ -472,6 +506,10 @@ DTCG・CSS・React例・PNG・ZIP、出力の整合性検証、接続認証、Tu
 MVP完成はM4までとする。途中段階のデモを、全仕様の完成として扱わない。
 
 ## 14. 受け入れ条件
+
+共通プロフィールとプロジェクト分離（Issue #9）では、プロジェクトなしの共通入力・再起動復元、2プロジェクトへのsnapshot継承、片方だけの設計・例外・会話・レビュー変更、共通更新後も変わらない過去Export、差分の選択採用と古い版・ロックの保護、選択した原則の昇格、切り替え・遅延応答・所有ID・アーカイブ解除、SQLiteとlocalStorageのバックアップ付き一度きり移行を検証する。
+
+「共通入力 → 2プロジェクト作成 → 片方だけ変更 → 共通更新を片方だけ採用 → 個別Export」をE2Eで実施する。旧SQLiteの全履歴とブラウザ入力を一時ディレクトリに作る移行統合テストを追加し、既存具体値の非再生成と再実行時の非重複を確認する。
 
 | ID | 操作・条件 | 合格条件 |
 | --- | --- | --- |
@@ -559,3 +597,14 @@ Foundation単位のrevisionを追加した段階であり、全プロジェク�
 ## 20. 実画面レビューの実装状況（Issue #4）
 
 §5.10の実画面レビューを実装。確定Foundation revisionのDNA・設定・ルールと、独立したPreviewレンダラーによる3画面PNGを保存し、機械検証とCodex解釈を区別する。根拠・関連ルール・検証範囲、候補の仮Preview／明示適用、見送り理由と古いrevisionの保護に対応する。§17の簡易チェック・iframe未対応の記載はこの実装で置き換える。検査対象と制約、テストは [AI Review](./docs/review.md) を参照。
+
+
+## 21. 共通の好み・プロジェクト管理の実装状況（Issue #9）
+
+共通プロフィール1つ、複数プロジェクト、版付きsnapshot・固有方針・差分採用・明示昇格、スコープ別の参考・Foundation・会話・レビュー・Exportを実装。SQLiteは所有スコープごとに分離し、Foundation行のdesignと追加snapshotを確定設計として保持する。旧Foundation行は変更せず対応snapshotを別表に保存する。既存Components / Patternsは各プロジェクトのdesignを使う操作例であり、Issue #3全体を完成扱いにしない。
+
+変更前に旧SQLite（WALを含む整合コピー）・assets・ブラウザキーをバックアップする。旧設計・参考・履歴は既定プロジェクトに維持し、Taste回答だけを共通の初期入力にする。旧SQLiteの確定値を優先して再生成せず、入力ハッシュと移行台帳で重複を防ぐ。実行中ジョブはinterruptedで復旧する。失敗時は元ファイルとキーを消さず再試行できる。
+
+Exportは現行のMarkdown / JSON / CSSを確定revisionだけから生成し、projectId・設計revision・共通参照版を記録する。slugとrevisionを含むファイル名で、過去出力をアプリ内から再ダウンロードできる。従来ブラウザでダウンロード済みの外部ファイルは元の場所に残る。チーム共有・複数プロフィール・複製・成果物移動・DTCG / React / PNG / ZIPは後続。
+
+運用と復旧手順は [docs/projects.md](docs/projects.md)。本節は以前のモック範囲の説明に優先する。

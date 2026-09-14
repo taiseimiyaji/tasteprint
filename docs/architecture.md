@@ -6,7 +6,7 @@ Status: accepted, 2026-09-10
 
 React + Vite + TanStack Router + TanStack Query + Hono / Node.js。APIの型共有はHono RPC、実行時検証はZodを使用する。
 
-編集途中の状態と未採用候補はReact側で扱う。本実装では確定設計とジョブ状態をサーバーの正本とし、Queryで取得する。モックだけはlocalStorageを保存先にして、接続状態と提案をQuery / Mutationで扱う。
+編集途中の状態と未採用候補はReact側で扱う。本実装では確定設計とジョブ状態をサーバーの正本とし、Queryで取得する。共通プロフィールはworkspace.sqliteの不変revision、プロジェクトは所有スコープごとのSQLiteに保存する。localStorageはprojectId付きの下書きと旧データの移行・バックアップに限定し、確定設計の正本にはしない。詳細は [projects.md](projects.md)。
 
 Codex・PlaywrightのジョブはHTTP要求から独立した寿命を持つ。Honoの役割は要求の検証とサービス呼び出しに限定する。ジョブの中断、永続化、復旧をHTTPフレームワークの機能と混同しない。
 
