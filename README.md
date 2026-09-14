@@ -31,7 +31,7 @@ npm start
 - 14問のTaste比較とProfile
 - Foundationの8分類の詳細編集、項目ロック・適用範囲・例外・理由・出典、3画面Preview
 - Codex候補の比較・採用・見送り、Foundationの保存履歴と復元
-- 部品・パターンの操作例、簡易チェック
+- 部品・パターンの操作例、3画面の実画像AIレビュー・アクセシビリティ検査・修正案の仮Previewと明示適用
 - Markdown / JSON / CSSの個別ダウンロード
 
 参考情報とFoundationの確定履歴はサーバーのSQLiteに保存します。FoundationはInspirationで接続後に編集できます。Taste回答などはブラウザのlocalStorageです。対話パネルは確定したFoundationと要求をCodexへ送信し、候補を明示採用します。複数プロジェクト、Tunnel、DTCG / React / PNG / ZIP一括出力は未実装です。
@@ -49,6 +49,7 @@ npm run test:e2e
 
 - [SPEC.md](./SPEC.md) — MVP仕様と現在のモック範囲
 - [Architecture](./docs/architecture.md) — 技術比較と採用理由
+- [AI Review](./docs/review.md) — 実画面の撮影・検査範囲・修正と履歴
 - [Foundation](./docs/foundation.md) — 詳細編集・保存・ロック・候補比較の仕様
 - [Mockup guide](./docs/mockup.md) — 操作ガイド
 

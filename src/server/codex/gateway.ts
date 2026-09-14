@@ -67,7 +67,7 @@ export class CodexGateway {
     prompt: string,
     schema: T,
     signal: AbortSignal,
-    imagePath?: string,
+    imagePath?: string | string[],
   ): Promise<z.infer<T>> {
     const auth = await this.authentication();
     signal.throwIfAborted();
@@ -78,7 +78,13 @@ export class CodexGateway {
       await mkdir(codexHome, { mode: 0o700 });
       await mkdir(inputDir, { mode: 0o700 });
       await writeFile(join(codexHome, "auth.json"), auth, { mode: 0o600 });
-      if (imagePath) await copyFile(imagePath, join(inputDir, "reference.png"));
+      const images = imagePath
+        ? Array.isArray(imagePath)
+          ? imagePath
+          : [imagePath]
+        : [];
+      for (const [i, path] of images.entries())
+        await copyFile(path, join(inputDir, `reference-${i}.png`));
       await writeFile(join(inputDir, "input.txt"), prompt, { mode: 0o600 });
       // Clean HOME/CODEX_HOME and an explicit environment prevent inheriting user
       // MCP servers, hooks, skills, provider configuration or API billing keys.
@@ -117,14 +123,10 @@ export class CodexGateway {
       const result = await thread.run(
         [
           { type: "text", text: prompt },
-          ...(imagePath
-            ? [
-                {
-                  type: "local_image" as const,
-                  path: join(inputDir, "reference.png"),
-                },
-              ]
-            : []),
+          ...images.map((_, i) => ({
+            type: "local_image" as const,
+            path: join(inputDir, `reference-${i}.png`),
+          })),
         ],
         { signal, outputSchema: z.toJSONSchema(schema) },
       );

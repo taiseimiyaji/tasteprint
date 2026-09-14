@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { designSchema } from "../../domain/design";
-import { FoundationService } from "./service";
+import { FoundationService, dnaSchema } from "./service";
 const revision = z.number().int().positive();
 const requestId = z.string().uuid();
 export function foundationRoutes(service: FoundationService) {
@@ -12,8 +12,17 @@ export function foundationRoutes(service: FoundationService) {
     )
     .post(
       "/initialize",
-      zValidator("json", z.object({ design: designSchema })),
-      (c) => c.json(service.initialize(c.req.valid("json").design)),
+      zValidator(
+        "json",
+        z.object({ design: designSchema, dna: dnaSchema.optional() }),
+      ),
+      (c) =>
+        c.json(
+          service.initialize(
+            c.req.valid("json").design,
+            c.req.valid("json").dna,
+          ),
+        ),
     )
     .post(
       "/save",
@@ -22,6 +31,7 @@ export function foundationRoutes(service: FoundationService) {
         z.object({
           baseRevision: revision,
           design: designSchema,
+          dna: dnaSchema.optional(),
           reason: z.string().trim().min(1).max(2000),
           requestId,
         }),
@@ -29,7 +39,7 @@ export function foundationRoutes(service: FoundationService) {
       (c) => {
         const v = c.req.valid("json");
         return c.json(
-          service.save(v.baseRevision, v.design, v.reason, v.requestId),
+          service.save(v.baseRevision, v.design, v.reason, v.requestId, v.dna),
         );
       },
     )

@@ -48,6 +48,8 @@ import {
 import { designCss } from "../domain/tokens";
 import { References } from "./components/References";
 import { Preview } from "./components/Preview";
+import { PreviewFrame } from "./components/PreviewFrame";
+import { ReviewPanel } from "./components/ReviewPanel";
 import {
   initialState,
   loadState,
@@ -155,6 +157,7 @@ export function Workspace() {
           data.current ??
           (await foundationRequest<Revision>("/initialize", {
             design: loadState().design,
+            dna: profile(loadState().answers),
           }));
         if (!active) return;
         setSaved(parseRevision(current));
@@ -176,7 +179,12 @@ export function Workspace() {
     setBusy(true);
     try {
       const result = parseRevision(
-        await foundationRequest<Revision>(path, body),
+        await foundationRequest<Revision>(
+          path,
+          path === "/save"
+            ? { ...(body as object), dna: profile(state.answers) }
+            : body,
+        ),
       );
       setSaved(result);
       setState((s) => ({ ...s, design: result.design }));
@@ -200,7 +208,6 @@ export function Workspace() {
   const [notice, setNotice] = useState("");
   const [saveError, setSaveError] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [reviewed, setReviewed] = useState<Design | null>(null);
   const [component, setComponent] = useState("Button");
   const [pattern, setPattern] = useState("ListPage");
   const connection = useQuery({
@@ -810,70 +817,14 @@ export function Workspace() {
               </>
             )}
             {current.id === "review" && (
-              <>
-                <div className="review-intro">
-                  <ClipboardCheck size={35} strokeWidth={1.3} />
-                  <h2>A second look, with your taste in mind.</h2>
-                  <p>
-                    いまの設定を、選んだ好みと照らし合わせます。
-                    <br />
-                    このモックでは設定値の簡易チェックのみを行います。
-                  </p>
-                  <button
-                    className="button primary"
-                    onClick={() => setReviewed({ ...state.design })}
-                  >
-                    設定をチェック <ArrowRight size={15} />
-                  </button>
-                </div>
-                {reviewed && (
-                  <div className="review-results">
-                    <div className="section-heading">
-                      <h2>Check results</h2>
-                      <Pill>
-                        {JSON.stringify(reviewed) ===
-                        JSON.stringify(state.design)
-                          ? "Current settings"
-                          : "設定が変更されています · 再チェックしてください"}
-                      </Pill>
-                    </div>
-                    {[
-                      {
-                        title: "設定値の形式",
-                        detail: "色・サイズ・余白は許可された範囲内です。",
-                        pass: true,
-                      },
-                      {
-                        title: "影の使用",
-                        detail: reviewed.shadow
-                          ? "静的な面に影を使っています。好みに合うか実画面で確認しましょう。"
-                          : "静的な面には影を使っていません。",
-                        pass: !reviewed.shadow,
-                      },
-                      {
-                        title: "好みの回答",
-                        detail: `${answered} / 14問に回答済み。未回答の軸を推測して補いません。`,
-                        pass: answered === 14,
-                      },
-                    ].map((r) => (
-                      <div className="review-row" key={r.title}>
-                        {r.pass ? (
-                          <Check size={19} />
-                        ) : (
-                          <CircleHelp size={19} />
-                        )}
-                        <div>
-                          <h3>{r.title}</h3>
-                          <p>{r.detail}</p>
-                        </div>
-                      </div>
-                    ))}
-                    <p className="muted">
-                      AIによる見た目のレビューとアクセシビリティ監査は未実施です。
-                    </p>
-                  </div>
-                )}
-              </>
+              <ReviewPanel
+                saved={saved}
+                applied={(r) => {
+                  setSaved(r);
+                  setState((s) => ({ ...s, design: r.design }));
+                  setRevisions((v) => [...v, r]);
+                }}
+              />
             )}
             {current.id === "export" && (
               <>
@@ -1244,7 +1195,7 @@ function PreviewArea({
         </div>
       </div>
       <div className={`preview-stage viewport-${width}`}>
-        <Preview design={design} screen={screen} compact={width === "mobile"} />
+        <PreviewFrame design={design} screen={screen} />
       </div>
     </div>
   );
