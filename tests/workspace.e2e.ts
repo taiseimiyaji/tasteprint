@@ -391,3 +391,45 @@ test("late saves and stale drafts cannot overwrite the next project's screen", a
       .current.design.accent,
   ).toBe("#445566");
 });
+
+test("bundle export offers explicit PNG failure recovery and downloads portable ZIP", async ({
+  page,
+}) => {
+  await page.goto(`/projects/${projectId}/export`);
+  await expect(page.getByText(/未確認: Components/)).toBeVisible();
+  const endpoint = `**/api/projects/${projectId}/exports`;
+  await page.route(endpoint, async (route) => {
+    if (
+      route.request().method() === "POST" &&
+      route.request().postDataJSON().imageMode === "include"
+    ) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          message:
+            "PNG の生成に失敗しました。再試行、または「画像なし ZIP」を選択してください。成果物は保存していません。",
+        }),
+      });
+    } else await route.continue();
+  });
+  await page
+    .getByRole("button", { name: "一括 ZIP を生成・再試行", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("PNG の生成に失敗");
+  const omittedDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "画像なし ZIP を生成", exact: true })
+    .click();
+  const omitted = await omittedDownload;
+  expect(omitted.suggestedFilename()).toMatch(/\.zip$/);
+  await expect(page.getByText(/Draft · 画像なし/)).toBeVisible();
+  await page.unroute(endpoint);
+  const fullDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "一括 ZIP を生成・再試行", exact: true })
+    .click();
+  const full = await fullDownload;
+  expect(full.suggestedFilename()).toMatch(/\.zip$/);
+  await expect(page.getByText(/Draft · PNG 3画面/)).toBeVisible();
+});

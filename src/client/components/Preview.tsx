@@ -1,3 +1,4 @@
+import { Button, Input, Select } from "./TemplateControls";
 import { useState, useEffect, useRef, type CSSProperties } from "react";
 import {
   ArrowUpRight,
@@ -155,12 +156,12 @@ export function Preview({
               </p>
             </div>
             {screen === "list" && (
-              <button
+              <Button
                 className="sample-primary"
                 onClick={() => setFormOpen(!formOpen)}
               >
                 <Plus size={13} /> New project
-              </button>
+              </Button>
             )}
           </div>
           {screen === "list" ? (
@@ -186,14 +187,14 @@ export function Preview({
                     setFormOpen(false);
                   }}
                 >
-                  <input
+                  <Input
                     aria-label="New project name"
                     placeholder="Project name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
                   />
-                  <button className="sample-primary">Create</button>
+                  <Button className="sample-primary">Create</Button>
                 </form>
               )}
               <div className="sample-tools">
@@ -205,7 +206,7 @@ export function Preview({
                 </div>
                 <div className="sample-search">
                   <Search size={13} />
-                  <input
+                  <Input
                     aria-label="Search projects"
                     placeholder="Search projects..."
                     value={search}
@@ -219,7 +220,7 @@ export function Preview({
                 </span>
                 <label>
                   <span className="sr-only">Project status</span>
-                  <select
+                  <Select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
                   >
@@ -232,7 +233,7 @@ export function Preview({
                     ].map((s) => (
                       <option key={s}>{s}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </div>
               <div className="sample-table-wrap">
@@ -302,7 +303,7 @@ export function Preview({
             >
               <label>
                 {screen === "settings" ? "Workspace name" : "Project name"}
-                <input
+                <Input
                   required
                   defaultValue={screen === "settings" ? "Orbit Studio" : ""}
                   placeholder="e.g. Website redesign"
@@ -310,7 +311,7 @@ export function Preview({
               </label>
               <label>
                 {screen === "settings" ? "Contact email" : "Description"}
-                <input
+                <Input
                   required
                   type={screen === "settings" ? "email" : "text"}
                   defaultValue={
@@ -321,16 +322,16 @@ export function Preview({
               </label>
               <label>
                 Visibility
-                <select>
+                <Select>
                   <option>Workspace members</option>
                   <option>Private</option>
-                </select>
+                </Select>
               </label>
               <label className="sample-checkbox">
-                <input type="checkbox" defaultChecked /> Notify me about project
+                <Input type="checkbox" defaultChecked /> Notify me about project
                 updates
               </label>
-              <button className="sample-primary">
+              <Button className="sample-primary">
                 {saved ? (
                   <>
                     <Check size={14} /> Saved in preview
@@ -340,7 +341,7 @@ export function Preview({
                 ) : (
                   "Create project"
                 )}
-              </button>
+              </Button>
               <p className="sample-form-note">
                 Sample data · changes stay in this preview
               </p>

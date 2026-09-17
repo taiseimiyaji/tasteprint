@@ -77,3 +77,13 @@ npx playwright install chromium
 captureと分析はスコープごとにそれぞれ同時1件です。中断後も処理の終了を待って実行枠を解放します。再起動時のqueued/runningジョブはinterruptedになり、自動再実行しません。参照内容が変更された場合は古い分析・撮影結果の反映を拒否します。
 
 通信経路とテスト範囲は [URL capture architecture](./docs/url-capture.md) を参照してください。
+
+### 同一 revision の一括出力（Issue #5）
+
+プロジェクトの Export で「一括 ZIP を生成・再試行」を選ぶと、保存済み revision を固定して DESIGN.md、design-system.json、DTCG 2025.10 tokens、CSS、React components / patterns、一覧・設定・フォームのコードと PNG、manifest、導入用 README を生成します。出力中の保存・未採用提案は混ざりません。PNG は Preview と同じレンダラーの初期状態（1440 × 1000）です。失敗した出力は保存されず、再試行か明示的な「画像なし ZIP」を選べます。
+
+現在のテンプレートは Preview と共有する Button / Input / Select と3画面のパターンです。個別の Components / Patterns 仕様・全状態・実アプリでのレビューは未確認として Draft に記録します。出力時に AI は呼び出しません。ZIP には採用した参考の出典と理由のみを含め、参考画像・会話ログ・URL の認証情報やクエリは含めません。
+
+API は `POST /api/projects/:id/exports` に `{ "baseRevision": 1, "bundle": true, "imageMode": "include" }` を指定します。画像なしは `"omit"`。応答には凍結ファイル名を返し、既存の所有関係を検証するダウンロード API で取得します。`bundle` 省略時は従来の個別出力です。ZIP のディレクトリ構造と各ファイルの SHA-256 は manifest に記録します。
+
+`npm test` で snapshot 整合性、DTCG 参照、ZIP 内容、展開後の React 型検査を実行します。`npm run test:built` はビルド済みサーバーから3画面を実撮影し、ZIP を取得・PNG を検証します。

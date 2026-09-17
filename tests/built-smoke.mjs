@@ -4,6 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import net from "node:net";
+import { unzipSync } from "fflate";
+import sharp from "sharp";
 const probe = net.createServer();
 await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
 const port = probe.address().port;
@@ -106,6 +108,36 @@ try {
       .get("content-type")
       .includes("javascript"),
   );
+  const exported = await fetch(base + `/api/projects/${project.id}/exports`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ baseRevision: 2, bundle: true }),
+  });
+  assert.equal(exported.status, 200, await exported.clone().text());
+  const record = await exported.json();
+  const zipName = Object.keys(record.files).find((n) => n.endsWith(".zip"));
+  const downloaded = await fetch(
+    base + `/api/projects/${project.id}/exports/${record.id}/${zipName}`,
+    { headers },
+  );
+  assert.equal(downloaded.headers.get("content-type"), "application/zip");
+  const entries = unzipSync(new Uint8Array(await downloaded.arrayBuffer()));
+  const manifest = JSON.parse(
+    Buffer.from(
+      Object.entries(entries).find(([n]) => n.endsWith("/manifest.json"))[1],
+    ).toString(),
+  );
+  assert.equal(manifest.revision, 2);
+  assert.equal(manifest.images, "complete");
+  const pngs = Object.entries(entries).filter(([n]) => n.endsWith(".png"));
+  assert.equal(pngs.length, 3);
+  for (const [, image] of pngs) {
+    const metadata = await sharp(image).metadata();
+    assert.equal(metadata.format, "png");
+    assert.equal(metadata.width, 1440);
+    assert(metadata.height >= 1000);
+  }
+  assert(!Buffer.from(pngs[0][1]).equals(Buffer.from(pngs[1][1])));
   console.log(
     "Built server smoke passed: SPA/assets, session pairing, capture job, internal-address denial.",
   );
