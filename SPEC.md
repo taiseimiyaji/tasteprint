@@ -608,3 +608,7 @@ Foundation単位のrevisionを追加した段階であり、全プロジェク�
 Exportは現行のMarkdown / JSON / CSSを確定revisionだけから生成し、projectId・設計revision・共通参照版を記録する。slugとrevisionを含むファイル名で、過去出力をアプリ内から再ダウンロードできる。従来ブラウザでダウンロード済みの外部ファイルは元の場所に残る。チーム共有・複数プロフィール・複製・成果物移動・DTCG / React / PNG / ZIPは後続。
 
 運用と復旧手順は [docs/projects.md](docs/projects.md)。本節は以前のモック範囲の説明に優先する。
+
+## 22. Components / Patterns / Previewの実装状況（Issue #3）
+
+8種の部品設定と6種のパターン設定を共有スキーマ・プロジェクトのSQLite revisionへ統合した。編集・保存・復元・Codex候補の差分確認と明示採用を提供し、同梱React実装のみを使用する。部品・パターンの詳細も専用ルートのiframeへ分離し、3画面を390 / 768 / 1440pxで表示する。画像撮影は同じレンダラーを使用する。§21の操作例のみという記載はこの実装で置き換える。範囲・操作・検証は [Components / Patterns](./docs/components-patterns.md) を参照。

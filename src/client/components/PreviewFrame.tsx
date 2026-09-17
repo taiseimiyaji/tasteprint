@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { designSchema, type Design } from "../../domain/design";
+import { ComponentSpecimen } from "../design-runtime/Library";
+import {
+  componentNames,
+  patternNames,
+  type ComponentName,
+  type PatternName,
+} from "../../domain/library";
 import { Preview } from "./Preview";
 export function PreviewRenderer() {
   const [input, setInput] = useState<{ design: Design; screen: string }>();
@@ -13,7 +20,13 @@ export function PreviewRenderer() {
       const parsed = designSchema.safeParse(event.data.design);
       if (
         parsed.success &&
-        ["list", "settings", "form"].includes(event.data.screen)
+        [
+          "list",
+          "settings",
+          "form",
+          ...componentNames.map((n) => `component:${n}`),
+          ...patternNames.map((n) => `pattern:${n}`),
+        ].includes(event.data.screen)
       )
         setInput({ design: parsed.data, screen: event.data.screen });
     };
@@ -25,14 +38,42 @@ export function PreviewRenderer() {
     );
     return () => removeEventListener("message", receive);
   }, []);
-  return input ? <Preview key={input.screen} {...input} /> : null;
+  if (!input) return null;
+  if (input.screen.startsWith("component:"))
+    return (
+      <ComponentSpecimen
+        key={input.screen}
+        design={input.design}
+        name={input.screen.slice(10) as ComponentName}
+      />
+    );
+  if (input.screen.startsWith("pattern:")) {
+    const pattern = input.screen.slice(8) as PatternName;
+    return (
+      <Preview
+        key={pattern}
+        design={input.design}
+        pattern={pattern}
+        screen={
+          pattern === "SettingsSection"
+            ? "settings"
+            : pattern === "FormSection"
+              ? "form"
+              : "list"
+        }
+      />
+    );
+  }
+  return <Preview key={input.screen} {...input} />;
 }
 export function PreviewFrame({
   design,
   screen = "list",
+  width,
 }: {
   design: Design;
   screen?: string;
+  width?: number;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const send = () =>
@@ -59,7 +100,12 @@ export function PreviewFrame({
       title={`${screen} Preview`}
       src="/preview-render"
       onLoad={send}
-      style={{ width: "100%", height: 800, border: 0 }}
+      style={{
+        width: width ?? "100%",
+        minWidth: width,
+        height: 800,
+        border: 0,
+      }}
     />
   );
 }

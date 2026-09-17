@@ -1,10 +1,18 @@
 import { z } from "zod";
+import {
+  componentsSchema,
+  patternsSchema,
+  defaultComponents,
+  defaultPatterns,
+} from "./library";
 
 import { foundationFields, constraintsSchema, fieldGroups } from "./foundation";
 
 export const designSchema = z
   .object({
     ...foundationFields,
+    components: componentsSchema.default(defaultComponents),
+    patterns: patternsSchema.default(defaultPatterns),
     constraints: constraintsSchema,
     accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     radius: z.number().int().min(0).max(20),
@@ -131,5 +139,5 @@ export function designMarkdown(
           : "",
       )
       .join("\n") || "未設定"
-  }\n\n## Revision decisions\n\n${snapshot ? `revision ${snapshot.revision}\n${(snapshot.decisions ?? []).map((d) => `- ${d.targetPath}: ${d.rationale}（${d.source} / ${d.author}）`).join("\n")}` : "未確定"}\n\n## Taste Profile\n\n${JSON.stringify(profile(answers), null, 2)}\n\n## Application Patterns\n\n### List\nPageHeader → FilterBar → Table / EmptyState\n\n### Settings\nPageHeader → SettingsSection → SaveAction\n\n### Form\nPageHeader → FormSection → Validation → SubmitAction\n\n## References\n\n${references.map((r) => `- ${r.name}${r.url ? ` (${r.url})` : ""}: ${r.aspects.join(", ")}`).join("\n")}\n\n## Adopted Reference Principles\n\n${references.flatMap((r) => (r.principles ?? []).map((p) => `- ${p.aspect}: ${p.recommendation}\n  理由: ${p.interpretation}\n  根拠: ${p.evidence}（出典: ${r.url || r.name}）`)).join("\n") || "未採用"}\n\n## Open Questions\n\n- 未採用の参考分析の確認\n- コンポーネントの全状態とアクセシビリティ検証\n- 実アプリでの設計レビュー\n`;
+  }\n\n## Revision decisions\n\n${snapshot ? `revision ${snapshot.revision}\n${(snapshot.decisions ?? []).map((d) => `- ${d.targetPath}: ${d.rationale}（${d.source} / ${d.author}）`).join("\n")}` : "未確定"}\n\n## Taste Profile\n\n${JSON.stringify(profile(answers), null, 2)}\n\n## Components\n\n${JSON.stringify(design.components, null, 2)}\n\n## Pattern Settings\n\n${JSON.stringify(design.patterns, null, 2)}\n\n## Application Patterns\n\n### List\nPageHeader → FilterBar → Table / EmptyState\n\n### Settings\nPageHeader → SettingsSection → SaveAction\n\n### Form\nPageHeader → FormSection → Validation → SubmitAction\n\n## References\n\n${references.map((r) => `- ${r.name}${r.url ? ` (${r.url})` : ""}: ${r.aspects.join(", ")}`).join("\n")}\n\n## Adopted Reference Principles\n\n${references.flatMap((r) => (r.principles ?? []).map((p) => `- ${p.aspect}: ${p.recommendation}\n  理由: ${p.interpretation}\n  根拠: ${p.evidence}（出典: ${r.url || r.name}）`)).join("\n") || "未採用"}\n\n## Open Questions\n\n- 未採用の参考分析の確認\n- コンポーネントの全状態とアクセシビリティ検証\n- 実アプリでの設計レビュー\n`;
 }
