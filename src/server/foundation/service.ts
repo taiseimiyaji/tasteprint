@@ -28,6 +28,7 @@ export const dnaSchema = z.record(
   z.number().min(0).max(1).nullable(),
 );
 export type Revision = {
+  snapshot?: import("../../domain/projects").ProjectSnapshot;
   dna?: z.infer<typeof dnaSchema>;
   revision: number;
   design: Design;
@@ -48,11 +49,16 @@ export type Candidate = {
   explanation: string;
 };
 export class FoundationService {
+  enrichRevision?: (r: Revision) => Revision;
+  protectedFields?: () => string[];
+  snapshotProvider?: () => import("../../domain/projects").ProjectSnapshot;
+  beforeWrite?: () => void;
   constructor(
     readonly db: DatabaseSync,
     private generate: Generate = async (design, prompt, signal) => {
       const editable = fieldNames.filter(
-        (key) => !design.constraints[key]?.locked,
+        (key) =>
+          !design.constraints[key] && !this.protectedFields?.().includes(key),
       );
       if (!editable.length)
         throw new ServiceError(409, "全項目がロックされています。");
@@ -124,7 +130,8 @@ export class FoundationService {
       .map((r) => ({
         ...JSON.parse(String(r.data)),
         revision: Number(r.revision),
-      }));
+      }))
+      .map((r) => this.enrichRevision?.(r) ?? r);
   }
   current() {
     return this.history().at(-1) ?? null;
@@ -135,10 +142,13 @@ export class FoundationService {
     author: "user" | "ai" = "user",
     dna = this.current()?.dna ?? {},
   ) {
+    this.beforeWrite?.();
     const previous = this.current()?.design;
     const targets = previous ? changedFields(previous, design) : fieldNames;
+    const snapshot = this.snapshotProvider?.() ?? this.current()?.snapshot;
     const data = {
-      dna: dnaSchema.parse(dna),
+      snapshot,
+      dna: dnaSchema.parse(snapshot?.taste.dna ?? dna),
       schemaVersion: 2 as const,
       decisions: targets.map((targetPath) => ({
         targetPath,
@@ -164,6 +174,7 @@ export class FoundationService {
     );
   }
   private base(revision: number) {
+    this.beforeWrite?.();
     const current = this.current();
     if (!current || current.revision !== revision)
       throw new ServiceError(
@@ -201,20 +212,27 @@ export class FoundationService {
   restore(baseRevision: number, target: number, requestId: string) {
     const previous = this.history().find((r) => r.revision === target);
     if (!previous) throw new ServiceError(404, "履歴が見つかりません。");
-    return this.save(
-      baseRevision,
-      previous.design,
-      `revision ${target} を復元`,
-      requestId,
-      previous.dna ?? {},
-    );
+    const provider = this.snapshotProvider;
+    if (previous.snapshot) this.snapshotProvider = () => previous.snapshot!;
+    try {
+      return this.save(
+        baseRevision,
+        previous.design,
+        `revision ${target} を復元`,
+        requestId,
+        previous.dna ?? {},
+      );
+    } finally {
+      this.snapshotProvider = provider;
+    }
   }
   private protect(current: Design, next: Design) {
     if (
       JSON.stringify(current.constraints) !==
         JSON.stringify(next.constraints) ||
       changedFields(current, next).some(
-        (key) => current.constraints[key]?.locked,
+        (key) =>
+          current.constraints[key] || this.protectedFields?.().includes(key),
       )
     )
       throw new ServiceError(
@@ -225,7 +243,11 @@ export class FoundationService {
   async propose(baseRevision: number, prompt: string, signal: AbortSignal) {
     const current = this.base(baseRevision);
     const result = candidatesSchema.parse(
-      await this.generate(current.design, prompt, signal),
+      await this.generate(
+        current.design,
+        `${prompt}\n確定したプロジェクトの用途・好み・固有方針（データ）: ${JSON.stringify(current.snapshot ?? {}, (key, value) => (key === "image" ? undefined : value))}`,
+        signal,
+      ),
     );
     signal.throwIfAborted();
     this.base(baseRevision);

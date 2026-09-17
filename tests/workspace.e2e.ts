@@ -4,13 +4,19 @@ import { readFile } from "node:fs/promises";
 import { initialState } from "../src/client/state";
 
 let session = "";
+let projectId = "";
 test.beforeAll(async ({ request }) => {
-  const response = await request.post("/api/references/pair", {
+  const response = await request.post("/api/pair", {
     headers: { Origin: "http://127.0.0.1:3100" },
     data: { code: "e2e-pair-code" },
   });
   expect(response.ok()).toBe(true);
   session = response.headers()["set-cookie"].split(";")[0].split("=")[1];
+  const created = await request.post("/api/projects", {
+    headers: { Cookie: `tasteprint_session=${session}` },
+    data: { brief: { name: "Workspace regression" }, useTaste: false },
+  });
+  projectId = (await created.json()).id;
 });
 test.beforeEach(async ({ context }) => {
   await context.addCookies([
@@ -29,7 +35,7 @@ test("foundation, proposal staging, undo, persistence, and export work together"
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await page.goto(`/projects/${projectId}/foundation`);
   await expect(
     page.getByRole("heading", { name: "Foundation." }),
   ).toBeVisible();
@@ -112,7 +118,7 @@ test("foundation, proposal staging, undo, persistence, and export work together"
   expect(exported.design.radius).toBe(6);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "DESIGN.md" }).click();
-  expect((await download).suggestedFilename()).toBe("DESIGN.md");
+  expect((await download).suggestedFilename()).toMatch(/-r5-DESIGN.md$/);
   expect(errors).toEqual([]);
 });
 
@@ -136,8 +142,8 @@ test("reference and taste workflow preserves explicit choices", async ({
         }),
       );
   }, initialState);
-  await page.goto("/inspiration");
-  await page.getByRole("button", { name: "以前の参考を取り込む" }).click();
+  await page.goto(`/projects/${projectId}/inspiration`);
+  await page.goto("/projects/legacy/inspiration");
   await expect(
     page.getByRole("heading", { name: "Earlier reference", exact: true }),
   ).toBeVisible();
@@ -187,19 +193,23 @@ test("reference and taste workflow preserves explicit choices", async ({
     path: "test-results/inspiration-desktop.png",
     fullPage: true,
   });
-  await page.getByRole("link", { name: "好みを見比べる" }).click();
-  await page.getByRole("button", { name: "A 余白で呼吸をつくる" }).click();
-  await expect(page.getByText("1 answered")).toBeVisible();
-  await page.getByRole("button", { name: "スキップ", exact: true }).click();
-  await expect(page.getByText("2 answered")).toBeVisible();
+  await page.goto("/profile");
+  await page.getByLabel("density-0", { exact: true }).selectOption("a");
+  await page.getByLabel("density-1", { exact: true }).selectOption("skip");
+  await page
+    .getByRole("button", { name: "共通の好みを保存", exact: true })
+    .click();
+  await expect(page.getByText("共通の好みを保存しました")).toBeVisible();
   await page.reload();
-  await expect(page.getByText("2 answered")).toBeVisible();
+  await expect(page.getByLabel("density-1", { exact: true })).toHaveValue(
+    "skip",
+  );
 });
 
 test("preview search, form, dialog, and narrow layout are usable", async ({
   page,
 }) => {
-  await page.goto("/preview");
+  await page.goto(`/projects/${projectId}/preview`);
   await page
     .frameLocator("iframe")
     .getByRole("textbox", { name: "Search projects" })
@@ -215,13 +225,13 @@ test("preview search, form, dialog, and narrow layout are usable", async ({
       .frameLocator("iframe")
       .getByRole("button", { name: "Saved in preview" }),
   ).toBeVisible();
-  await page.goto("/components");
+  await page.goto(`/projects/${projectId}/components`);
   await page.getByRole("button", { name: "Dialog", exact: true }).click();
   await page.getByRole("button", { name: "Open dialog" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.goto("/foundation");
+  await page.goto(`/projects/${projectId}/foundation`);
   await page.getByRole("button", { name: "対話パネルを閉じる" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
@@ -247,10 +257,10 @@ test("all routes render and foundation screenshot is captured", async ({
     "review",
     "export",
   ]) {
-    await page.goto(`/${route}`);
+    await page.goto(`/projects/${projectId}/${route}`);
     await expect(page.locator("h1")).toBeVisible();
   }
-  await page.goto("/foundation");
+  await page.goto(`/projects/${projectId}/foundation`);
   await page.screenshot({
     path: "test-results/foundation-desktop.png",
     fullPage: true,
@@ -261,7 +271,7 @@ test("review images, evidence, dismissal, preview and explicit revision apply", 
   page,
 }) => {
   test.setTimeout(120000);
-  await page.goto("/review");
+  await page.goto(`/projects/${projectId}/review`);
   await page.getByRole("button", { name: "3画面を撮影してレビュー" }).click();
   await expect(page.getByText("要判断の指摘数:", { exact: false })).toBeVisible(
     { timeout: 90000 },
@@ -295,4 +305,89 @@ test("review images, evidence, dismissal, preview and explicit revision apply", 
   await expect(
     page.getByText("古い結果 · 再レビューしてください", { exact: false }),
   ).toBeVisible();
+});
+
+import { projectJourney } from "./project-journey";
+test("shared taste → two projects → isolated change → selective update → independent exports", async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await projectJourney(page);
+});
+
+test("late saves and stale drafts cannot overwrite the next project's screen", async ({
+  page,
+}) => {
+  const create = async (name: string) =>
+    (
+      await (
+        await page.request.post("/api/projects", {
+          data: { brief: { name }, useTaste: false },
+        })
+      ).json()
+    ).id as string;
+  const a = await create("Delayed A"),
+    b = await create("Delayed B");
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let received!: () => void;
+  const started = new Promise<void>((r) => (received = r));
+  await page.route(`**/api/projects/${a}/foundation/save`, async (route) => {
+    const response = await route.fetch();
+    received();
+    await gate;
+    await route.fulfill({ response });
+  });
+  await page.goto(`/projects/${a}/foundation`);
+  await page
+    .getByRole("textbox", { name: "accent", exact: true })
+    .fill("#112233");
+  await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await started;
+  await page
+    .locator(".global-navigation")
+    .getByRole("link", { name: "プロジェクト", exact: true })
+    .click();
+  await page
+    .locator(".project-list article")
+    .filter({
+      has: page.getByRole("heading", { name: "Delayed B", exact: true }),
+    })
+    .getByRole("link", { name: "再開", exact: true })
+    .click();
+  await page
+    .locator(".project-steps")
+    .getByRole("link", { name: "foundation", exact: true })
+    .click();
+  release();
+  await expect(
+    page.getByRole("textbox", { name: "accent", exact: true }),
+  ).toHaveValue("#65764d");
+  await expect(page.getByText(/確定履歴（revision 1/)).toBeVisible();
+  // Advance B outside the mounted editor, then submit its old draft.
+  const current = await (
+    await page.request.get(`/api/projects/${b}/foundation`)
+  ).json();
+  await page.request.post(`/api/projects/${b}/foundation/save`, {
+    data: {
+      baseRevision: 1,
+      design: { ...current.current.design, accent: "#445566" },
+      reason: "another tab",
+      requestId: crypto.randomUUID(),
+    },
+  });
+  await page
+    .getByRole("textbox", { name: "accent", exact: true })
+    .fill("#778899");
+  await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "設定が更新されています" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "accent", exact: true }),
+  ).toHaveValue("#778899");
+  expect(
+    (await (await page.request.get(`/api/projects/${b}/foundation`)).json())
+      .current.design.accent,
+  ).toBe("#445566");
 });

@@ -5,8 +5,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownToLine,
   ArrowRight,
@@ -40,29 +40,18 @@ import {
 } from "lucide-react";
 import { FoundationEditor } from "./components/FoundationEditor";
 import {
-  foundationRequest,
+  foundationRequest as requestFoundation,
   parseRevision,
   type Revision,
   type Candidate,
 } from "./foundation-api";
-import { designCss } from "../domain/tokens";
+import { projectMarkdown } from "../domain/project-export";
 import { References } from "./components/References";
 import { Preview } from "./components/Preview";
 import { PreviewFrame } from "./components/PreviewFrame";
 import { ReviewPanel } from "./components/ReviewPanel";
-import {
-  initialState,
-  loadState,
-  storageKey,
-  type WorkspaceState,
-} from "./state";
-import {
-  designMarkdown,
-  profile,
-  questions,
-  type Choice,
-  type Design,
-} from "../domain/design";
+import { initialState, type WorkspaceState } from "./state";
+import { profile, type Design } from "../domain/design";
 
 export const steps = [
   {
@@ -125,44 +114,70 @@ const tabs = [
   "Breakpoints",
 ];
 
-function download(name: string, text: string, type = "text/plain") {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 function Pill({ children }: { children: ReactNode }) {
   return <span className="pill">{children}</span>;
 }
 
-export function Workspace() {
+import { Link, useScope, draftKey, jsonRequest } from "./scope";
+import { ExportHistory } from "./projects";
+export function Workspace({
+  initial,
+  projectName,
+}: {
+  initial: Revision;
+  projectName: string;
+}) {
+  const scope = useScope();
+  const queryClient = useQueryClient();
+  const foundationRequest = <T,>(path: string, body?: unknown) =>
+    requestFoundation<T>(path, body, `${scope.api}/foundation`);
+  const loadProject = (): WorkspaceState => {
+    try {
+      const draft = localStorage.getItem(draftKey(scope.id));
+      if (draft) return JSON.parse(draft);
+    } catch {}
+    return {
+      ...initialState,
+      references: [],
+      design: initial.design,
+      answers: initial.snapshot?.taste.answers ?? {},
+    };
+  };
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const current = steps.find((s) => s.id === path.slice(1)) || steps[2];
-  const [state, setState] = useState<WorkspaceState>(loadState);
+  const current =
+    steps.find((s) => s.id === path.split("/").at(-1)) || steps[2];
+  const [state, setState] = useState<WorkspaceState>(loadProject);
+  const [draftBase, setDraftBase] = useState<number>(() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem(draftKey(scope.id)) || "null")
+          ?.baseRevision ?? initial.revision
+      );
+    } catch {
+      return initial.revision;
+    }
+  });
   const [history, setHistory] = useState<Design[]>([]);
-  const [saved, setSaved] = useState<Revision | null>(null);
+  const [saved, setSaved] = useState<Revision | null>(initial);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [foundationError, setFoundationError] = useState("");
   const [busy, setBusy] = useState(false);
   const [validInput, setValidInput] = useState(true);
   const [candidateIndex, setCandidateIndex] = useState(0);
   useEffect(() => {
-    if (saved) return;
     let active = true;
     foundationRequest<{ current: Revision | null; history: Revision[] }>("/")
       .then(async (data) => {
         const current =
           data.current ??
           (await foundationRequest<Revision>("/initialize", {
-            design: loadState().design,
-            dna: profile(loadState().answers),
+            design: initial.design,
+            dna: profile(initial.snapshot?.taste.answers ?? {}),
           }));
         if (!active) return;
         setSaved(parseRevision(current));
         setRevisions(data.history.length ? data.history : [current]);
-        setState((s) => ({ ...s, design: parseRevision(current).design }));
+        // Drafts are scoped and intentionally retained until the user saves or discards.
         setFoundationError("");
       })
       .catch((e) => {
@@ -182,11 +197,18 @@ export function Workspace() {
         await foundationRequest<Revision>(
           path,
           path === "/save"
-            ? { ...(body as object), dna: profile(state.answers) }
+            ? {
+                ...(body as object),
+                baseRevision: draftBase,
+                dna: profile(saved?.snapshot?.taste.answers ?? state.answers),
+              }
             : body,
         ),
       );
+      void queryClient.invalidateQueries({ queryKey: ["project", scope.id] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
       setSaved(result);
+      setDraftBase(result.revision);
       setState((s) => ({ ...s, design: result.design }));
       const data = await foundationRequest<{ history: Revision[] }>("/");
       setRevisions(data.history);
@@ -204,17 +226,30 @@ export function Workspace() {
   const [screen, setScreen] = useState("list");
   const [width, setWidth] = useState("desktop");
   const [chatOpen, setChatOpen] = useState(true);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(
+    () => localStorage.getItem(`tasteprint.${scope.id}.prompt`) || "",
+  );
+  useEffect(() => {
+    try {
+      localStorage.setItem(`tasteprint.${scope.id}.prompt`, prompt);
+    } catch {
+      setSaveError(true);
+    }
+  }, [prompt]);
+  const conversation = useQuery({
+    queryKey: ["conversations", scope.id],
+    queryFn: () =>
+      jsonRequest<{ id: string; text: string }[]>(`${scope.api}/conversations`),
+  });
   const [notice, setNotice] = useState("");
   const [saveError, setSaveError] = useState(false);
-  const [questionIndex, setQuestionIndex] = useState(0);
   const [component, setComponent] = useState("Button");
   const [pattern, setPattern] = useState("ListPage");
   const connection = useQuery({
-    queryKey: ["foundation-connection", !!saved],
+    queryKey: ["foundation-connection", scope.id, !!saved],
     enabled: !!saved,
     queryFn: async () => {
-      const response = await fetch("/api/references/connection");
+      const response = await fetch("/api/connection");
       if (!response.ok) throw new Error("接続できません");
       return response.json() as Promise<{ state: "ready" | "login-required" }>;
     },
@@ -226,6 +261,11 @@ export function Workspace() {
         JSON.stringify(saved.design) !== JSON.stringify(state.design)
       )
         throw new Error("先にFoundationの変更を保存してください。");
+      await jsonRequest(`${scope.api}/conversations`, {
+        baseRevision: saved.revision,
+        text,
+      });
+      await conversation.refetch();
       const data = await foundationRequest<{ candidates: Candidate[] }>(
         "/proposals",
         { baseRevision: saved.revision, prompt: text },
@@ -240,12 +280,15 @@ export function Workspace() {
   });
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state));
+      localStorage.setItem(
+        draftKey(scope.id),
+        JSON.stringify({ ...state, baseRevision: draftBase }),
+      );
       setSaveError(false);
     } catch {
       setSaveError(true);
     }
-  }, [state]);
+  }, [state, draftBase]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 3500);
@@ -264,31 +307,17 @@ export function Workspace() {
     proposal.reset();
     setNotice("ひとつ前の設定に戻しました");
   }
-  const answered = Object.keys(state.answers).length;
-  const dna = profile(state.answers);
   const displayDesign = proposal.data?.supported
     ? proposal.data.candidates[candidateIndex].design
     : state.design;
-  const markdown = designMarkdown(
-    saved?.design ?? state.design,
-    state.answers,
-    state.references,
-    saved ?? undefined,
-  );
+  const markdown = saved?.snapshot
+    ? projectMarkdown({ ...saved, snapshot: saved.snapshot })
+    : "";
   const ask = (text: string) => {
     if (!text.trim()) return;
     setPrompt(text);
     proposal.mutate(text);
   };
-  function answer(choice: Choice) {
-    const question = questions[questionIndex];
-    setState((s) => ({
-      ...s,
-      answers: { ...s.answers, [question.id]: choice },
-    }));
-    if (questionIndex < questions.length - 1) setQuestionIndex((i) => i + 1);
-    else setNotice("比較が完了しました。回答はいつでも見直せます");
-  }
 
   return (
     <div className={`workspace ${chatOpen ? "" : "chat-closed"}`}>
@@ -302,7 +331,8 @@ export function Workspace() {
         <div className="project-switch">
           <span className="project-monogram">P</span>
           <div>
-            Personal workspace<small>My design language</small>
+            {projectName}
+            <small>My design language</small>
           </div>
           <Pill>01</Pill>
         </div>
@@ -440,6 +470,11 @@ export function Workspace() {
                       onValidityChange={setValidInput}
                     />
                   </fieldset>
+                  {saved && draftBase !== saved.revision && (
+                    <p role="alert">
+                      下書きの版が古くなっています。確定内容を確認し、「未保存の変更を取り消す」で読み直してください。
+                    </p>
+                  )}
                   {foundationError && (
                     <p className="error-text" role="alert">
                       {foundationError}
@@ -471,6 +506,7 @@ export function Workspace() {
                       disabled={!saved || busy}
                       onClick={() => {
                         setState((s) => ({ ...s, design: saved!.design }));
+                        setDraftBase(saved!.revision);
                         proposal.reset();
                         setHistory([]);
                       }}
@@ -536,6 +572,7 @@ export function Workspace() {
             )}
             {current.id === "inspiration" && (
               <>
+                <p>保存先: {projectName}（このプロジェクト固有）</p>
                 <References
                   onChange={(references) =>
                     setState((s) => ({
@@ -565,114 +602,16 @@ export function Workspace() {
               </>
             )}
             {current.id === "taste" && (
-              <>
-                <div className="taste-progress">
-                  <span>
-                    QUESTION {String(questionIndex + 1).padStart(2, "0")} / 14
-                  </span>
-                  <div>
-                    <i style={{ width: `${(answered / 14) * 100}%` }} />
-                  </div>
-                  <span>{answered} answered</span>
-                </div>
-                <div className="taste-heading">
-                  <Pill>{questions[questionIndex].axis}</Pill>
-                  <h2>{questions[questionIndex].title}</h2>
-                  <p>正解はありません。直感に近いほうを選んでください。</p>
-                </div>
-                <div className="taste-options">
-                  {(["a", "b"] as const).map((choice, i) => (
-                    <button
-                      className={`taste-card ${state.answers[questions[questionIndex].id] === choice ? "chosen" : ""}`}
-                      key={choice}
-                      onClick={() => answer(choice)}
-                    >
-                      <div
-                        className={`taste-example taste-${questions[questionIndex].axis} option-${choice}`}
-                      >
-                        <div className="taste-example-title">
-                          {questions[questionIndex].context}
-                          <Plus size={14} />
-                        </div>
-                        {[
-                          "Website redesign",
-                          "Brand guidelines",
-                          "Customer portal",
-                        ].map((name, index) => (
-                          <div className="taste-example-row" key={name}>
-                            <span className="taste-symbol">{index + 1}</span>
-                            <span>
-                              {name}
-                              <small>Design team · Updated today</small>
-                            </span>
-                            <i />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="taste-caption">
-                        <span>{choice.toUpperCase()}</span>
-                        <strong>{questions[questionIndex].labels[i]}</strong>
-                        <ArrowUp size={16} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div className="taste-other">
-                  {(
-                    [
-                      ["both", "どちらもよい"],
-                      ["neither", "どちらも違う"],
-                      ["skip", "スキップ"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      className="button"
-                      onClick={() => answer(value)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="question-navigation">
-                  <button
-                    className="text-button"
-                    disabled={questionIndex === 0}
-                    onClick={() => setQuestionIndex((i) => i - 1)}
-                  >
-                    <ChevronLeft size={14} /> 前の比較
-                  </button>
-                  <span>選択は自動保存されます</span>
-                  <button
-                    className="text-button"
-                    disabled={questionIndex === 13}
-                    onClick={() => setQuestionIndex((i) => i + 1)}
-                  >
-                    次の比較 <ChevronRight size={14} />
-                  </button>
-                </div>
-                {answered > 0 && (
-                  <div className="dna-summary">
-                    <h3>Your emerging taste</h3>
-                    <p>
-                      回答から見えてきた傾向。未回答の軸は、まだ決めません。
-                    </p>
-                    <div className="dna-bars">
-                      {Object.entries(dna).map(([axis, value]) => (
-                        <div key={axis}>
-                          <span>{axis}</span>
-                          <div>
-                            <i style={{ width: `${(value ?? 0) * 100}%` }} />
-                          </div>
-                          <small>
-                            {value === null ? "—" : value.toFixed(2)}
-                          </small>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
+              <section>
+                <h2>採用した好み</h2>
+                <p>
+                  このプロジェクトの確定版を使用しています。共通の回答変更は「自分の好み」で保存し、概要から差分を取り込んでください。
+                </p>
+                <pre>{JSON.stringify(saved?.snapshot?.taste, null, 2)}</pre>
+                <Link to="/$step" params={{ step: "taste" }}>
+                  自分の好みを見直す
+                </Link>
+              </section>
             )}
             {current.id === "preview" && (
               <>
@@ -821,6 +760,13 @@ export function Workspace() {
                 saved={saved}
                 applied={(r) => {
                   setSaved(r);
+                  setDraftBase(r.revision);
+                  void queryClient.invalidateQueries({
+                    queryKey: ["project", scope.id],
+                  });
+                  void queryClient.invalidateQueries({
+                    queryKey: ["projects"],
+                  });
                   setState((s) => ({ ...s, design: r.design }));
                   setRevisions((v) => [...v, r]);
                 }}
@@ -839,58 +785,7 @@ export function Workspace() {
                   </div>
                   <Pill>Draft export</Pill>
                 </div>
-                <div className="export-actions">
-                  <button
-                    disabled={!saved || busy}
-                    className="button primary"
-                    onClick={() => {
-                      download("DESIGN.md", markdown, "text/markdown");
-                      setNotice("DESIGN.mdをダウンロードしました");
-                    }}
-                  >
-                    <ArrowDownToLine size={15} /> DESIGN.md
-                  </button>
-                  <button
-                    disabled={!saved || busy}
-                    className="button"
-                    onClick={() =>
-                      download(
-                        "design-system.json",
-                        JSON.stringify(
-                          {
-                            schemaVersion: 2,
-                            revision: saved?.revision ?? null,
-                            decisions: saved?.decisions ?? [],
-                            status: "mock-draft",
-                            design: saved?.design ?? state.design,
-                            taste: dna,
-                            references: state.references.map(
-                              ({ image: _image, ...r }) => r,
-                            ),
-                          },
-                          null,
-                          2,
-                        ),
-                        "application/json",
-                      )
-                    }
-                  >
-                    JSON
-                  </button>
-                  <button
-                    disabled={!saved || busy}
-                    className="button"
-                    onClick={() =>
-                      download(
-                        "variables.css",
-                        designCss(saved?.design ?? state.design),
-                        "text/css",
-                      )
-                    }
-                  >
-                    CSS variables
-                  </button>
-                </div>
+                {saved && <ExportHistory revision={saved.revision} />}
                 <div className="code-preview">
                   <div>
                     <span className="local-dot" /> DESIGN.md{" "}
@@ -935,6 +830,9 @@ export function Workspace() {
                 <span>ChatGPT認証を使用</span>
               </div>
               <div className="conversation-content">
+                {conversation.data?.map((m) => (
+                  <p key={m.id}>{m.text}</p>
+                ))}
                 <div className="companion-avatar">
                   <Fingerprint size={23} />
                 </div>
@@ -951,7 +849,7 @@ export function Workspace() {
                   <Palette size={16} />
                   <div>
                     {current.name}
-                    <small>Personal workspace</small>
+                    <small>{projectName}</small>
                   </div>
                 </div>
                 <div className="companion-message">
@@ -1091,7 +989,9 @@ export function Workspace() {
                     </button>
                   </div>
                 </form>
-                <p>確定したFoundationとリクエストをCodexへ送信します</p>
+                <p>
+                  このプロジェクトの確定設計・用途・採用した好みと根拠・リクエストをCodexへ送信します
+                </p>
               </div>
             </aside>
           )}

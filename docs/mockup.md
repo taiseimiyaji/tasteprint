@@ -1,5 +1,6 @@
 # モックアップ操作ガイド
 
+> Issue #9以降、共通の好みとプロジェクトの保存先・ルートを分離しています。現行の操作・API・移行手順は [projects.md](projects.md) を参照してください。以下の旧グローバルAPI・localStorageの記述は移行前の説明です。
 初期画面はFoundationです。画面内のMock modeは、AIを呼ばず定型の提案で動作していることを表します。
 
 1. InspirationでURLを追加するか、2MB以下のPNG / JPEG / WebPを追加します。参考にしたい観点を選びます。URLの自動取得は行いません。

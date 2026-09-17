@@ -3,11 +3,16 @@ import type { Review } from "../../domain/review";
 import {
   type Candidate,
   type Revision,
-  foundationRequest,
+  foundationRequest as requestFoundation,
 } from "../foundation-api";
 import { PreviewFrame } from "./PreviewFrame";
-async function request<T>(path = "", body?: unknown): Promise<T> {
-  const response = await fetch(`/api/references/reviews${path}`, {
+import { useScope } from "../scope";
+async function reviewRequest<T>(
+  base: string,
+  path = "",
+  body?: unknown,
+): Promise<T> {
+  const response = await fetch(`${base}/reviews${path}`, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : {},
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -23,6 +28,11 @@ export function ReviewPanel({
   saved: Revision | null;
   applied: (r: Revision) => void;
 }) {
+  const scope = useScope();
+  const request = <T,>(path = "", body?: unknown) =>
+    reviewRequest<T>(scope.api, path, body);
+  const foundationRequest = <T,>(path: string, body?: unknown) =>
+    requestFoundation<T>(path, body, `${scope.api}/foundation`);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -110,13 +120,13 @@ export function ReviewPanel({
             {review.images.map((id, i) => (
               <a
                 key={id}
-                href={`/api/references/reviews/images/${id}`}
+                href={`${scope.api}/reviews/images/${id}`}
                 target="_blank"
                 rel="noreferrer"
               >
                 <img
                   style={{ width: "30%" }}
-                  src={`/api/references/reviews/images/${id}`}
+                  src={`${scope.api}/reviews/images/${id}`}
                   alt={["一覧", "設定", "フォーム"][i]}
                 />
               </a>
@@ -168,6 +178,7 @@ export function ReviewPanel({
                       onClick={() =>
                         action(async () => {
                           await request(`/${review.id}/dismiss`, {
+                            baseRevision: saved!.revision,
                             findingId: f.id,
                             reason: reasons[f.id] || "",
                           });
