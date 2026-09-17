@@ -14,7 +14,10 @@ export type CaptureReview = (
   screen: string,
   signal: AbortSignal,
 ) => Promise<ScreenCapture>;
-export function reviewCapture(origin: string): CaptureReview {
+export function reviewCapture(
+  origin: string,
+  width: 390 | 768 | 1440 = 1440,
+): CaptureReview {
   // This origin is supplied by the server entrypoint, never by a request.
   return async (design, screen, signal) => {
     signal.throwIfAborted();
@@ -26,7 +29,7 @@ export function reviewCapture(origin: string): CaptureReview {
     try {
       signal.throwIfAborted();
       const page = await browser.newPage({
-        viewport: { width: 1440, height: 1000 },
+        viewport: { width, height: 1000 },
       });
       // tsx preserves function names with this helper inside serialized callbacks.
       await page.addInitScript("globalThis.__name = (value) => value");
@@ -229,7 +232,7 @@ export function reviewCapture(origin: string): CaptureReview {
           "states",
         ],
         scope: [
-          `${screen}: 1440×1000、初期表示、入力とボタンのfocus状態`,
+          `${screen}: ${width}×1000、初期表示、入力とボタンのfocus状態`,
           ...audit.incomplete.map((r) => `${screen}: ${r.id} は手動確認が必要`),
         ],
       };

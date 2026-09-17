@@ -122,8 +122,14 @@ export const fieldGroups = {
     "widePolicy",
   ],
 } as const;
-export const fieldNames = [...new Set(Object.values(fieldGroups).flat())];
-export const fieldNameSchema = z.enum(fieldNames as [string, ...string[]]);
+export const fieldNames = [
+  ...new Set([
+    ...Object.values(fieldGroups).flat(),
+    "components" as const,
+    "patterns" as const,
+  ]),
+];
+export const fieldNameSchema = z.enum([...fieldNames] as [string, ...string[]]);
 export const decisionSchema = z
   .object({
     locked: z.boolean(),

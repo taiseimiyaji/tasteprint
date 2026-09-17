@@ -2823,3 +2823,119 @@ svg {
     height: calc(100vh - 100px);
   }
 }
+
+/* The library renderer runs only inside the preview document. */
+.library-editor {
+  display: grid;
+  gap: 16px;
+}
+.library-editor > label {
+  display: grid;
+  gap: 6px;
+}
+.library-editor fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.library-editor input[type="checkbox"] {
+  width: auto;
+}
+.preview-stage {
+  overflow: auto;
+  max-width: 100%;
+  justify-content: flex-start;
+}
+.preview-stage > iframe {
+  flex-shrink: 0;
+  margin-inline: auto;
+}
+.runtime-root {
+  min-height: 800px;
+}
+.runtime-root .sample-main {
+  min-width: 0;
+  flex: 1;
+}
+.runtime-root .sample-content {
+  min-width: 0;
+}
+.runtime-root label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.runtime-root [data-component="Checkbox"] {
+  min-height: 20px;
+  width: 20px;
+  accent-color: var(--preview-accent);
+}
+.runtime-root [data-component="Table"] {
+  width: 100%;
+  min-width: 560px;
+}
+.runtime-root [data-component="Table"] td {
+  color: inherit;
+}
+.runtime-root [data-component="Tabs"][aria-selected="true"] {
+  border-bottom: 3px solid var(--preview-accent);
+}
+.runtime-root [data-component="Dialog"] {
+  max-width: min(520px, 90vw);
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+.runtime-root dialog::backdrop {
+  background: #0006;
+}
+.runtime-root button:hover,
+.runtime-root [data-state="hover"] {
+  filter: brightness(0.9);
+}
+.runtime-root :focus-visible,
+.runtime-root [data-state="focus"],
+.runtime-root .specimen-control[data-state="focus"] button {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+.runtime-root :disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.runtime-root [aria-invalid="true"] {
+  outline: 2px solid var(--color-danger);
+}
+.runtime-fields {
+  display: grid;
+  gap: 16px;
+}
+.runtime-danger {
+  border-top: 2px solid var(--color-danger);
+  padding-top: 24px;
+  margin-top: 24px;
+}
+.runtime-specimen {
+  padding: 32px;
+  width: 100%;
+}
+.specimen-control {
+  padding: 32px 0;
+}
+@media (max-width: 767px) {
+  .runtime-root .sample-sidebar {
+    display: none;
+  }
+  .runtime-root .sample-content {
+    padding: 16px;
+  }
+}
+.runtime-root [data-component="Table"] td {
+  height: var(--component-height);
+  font-size: inherit;
+}
+.runtime-root [data-component="Checkbox"] {
+  width: calc(var(--component-height) / 2);
+  height: calc(var(--component-height) / 2);
+  min-height: 0;
+  padding: 0;
+}

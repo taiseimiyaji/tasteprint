@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,13 +6,10 @@ import {
   ArrowRight,
   ArrowUp,
   Check,
-  ChevronDown,
-  ChevronLeft,
   ChevronRight,
   CircleHelp,
   ClipboardCheck,
   Code2,
-  Columns3,
   Fingerprint,
   Image,
   Layers,
@@ -27,17 +18,15 @@ import {
   Monitor,
   Palette,
   PanelRightClose,
-  Plus,
   RotateCcw,
-  Search,
-  Settings2,
   SlidersHorizontal,
   Smartphone,
   Sparkles,
   Tablet,
-  Trash2,
   X,
 } from "lucide-react";
+import { configurationDiff, affectedScreens } from "../domain/library";
+import { LibraryEditor } from "./components/LibraryEditor";
 import { FoundationEditor } from "./components/FoundationEditor";
 import {
   foundationRequest as requestFoundation,
@@ -47,7 +36,6 @@ import {
 } from "./foundation-api";
 import { projectMarkdown } from "../domain/project-export";
 import { References } from "./components/References";
-import { Preview } from "./components/Preview";
 import { PreviewFrame } from "./components/PreviewFrame";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { initialState, type WorkspaceState } from "./state";
@@ -215,7 +203,7 @@ export function Workspace({
       setFoundationError("");
       proposal.reset();
       setHistory([]);
-      setNotice("Foundationを保存しました");
+      setNotice("設計を保存しました");
     } catch (e) {
       setFoundationError(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -672,18 +660,21 @@ export function Workspace({
                     </button>
                   ))}
                 </div>
-                <ComponentDemo name={component} design={state.design} />
-                <div className="component-description">
-                  <h2>Small pieces. One language.</h2>
-                  <p>
-                    同じアクセント、角丸、余白を共有します。Foundationの変更がここにも反映されます。
-                  </p>
-                  <div className="token-summary">
-                    <Pill>radius · {state.design.radius}px</Pill>
-                    <Pill>space · {state.design.spacing}px</Pill>
-                    <Pill>accent · {state.design.accent}</Pill>
-                  </div>
-                </div>
+                <fieldset
+                  disabled={!saved || busy}
+                  className="foundation-inputs"
+                >
+                  <LibraryEditor
+                    design={state.design}
+                    kind="components"
+                    name={component}
+                    onChange={updateDesign}
+                  />
+                </fieldset>
+                <PreviewFrame
+                  design={displayDesign}
+                  screen={`component:${component}`}
+                />
               </>
             )}
             {current.id === "patterns" && (
@@ -728,32 +719,97 @@ export function Workspace({
                   </h2>
                   <Pill>Template</Pill>
                 </div>
-                <p className="pattern-description">
-                  {pattern === "EmptyState"
-                    ? "情報がまだないときは、理由と次にできる操作を伝えます。"
-                    : pattern === "FilterBar"
-                      ? "検索と状態フィルタを、一覧のすぐ上にまとめます。"
-                      : "見出し、操作、内容の順序を揃え、余白で情報のまとまりをつくります。"}
-                </p>
-                {pattern === "EmptyState" ? (
-                  <div className="pattern-empty">
-                    <Layers size={28} />
-                    <h3>No projects yet</h3>
-                    <p>最初のプロジェクトを作成して、仕事を整理しましょう。</p>
-                    <button
-                      className="button primary"
-                      onClick={() => {
-                        setScreen("list");
-                        setPattern("ListPage");
-                      }}
-                    >
-                      一覧の例を見る <ArrowRight size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <Preview design={state.design} screen={screen} />
-                )}
+                <fieldset
+                  disabled={!saved || busy}
+                  className="foundation-inputs"
+                >
+                  <LibraryEditor
+                    design={state.design}
+                    kind="patterns"
+                    name={pattern}
+                    onChange={updateDesign}
+                  />
+                </fieldset>
+                <PreviewFrame
+                  design={displayDesign}
+                  screen={`pattern:${pattern}`}
+                />
               </>
+            )}
+            {(current.id === "components" || current.id === "patterns") && (
+              <section className="foundation-editor">
+                {saved && draftBase !== saved.revision && (
+                  <p role="alert">
+                    下書きの版が古くなっています。確定内容を確認し、「未保存の変更を取り消す」で読み直してください。
+                  </p>
+                )}
+                {foundationError && (
+                  <p className="error-text" role="alert">
+                    {foundationError}
+                  </p>
+                )}
+                <div className="proposal-actions">
+                  <button
+                    className="button primary"
+                    disabled={
+                      !saved ||
+                      !validInput ||
+                      busy ||
+                      JSON.stringify(saved.design) ===
+                        JSON.stringify(state.design)
+                    }
+                    onClick={() =>
+                      void commit("/save", {
+                        baseRevision: saved!.revision,
+                        design: state.design,
+                        reason: "手動でComponents / Patternsを編集",
+                        requestId: crypto.randomUUID(),
+                      })
+                    }
+                  >
+                    変更を保存
+                  </button>
+                  <button
+                    className="button"
+                    disabled={!saved || busy}
+                    onClick={() => {
+                      setState((s) => ({ ...s, design: saved!.design }));
+                      setDraftBase(saved!.revision);
+                      proposal.reset();
+                      setHistory([]);
+                    }}
+                  >
+                    未保存の変更を取り消す
+                  </button>
+                </div>
+                <details>
+                  <summary>
+                    確定履歴（revision {saved?.revision ?? "未接続"}）
+                  </summary>
+                  {revisions
+                    .slice()
+                    .reverse()
+                    .map((r) => (
+                      <div key={r.revision}>
+                        r{r.revision} · {r.reason} ·{" "}
+                        {new Date(r.createdAt).toLocaleString()}{" "}
+                        <button
+                          className="button small"
+                          disabled={busy || r.revision === saved?.revision}
+                          onClick={() =>
+                            void commit("/restore", {
+                              baseRevision: saved!.revision,
+                              target: r.revision,
+                              requestId: crypto.randomUUID(),
+                            })
+                          }
+                        >
+                          r{r.revision}を復元
+                        </button>
+                      </div>
+                    ))}
+                </details>
+              </section>
             )}
             {current.id === "review" && (
               <ReviewPanel
@@ -912,25 +968,22 @@ export function Workspace({
                           {proposal.data.candidates[candidateIndex].explanation}
                         </p>
                         <div className="proposal-diff">
-                          {Object.entries(
+                          {configurationDiff(
+                            state.design,
                             proposal.data.candidates[candidateIndex].design,
-                          )
-                            .filter(
-                              ([k, v]) =>
-                                JSON.stringify(
-                                  state.design[k as keyof Design],
-                                ) !== JSON.stringify(v),
-                            )
-                            .map(([k, v]) => (
-                              <div key={k}>
-                                <span>{k}</span>
-                                <del>
-                                  {String(state.design[k as keyof Design])}
-                                </del>
-                                <ArrowRight size={11} />
-                                <strong>{JSON.stringify(v)}</strong>
-                              </div>
-                            ))}
+                          ).map((change) => (
+                            <div key={change.path}>
+                              <span>
+                                {change.path}
+                                <small>
+                                  影響: {affectedScreens(change.path)}
+                                </small>
+                              </span>
+                              <del>{JSON.stringify(change.before)}</del>
+                              <ArrowRight size={11} />
+                              <strong>{JSON.stringify(change.after)}</strong>
+                            </div>
+                          ))}
                         </div>
                         <small>プレビューに仮反映しています</small>
                         <div className="proposal-actions">
@@ -1078,9 +1131,9 @@ function PreviewArea({
         </div>
         <div className="viewport-buttons">
           {[
-            { id: "desktop", Icon: Monitor, text: "Desktop" },
-            { id: "tablet", Icon: Tablet, text: "Tablet" },
-            { id: "mobile", Icon: Smartphone, text: "Mobile" },
+            { id: "desktop", Icon: Monitor, text: "Desktop 1440px" },
+            { id: "tablet", Icon: Tablet, text: "Tablet 768px" },
+            { id: "mobile", Icon: Smartphone, text: "Mobile 390px" },
           ].map(({ id, Icon, text }) => (
             <button
               aria-label={text}
@@ -1095,124 +1148,12 @@ function PreviewArea({
         </div>
       </div>
       <div className={`preview-stage viewport-${width}`}>
-        <PreviewFrame design={design} screen={screen} />
+        <PreviewFrame
+          design={design}
+          screen={screen}
+          width={width === "mobile" ? 390 : width === "tablet" ? 768 : 1440}
+        />
       </div>
     </div>
-  );
-}
-function ComponentDemo({ name, design }: { name: string; design: Design }) {
-  const [dialog, setDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("Overview");
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (dialog) dialogRef.current?.showModal();
-    else dialogRef.current?.close();
-  }, [dialog]);
-  const style = {
-    "--preview-accent": design.accent,
-    "--preview-radius": `${design.radius}px`,
-  } as CSSProperties;
-  return (
-    <section className="component-demo" style={style}>
-      <div className="section-label">
-        <span>{name}</span>
-        <span className="mono">INTERACTIVE SPECIMEN</span>
-      </div>
-      <div className="component-stage">
-        {name === "Button" ? (
-          <>
-            <button
-              className="sample-primary"
-              onClick={(e) => {
-                e.currentTarget.textContent = "Saved ✓";
-              }}
-            >
-              Save changes
-            </button>
-            <button
-              className="button"
-              onClick={(e) => {
-                e.currentTarget.textContent = "Confirmed ✓";
-              }}
-            >
-              Secondary
-            </button>
-            <button
-              className="text-button"
-              onClick={(e) => {
-                e.currentTarget.textContent = "Confirmed ✓";
-              }}
-            >
-              Ghost <ArrowRight size={13} />
-            </button>
-            <button className="button" disabled>
-              Disabled
-            </button>
-          </>
-        ) : name === "Input" ? (
-          <label className="demo-field">
-            Project name
-            <input placeholder="Website redesign" />
-          </label>
-        ) : name === "Select" ? (
-          <label className="demo-field">
-            Status
-            <select>
-              <option>In progress</option>
-              <option>Planned</option>
-              <option>Done</option>
-            </select>
-          </label>
-        ) : name === "Checkbox" ? (
-          <label className="sample-checkbox">
-            <input type="checkbox" /> Receive project updates
-          </label>
-        ) : name === "Tabs" ? (
-          <div>
-            <div className="foundation-tabs">
-              {["Overview", "Activity", "Settings"].map((t) => (
-                <button
-                  key={t}
-                  aria-pressed={activeTab === t}
-                  className={activeTab === t ? "active-tab" : ""}
-                  onClick={() => setActiveTab(t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <p>{activeTab} content</p>
-          </div>
-        ) : name === "Dialog" ? (
-          <>
-            <button className="sample-primary" onClick={() => setDialog(true)}>
-              Open dialog
-            </button>
-            <dialog ref={dialogRef} onClose={() => setDialog(false)}>
-              <h2>Save your changes?</h2>
-              <p>このダイアログはコンポーネントの動作例です。</p>
-              <button
-                className="button primary"
-                onClick={() => setDialog(false)}
-              >
-                確認して閉じる
-              </button>
-            </dialog>
-          </>
-        ) : name === "Badge" ? (
-          <>
-            <Pill>
-              <span className="local-dot" /> In progress
-            </Pill>
-            <Pill>Planned</Pill>
-            <Pill>
-              <Check size={12} /> Done
-            </Pill>
-          </>
-        ) : (
-          <Preview design={design} />
-        )}
-      </div>
-    </section>
   );
 }
