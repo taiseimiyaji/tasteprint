@@ -1,3 +1,4 @@
+import { Button, Input, Select } from "./TemplateControls";
 import { useState } from "react";
 import type { Design } from "../../domain/design";
 import type { PatternName } from "../../domain/library";
@@ -114,14 +115,14 @@ export function Preview({
                 <p>A little structure. More room for good work.</p>
               </div>
               {screen === "list" && (
-                <button
+                <Button
                   data-slot="action"
                   data-component="Button"
                   className="sample-primary"
                   onClick={() => setOpen(true)}
                 >
                   New project
-                </button>
+                </Button>
               )}
             </Pattern>
           )}
@@ -136,7 +137,7 @@ export function Preview({
                   </div>
                   <label data-slot="search">
                     Search projects
-                    <input
+                    <Input
                       data-component="Input"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
@@ -145,7 +146,7 @@ export function Preview({
                   </label>
                   <label data-slot="filter">
                     Project status
-                    <select
+                    <Select
                       data-component="Select"
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
@@ -159,7 +160,7 @@ export function Preview({
                       ].map((s) => (
                         <option key={s}>{s}</option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 </Pattern>
               )}
@@ -202,13 +203,13 @@ export function Preview({
                   <p data-slot="message">
                     No projects found. Try another search.
                   </p>
-                  <button
+                  <Button
                     data-slot="action"
                     data-component="Button"
                     onClick={() => setOpen(true)}
                   >
                     Create a project
-                  </button>
+                  </Button>
                 </Pattern>
               )}
             </>
@@ -238,7 +239,7 @@ export function Preview({
               <div data-slot="fields" className="runtime-fields">
                 <label>
                   {screen === "settings" ? "Workspace name" : "Project name"}
-                  <input
+                  <Input
                     data-component="Input"
                     required
                     aria-describedby="form-help"
@@ -247,7 +248,7 @@ export function Preview({
                 </label>
                 <label>
                   {screen === "settings" ? "Contact email" : "Description"}
-                  <input
+                  <Input
                     data-component="Input"
                     required
                     type={screen === "settings" ? "email" : "text"}
@@ -258,13 +259,13 @@ export function Preview({
                 </label>
                 <label>
                   Visibility
-                  <select data-component="Select">
+                  <Select data-component="Select">
                     <option>Workspace members</option>
                     <option>Private</option>
-                  </select>
+                  </Select>
                 </label>
                 <label>
-                  <input
+                  <Input
                     data-component="Checkbox"
                     type="checkbox"
                     defaultChecked
@@ -273,7 +274,7 @@ export function Preview({
                 </label>
                 {error && <p role="alert">{error}</p>}
               </div>
-              <button
+              <Button
                 data-slot={screen === "settings" ? "save" : "submit"}
                 data-component="Button"
                 className="sample-primary"
@@ -287,7 +288,7 @@ export function Preview({
                     : screen === "settings"
                       ? "Save changes"
                       : "Create project"}
-              </button>
+              </Button>
               <p data-slot="help" id="form-help">
                 Required fields · Sample data stays in this preview
               </p>
@@ -295,13 +296,13 @@ export function Preview({
                 <section data-slot="danger" className="runtime-danger">
                   <h4>Danger zone</h4>
                   <p>通常の設定とは分けて、破壊的操作を確認します。</p>
-                  <button
+                  <Button
                     type="button"
                     data-component="Button"
                     onClick={() => setOpen(true)}
                   >
                     Delete workspace
-                  </button>
+                  </Button>
                 </section>
               )}
             </Pattern>
@@ -329,14 +330,14 @@ export function Preview({
               >
                 <label>
                   New project name
-                  <input
+                  <Input
                     data-component="Input"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
                 </label>
-                <button data-component="Button">Create</button>
+                <Button data-component="Button">Create</Button>
               </form>
             ) : (
               <p>Preview only: no workspace will be deleted.</p>

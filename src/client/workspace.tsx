@@ -850,7 +850,7 @@ export function Workspace({
                   <pre>{markdown}</pre>
                 </div>
                 <p className="muted export-note">
-                  モック出力です。DTCG・React・PNG・ZIPの一括出力は次の実装段階で追加します。
+                  一括 ZIP には DTCG トークン、React テンプレート、3画面の PNG、導入手順と manifest が含まれます。
                 </p>
               </>
             )}

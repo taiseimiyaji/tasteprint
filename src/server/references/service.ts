@@ -16,7 +16,7 @@ import { CaptureError, publicUrl } from "../capture/proxy";
 import { CodexGateway, type Analyze } from "../codex/gateway";
 export class ServiceError extends Error {
   constructor(
-    public status: 400 | 404 | 409 | 413,
+    public status: 400 | 404 | 409 | 413 | 503,
     message: string,
   ) {
     super(message);

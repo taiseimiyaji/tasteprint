@@ -17,6 +17,7 @@ export type CaptureReview = (
 export function reviewCapture(
   origin: string,
   width: 390 | 768 | 1440 = 1440,
+  auditEnabled = true,
 ): CaptureReview {
   // This origin is supplied by the server entrypoint, never by a request.
   return async (design, screen, signal) => {
@@ -53,6 +54,13 @@ export function reviewCapture(
       await page.waitForSelector(".sample-app");
       await page.evaluate(() => document.fonts.ready);
       const image = await page.screenshot({ fullPage: true });
+      if (!auditEnabled)
+        return {
+          image,
+          findings: [],
+          verifiedRules: [],
+          scope: [`${screen}: 1440×1000、初期表示`],
+        };
       await page.addScriptTag({ content: axe.source });
       const audit = await page.evaluate(async () =>
         (window as unknown as { axe: typeof axe }).axe.run(".sample-app", {

@@ -211,8 +211,26 @@ export function projectRoutes(
       c.json(service.exportSummaries(c.req.param("id"))),
     )
     .post("/projects/:id/exports", async (c) => {
-      const v = z.object({ baseRevision: revision }).parse(await c.req.json());
-      return c.json(service.export(c.req.param("id"), v.baseRevision));
+      const v = z
+        .object({
+          baseRevision: revision,
+          bundle: z.boolean().default(false),
+          imageMode: z.enum(["include", "omit"]).default("include"),
+        })
+        .parse(await c.req.json());
+      const record = v.bundle
+        ? await service.exportBundle(
+            c.req.param("id"),
+            v.baseRevision,
+            v.imageMode,
+          )
+        : service.export(c.req.param("id"), v.baseRevision);
+      return c.json({
+        ...record,
+        files: Object.fromEntries(
+          Object.keys(record.files).map((name) => [name, ""]),
+        ),
+      });
     })
     .get("/projects/:id/exports/:exportId/:filename", (c) => {
       const r = service
@@ -221,14 +239,26 @@ export function projectRoutes(
         file = c.req.param("filename");
       if (!r || !Object.hasOwn(r.files, file))
         throw new ServiceError(404, "成果物が見つかりません。");
-      return c.body(r.files[file], 200, {
-        "Content-Type": file.endsWith(".json")
-          ? "application/json"
-          : file.endsWith(".css")
-            ? "text/css"
-            : "text/markdown; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${file}"`,
-      });
+      return c.body(
+        r.binaryFiles?.includes(file)
+          ? Buffer.from(r.files[file], "base64")
+          : r.files[file],
+        200,
+        {
+          "Content-Type": file.endsWith(".zip")
+            ? "application/zip"
+            : file.endsWith(".png")
+              ? "image/png"
+              : file.endsWith(".tsx") || file.endsWith(".ts")
+                ? "text/plain; charset=utf-8"
+                : file.endsWith(".json")
+                  ? "application/json"
+                  : file.endsWith(".css")
+                    ? "text/css"
+                    : "text/markdown; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${file}"`,
+        },
+      );
     });
   routes.all("/projects/:id/*", async (c) => {
     const id = c.req.param("id"),

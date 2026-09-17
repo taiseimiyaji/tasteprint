@@ -933,6 +933,34 @@ export function ExportHistory({ revision }: { revision: number }) {
         このプロジェクトの確定 r{revision}{" "}
         を出力します。未保存の編集は含みません。
       </p>
+      <p>
+        Draft · 未確認: Components / Patterns
+        の個別仕様・全状態、実アプリでの設計とアクセシビリティ。
+      </p>
+      {(["include", "omit"] as const).map((imageMode) => (
+        <button
+          key={imageMode}
+          className="button"
+          disabled={action.busy}
+          onClick={() =>
+            void action.run(async () => {
+              const r = await req<ExportRecord>(`${scope.api}/exports`, {
+                baseRevision: revision,
+                bundle: true,
+                imageMode,
+              });
+              download(r, ".zip");
+              await query.refetch();
+            })
+          }
+        >
+          {action.busy
+            ? "出力中…"
+            : imageMode === "include"
+              ? "一括 ZIP を生成・再試行"
+              : "画像なし ZIP を生成"}
+        </button>
+      ))}
       {[
         ["DESIGN.md", "DESIGN.md"],
         ["JSON", ".json"],
@@ -964,7 +992,11 @@ export function ExportHistory({ revision }: { revision: number }) {
           <h3>
             r{r.revision} · 共通の好み r{r.sourceTasteProfileRevision ?? "なし"}
           </h3>
-          <p>{r.createdAt}</p>
+          <p>
+            {r.createdAt}{" "}
+            {r.templateVersion &&
+              `· Draft · ${r.imageMode === "omit" ? "画像なし" : "PNG 3画面"}`}
+          </p>
           {Object.keys(r.files).map((name) => (
             <a
               className="button"

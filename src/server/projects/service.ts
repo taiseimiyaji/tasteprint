@@ -1,3 +1,5 @@
+import { bundleFiles, finishBundle, templateVersion } from "../exports/bundle";
+import type { CaptureReview } from "../review/capture";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID, createHash } from "node:crypto";
 import { mkdirSync, existsSync, cpSync, writeFileSync } from "node:fs";
@@ -50,12 +52,16 @@ export type ExportRecord = {
   sourceTasteProfileRevision: number | null;
   createdAt: string;
   files: Record<string, string>;
+  binaryFiles?: string[];
+  templateVersion?: string;
+  imageMode?: "include" | "omit";
 };
 export type Dependencies = {
   referenceFactory?: (dir: string) => ReferenceService;
   generate?: Generate;
   reviewAI?: ReviewAI;
   previewOrigin?: string;
+  exportCapture?: CaptureReview;
 };
 export class ProjectService {
   readonly db: DatabaseSync;
@@ -555,7 +561,9 @@ export class ProjectService {
     const r = this.revision(id, base),
       row = this.row(id),
       s = r.snapshot;
-    const existing = this.exports(id).find((e) => e.revision === base);
+    const existing = this.exports(id).find(
+      (e) => e.revision === base && !e.templateVersion,
+    );
     if (existing) return existing;
     this.writable(id);
     const metadata = {
@@ -578,6 +586,88 @@ export class ProjectService {
       id: randomUUID(),
       createdAt: new Date().toISOString(),
       files,
+    };
+    this.scope(id)
+      .references.db.prepare("INSERT INTO exports VALUES (?,?)")
+      .run(record.id, JSON.stringify(record));
+    return record;
+  }
+  async exportBundle(
+    id: string,
+    base: number,
+    imageMode: "include" | "omit" = "include",
+  ) {
+    this.writable(id);
+    const snapshot = structuredClone(this.revision(id, base));
+    const existing = this.exports(id).find(
+      (e) =>
+        e.revision === base &&
+        e.templateVersion === templateVersion &&
+        e.imageMode === imageMode,
+    );
+    if (existing) return existing;
+    const { files, metadata } = bundleFiles(snapshot);
+    const images: Record<string, Buffer> = {};
+    if (imageMode === "include") {
+      const capture =
+        this.dependencies.exportCapture ??
+        reviewCapture(
+          this.dependencies.previewOrigin ?? "http://127.0.0.1:3000",
+          1440,
+          false,
+        );
+      try {
+        for (const screen of ["list", "settings", "form"]) {
+          const result = await capture(
+            structuredClone(snapshot.design),
+            screen,
+            AbortSignal.timeout(60000),
+          );
+          if (
+            !result.image
+              .subarray(0, 8)
+              .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+          )
+            throw new Error("Invalid PNG");
+          images[`${screen}.png`] = result.image;
+        }
+      } catch {
+        throw new ServiceError(
+          503,
+          "PNG の生成に失敗しました。再試行、または「画像なし ZIP」を選択してください。成果物は保存していません。",
+        );
+      }
+    }
+    const root = `tasteprint-${this.row(id).slug}-r${base}`;
+    const bundle = finishBundle(
+      files,
+      metadata,
+      Object.fromEntries(
+        Object.entries(images).map(([n, v]) => [`examples/${n}`, v]),
+      ),
+      root,
+    );
+    const binaryFiles = [...Object.keys(images), `${root}.zip`];
+    // Flat download names; ZIP retains the portable directory layout.
+    const downloads = Object.fromEntries(
+      Object.entries(bundle.files).map(([name, value]) => [
+        name.replaceAll("/", "--"),
+        value,
+      ]),
+    );
+    for (const [name, image] of Object.entries(images))
+      downloads[name] = image.toString("base64");
+    downloads[`${root}.zip`] = bundle.zip.toString("base64");
+    const record: ExportRecord = {
+      id: randomUUID(),
+      projectId: id,
+      revision: base,
+      sourceTasteProfileRevision: snapshot.snapshot.sourceTasteProfileRevision,
+      createdAt: new Date().toISOString(),
+      files: downloads,
+      binaryFiles,
+      templateVersion,
+      imageMode,
     };
     this.scope(id)
       .references.db.prepare("INSERT INTO exports VALUES (?,?)")
