@@ -12,7 +12,7 @@ import {
 } from "../../domain/projects";
 import { z } from "zod";
 
-export const templateVersion = "preview-1";
+export const templateVersion = "preview-2";
 export const openQuestions = [
   "Components / Patterns の個別仕様・全状態は未確認（Preview テンプレートの動作例）",
   "実アプリでの設計・アクセシビリティレビューが必要",
@@ -160,7 +160,7 @@ export function bundleFiles(input: {
     revision: r.revision,
     sourceTasteProfileRevision: r.snapshot.sourceTasteProfileRevision,
     status: "Draft",
-    schemaVersion: "foundation-1",
+    schemaVersion: "foundation-library-1",
     templateVersion,
   };
   const files: Record<string, string> = {
@@ -197,12 +197,16 @@ export function bundleFiles(input: {
     "ui/components/TemplateControls.tsx": source(
       "client/components/TemplateControls.tsx",
     ),
+    "ui/design-runtime/Library.tsx": source(
+      "client/design-runtime/Library.tsx",
+    ).replaceAll('"../../domain/', '"../domain/'),
+    "ui/domain/library.ts": source("domain/library.ts"),
     "ui/styles.css": source("client/styles.css"),
     "ui/domain/design.ts": source("domain/design.ts"),
     "ui/domain/foundation.ts": source("domain/foundation.ts"),
     "ui/domain/tokens.ts": source("domain/tokens.ts"),
     "ui/design.ts": `import type { Design } from './domain/design';\nexport const design: Design = ${json(r.design)};\n`,
-    "ui/index.ts": `export * from './components/TemplateControls';\nexport { Preview } from './components/Preview';\nexport * from './patterns/pages';\n`,
+    "ui/index.ts": `export * from './components/TemplateControls';\nexport * from './design-runtime/Library';\nexport { Preview } from './components/Preview';\nexport * from './patterns/pages';\n`,
     "ui/patterns/pages.tsx": `import { Preview } from '../components/Preview';\nimport { design } from '../design';\nimport '../styles.css';\n${["List", "Settings", "Form"].map((name) => `export function ${name}Page() { return <Preview design={design} screen="${name.toLowerCase()}" />; }`).join("\n")}\n`,
     "tsconfig.json": json({
       compilerOptions: {

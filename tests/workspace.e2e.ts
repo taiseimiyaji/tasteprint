@@ -227,10 +227,15 @@ test("preview search, form, dialog, and narrow layout are usable", async ({
   ).toBeVisible();
   await page.goto(`/projects/${projectId}/components`);
   await page.getByRole("button", { name: "Dialog", exact: true }).click();
-  await page.getByRole("button", { name: "Open dialog" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await page
+    .frameLocator("iframe")
+    .getByRole("button", { name: "Open dialog" })
+    .click();
+  await expect(page.frameLocator("iframe").getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(
+    page.frameLocator("iframe").getByRole("dialog"),
+  ).not.toBeVisible();
   await page.goto(`/projects/${projectId}/foundation`);
   await page.getByRole("button", { name: "対話パネルを閉じる" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -433,3 +438,4 @@ test("bundle export offers explicit PNG failure recovery and downloads portable 
   expect(full.suggestedFilename()).toMatch(/\.zip$/);
   await expect(page.getByText(/Draft · PNG 3画面/)).toBeVisible();
 });
+import "./library-journey";

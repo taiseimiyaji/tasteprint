@@ -613,6 +613,7 @@ export class ProjectService {
         this.dependencies.exportCapture ??
         reviewCapture(
           this.dependencies.previewOrigin ?? "http://127.0.0.1:3000",
+          1440,
           false,
         );
       try {

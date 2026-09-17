@@ -1,18 +1,13 @@
 import { Button, Input, Select } from "./TemplateControls";
-import { useState, useEffect, useRef, type CSSProperties } from "react";
-import {
-  ArrowUpRight,
-  Search,
-  Plus,
-  ChevronDown,
-  Check,
-  Layers,
-  LayoutDashboard,
-  Settings2,
-  CircleHelp,
-} from "lucide-react";
+import { useState } from "react";
 import type { Design } from "../../domain/design";
-import { designVariables, shadowValue } from "../../domain/tokens";
+import type { PatternName } from "../../domain/library";
+import {
+  Pattern,
+  RuntimeTheme,
+  RuntimeDialog,
+  RuntimeTabs,
+} from "../design-runtime/Library";
 export const previewRows = [
   {
     name: "Website redesign",
@@ -59,296 +54,297 @@ export function Preview({
   design,
   screen = "list",
   compact = false,
+  pattern,
 }: {
   design: Design;
   screen?: string;
   compact?: boolean;
+  pattern?: PatternName;
 }) {
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("All projects");
-  const [formOpen, setFormOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [rows, setRows] = useState(previewRows);
-  const [name, setName] = useState("");
-  const root = useRef<HTMLDivElement>(null);
-  const [pixelWidth, setPixelWidth] = useState(1440);
-  useEffect(() => {
-    if (!root.current) return;
-    const observer = new ResizeObserver((entries) =>
-      setPixelWidth(entries[0].contentRect.width),
-    );
-    observer.observe(root.current);
-    return () => observer.disconnect();
-  }, []);
-  const layout =
-    pixelWidth < design.compactBreakpoint
-      ? "compact"
-      : pixelWidth < design.mediumBreakpoint
-        ? "medium"
-        : pixelWidth < design.wideBreakpoint
-          ? "regular"
-          : "wide";
-  const style = {
-    ...designVariables(design),
-    "--preview-accent": design.accent,
-    "--preview-radius": `${design.radius}px`,
-    "--preview-space": `${design.spacing}px`,
-    "--preview-font": `${design.fontSize}px`,
-    "--preview-border": design.border ? design.borderColor : "transparent",
-    "--preview-shadow": design.shadow ? shadowValue(design) : "none",
-  } as CSSProperties;
+  const [search, setSearch] = useState(""),
+    [status, setStatus] = useState("All projects"),
+    [archived, setArchived] = useState(false);
+  const [rows, setRows] = useState(previewRows),
+    [open, setOpen] = useState(false),
+    [name, setName] = useState("");
+  const [saved, setSaved] = useState(false),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState("");
   const filtered = rows.filter(
     (r) =>
+      !archived &&
       r.name.toLowerCase().includes(search.toLowerCase()) &&
       (status === "All projects" || r.state === status),
   );
+  const show = (slot: PatternName | "Table") =>
+    !pattern || pattern === "ListPage" || pattern === slot;
+  const empty = pattern === "EmptyState" || filtered.length === 0;
   return (
-    <div
-      ref={root}
-      data-layout={layout}
-      data-reduced-motion={design.reducedMotion}
-      className={`sample-app ${compact ? "sample-compact" : ""}`}
-      style={style}
-    >
-      <aside className="sample-sidebar">
-        <div className="sample-brand">
-          <span className="sample-logo">o</span> orbit <ChevronDown size={12} />
-        </div>
-        <span className="sample-menu-label">WORKSPACE</span>
-        <div>
-          <LayoutDashboard size={14} /> Overview
-        </div>
-        <div className="selected">
-          <Layers size={14} /> Projects <small>{rows.length}</small>
-        </div>
-        <div>
-          <Settings2 size={14} /> Settings
-        </div>
-        <span className="sample-sidebar-bottom">
-          <CircleHelp size={14} /> Help & resources
-        </span>
-      </aside>
-      <div className="sample-main">
-        <div className="sample-breadcrumb">
-          Workspace <span>/</span>{" "}
-          {screen === "list"
-            ? "Projects"
-            : screen === "settings"
-              ? "Settings"
-              : "New project"}{" "}
-          <span className="sample-user">AK</span>
-        </div>
-        <div className="sample-content">
-          <div className="sample-heading">
-            <div>
-              <span className="sample-eyebrow">YOUR WORK, IN ONE PLACE</span>
-              <h3>
-                {screen === "list"
-                  ? "Projects"
-                  : screen === "settings"
-                    ? "Workspace settings"
-                    : "Create a project"}
-              </h3>
-              <p>
-                {screen === "list"
-                  ? "A little structure. More room for good work."
-                  : "Make this space work for you."}
-              </p>
-            </div>
-            {screen === "list" && (
-              <Button
-                className="sample-primary"
-                onClick={() => setFormOpen(!formOpen)}
-              >
-                <Plus size={13} /> New project
-              </Button>
-            )}
-          </div>
+    <RuntimeTheme design={design}>
+      {!compact && (
+        <aside className="sample-sidebar">
+          <strong>orbit</strong>
+          <p>Workspace</p>
+          <p>Projects</p>
+          <p>Settings</p>
+        </aside>
+      )}
+      <main className="sample-main">
+        <div className="sample-breadcrumb">Workspace / {screen}</div>
+        <Pattern
+          design={design}
+          className="sample-content"
+          name={screen === "list" ? "ListPage" : undefined}
+        >
+          {show("PageHeader") && (
+            <Pattern
+              design={design}
+              as="header"
+              className="sample-heading"
+              name="PageHeader"
+              data-slot="PageHeader"
+            >
+              <div data-slot="title">
+                <h3>
+                  {screen === "list"
+                    ? "Projects"
+                    : screen === "settings"
+                      ? "Workspace settings"
+                      : "Create a project"}
+                </h3>
+                <p>A little structure. More room for good work.</p>
+              </div>
+              {screen === "list" && (
+                <Button
+                  data-slot="action"
+                  data-component="Button"
+                  className="sample-primary"
+                  onClick={() => setOpen(true)}
+                >
+                  New project
+                </Button>
+              )}
+            </Pattern>
+          )}
           {screen === "list" ? (
             <>
-              {formOpen && (
-                <form
-                  className="sample-inline-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!name.trim()) return;
-                    setRows([
-                      ...rows,
-                      {
-                        name: name.trim(),
-                        tag: "Design",
-                        state: "Planned",
-                        date: "Oct 15",
-                        initials: "AK",
-                        color: "#e5c6af",
-                      },
-                    ]);
-                    setName("");
-                    setFormOpen(false);
-                  }}
-                >
-                  <Input
-                    aria-label="New project name"
-                    placeholder="Project name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                  <Button className="sample-primary">Create</Button>
-                </form>
+              {show("FilterBar") && (
+                <Pattern design={design} name="FilterBar" data-slot="FilterBar">
+                  <div data-slot="tabs">
+                    <RuntimeTabs
+                      onChange={(v) => setArchived(v === "Archived")}
+                    />
+                  </div>
+                  <label data-slot="search">
+                    Search projects
+                    <Input
+                      data-component="Input"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search projects..."
+                    />
+                  </label>
+                  <label data-slot="filter">
+                    Project status
+                    <Select
+                      data-component="Select"
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                    >
+                      {[
+                        "All projects",
+                        "In progress",
+                        "In review",
+                        "Planned",
+                        "Done",
+                      ].map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </Select>
+                  </label>
+                </Pattern>
               )}
-              <div className="sample-tools">
-                <div className="sample-tabs">
-                  <b>
-                    All projects <small>{rows.length}</small>
-                  </b>
-                  <span>Archived</span>
-                </div>
-                <div className="sample-search">
-                  <Search size={13} />
-                  <Input
-                    aria-label="Search projects"
-                    placeholder="Search projects..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="sample-filter">
-                <span>
-                  <span className="status-dot" /> {filtered.length} projects
-                </span>
-                <label>
-                  <span className="sr-only">Project status</span>
-                  <Select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                  >
-                    {[
-                      "All projects",
-                      "In progress",
-                      "In review",
-                      "Planned",
-                      "Done",
-                    ].map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </Select>
-                </label>
-              </div>
-              <div className="sample-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Project name</th>
-                      <th>Status</th>
-                      <th>Due date</th>
-                      <th>Owner</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((r, i) => (
-                      <tr key={`${r.name}-${i}`}>
-                        <td>
-                          <span className="project-icon">
-                            <Layers size={13} />
-                          </span>
-                          <span>
+              {show("Table") && !empty && (
+                <div className="sample-table-wrap" data-slot="Table">
+                  <table data-component="Table">
+                    <thead>
+                      <tr>
+                        <th>Project name</th>
+                        <th>Status</th>
+                        <th>Due date</th>
+                        <th>Owner</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((r, i) => (
+                        <tr key={i}>
+                          <td>
                             {r.name}
                             <small>{r.tag}</small>
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className={`sample-status ${r.state === "Done" ? "done" : ""}`}
-                          >
-                            <i />
-                            {r.state}
-                          </span>
-                        </td>
-                        <td>{r.date}</td>
-                        <td>
-                          <span
-                            className="avatar"
-                            style={{ background: r.color }}
-                          >
-                            {r.initials}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!filtered.length && (
-                  <div className="empty-state">
+                          </td>
+                          <td>
+                            <span data-component="Badge">{r.state}</span>
+                          </td>
+                          <td>{r.date}</td>
+                          <td>{r.initials}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {show("EmptyState") && empty && (
+                <Pattern
+                  design={design}
+                  as="section"
+                  name="EmptyState"
+                  data-slot="EmptyState"
+                >
+                  <p data-slot="message">
                     No projects found. Try another search.
-                  </div>
-                )}
-              </div>
-              <div className="sample-footer">
-                Showing {filtered.length} of {rows.length} projects{" "}
-                <span>
-                  Made for a calmer workday <ArrowUpRight size={11} />
-                </span>
-              </div>
+                  </p>
+                  <Button
+                    data-slot="action"
+                    data-component="Button"
+                    onClick={() => setOpen(true)}
+                  >
+                    Create a project
+                  </Button>
+                </Pattern>
+              )}
             </>
           ) : (
-            <form
+            <Pattern
+              design={design}
+              as="form"
               className="sample-settings"
+              name={screen === "settings" ? "SettingsSection" : "FormSection"}
               onSubmit={(e) => {
                 e.preventDefault();
-                setSaved(true);
+                setLoading(true);
+                setSaved(false);
+                setTimeout(() => {
+                  setLoading(false);
+                  setSaved(true);
+                }, 300);
               }}
-              onChange={() => setSaved(false)}
+              onChange={() => {
+                setSaved(false);
+                setError("");
+              }}
+              onInvalid={() =>
+                setError("必須項目・メールアドレスを確認してください。")
+              }
             >
-              <label>
-                {screen === "settings" ? "Workspace name" : "Project name"}
-                <Input
-                  required
-                  defaultValue={screen === "settings" ? "Orbit Studio" : ""}
-                  placeholder="e.g. Website redesign"
-                />
-              </label>
-              <label>
-                {screen === "settings" ? "Contact email" : "Description"}
-                <Input
-                  required
-                  type={screen === "settings" ? "email" : "text"}
-                  defaultValue={
-                    screen === "settings" ? "hello@orbit.example" : ""
-                  }
-                  placeholder="What are we working on?"
-                />
-              </label>
-              <label>
-                Visibility
-                <Select>
-                  <option>Workspace members</option>
-                  <option>Private</option>
-                </Select>
-              </label>
-              <label className="sample-checkbox">
-                <Input type="checkbox" defaultChecked /> Notify me about project
-                updates
-              </label>
-              <Button className="sample-primary">
-                {saved ? (
-                  <>
-                    <Check size={14} /> Saved in preview
-                  </>
-                ) : screen === "settings" ? (
-                  "Save changes"
-                ) : (
-                  "Create project"
-                )}
+              <div data-slot="fields" className="runtime-fields">
+                <label>
+                  {screen === "settings" ? "Workspace name" : "Project name"}
+                  <Input
+                    data-component="Input"
+                    required
+                    aria-describedby="form-help"
+                    defaultValue={screen === "settings" ? "Orbit Studio" : ""}
+                  />
+                </label>
+                <label>
+                  {screen === "settings" ? "Contact email" : "Description"}
+                  <Input
+                    data-component="Input"
+                    required
+                    type={screen === "settings" ? "email" : "text"}
+                    defaultValue={
+                      screen === "settings" ? "hello@orbit.example" : ""
+                    }
+                  />
+                </label>
+                <label>
+                  Visibility
+                  <Select data-component="Select">
+                    <option>Workspace members</option>
+                    <option>Private</option>
+                  </Select>
+                </label>
+                <label>
+                  <Input
+                    data-component="Checkbox"
+                    type="checkbox"
+                    defaultChecked
+                  />
+                  Notify me about project updates
+                </label>
+                {error && <p role="alert">{error}</p>}
+              </div>
+              <Button
+                data-slot={screen === "settings" ? "save" : "submit"}
+                data-component="Button"
+                className="sample-primary"
+                disabled={loading}
+                aria-busy={loading}
+              >
+                {loading
+                  ? "Saving…"
+                  : saved
+                    ? "Saved in preview"
+                    : screen === "settings"
+                      ? "Save changes"
+                      : "Create project"}
               </Button>
-              <p className="sample-form-note">
-                Sample data · changes stay in this preview
+              <p data-slot="help" id="form-help">
+                Required fields · Sample data stays in this preview
               </p>
-            </form>
+              {screen === "settings" && (
+                <section data-slot="danger" className="runtime-danger">
+                  <h4>Danger zone</h4>
+                  <p>通常の設定とは分けて、破壊的操作を確認します。</p>
+                  <Button
+                    type="button"
+                    data-component="Button"
+                    onClick={() => setOpen(true)}
+                  >
+                    Delete workspace
+                  </Button>
+                </section>
+              )}
+            </Pattern>
           )}
-        </div>
-      </div>
-    </div>
+          <RuntimeDialog open={open} close={() => setOpen(false)}>
+            {screen === "list" ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!name.trim()) return;
+                  setRows([
+                    ...rows,
+                    {
+                      name: name.trim(),
+                      tag: "Design",
+                      state: "Planned",
+                      date: "Oct 15",
+                      initials: "AK",
+                      color: "#e5c6af",
+                    },
+                  ]);
+                  setName("");
+                  setOpen(false);
+                }}
+              >
+                <label>
+                  New project name
+                  <Input
+                    data-component="Input"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </label>
+                <Button data-component="Button">Create</Button>
+              </form>
+            ) : (
+              <p>Preview only: no workspace will be deleted.</p>
+            )}
+          </RuntimeDialog>
+        </Pattern>
+      </main>
+    </RuntimeTheme>
   );
 }

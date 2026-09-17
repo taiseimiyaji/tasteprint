@@ -38,24 +38,40 @@ const service = new ProjectService(dir, {
         ],
       }),
     ),
-  generate: async (design) => ({
-    candidates: [
-      {
-        design: {
-          ...design,
-          radius: design.constraints.radius ? design.radius : 4,
+  generate: async (design, prompt) =>
+    prompt.startsWith("部品を調整")
+      ? {
+          candidates: [
+            {
+              design: {
+                ...design,
+                components: {
+                  ...design.components,
+                  Button: { ...design.components.Button, size: "lg" },
+                },
+              },
+              explanation: "押しやすいボタンにします",
+            },
+          ],
+        }
+      : {
+          candidates: [
+            {
+              design: {
+                ...design,
+                radius: design.constraints.radius ? design.radius : 4,
+              },
+              explanation: "角丸を小さくします",
+            },
+            {
+              design: {
+                ...design,
+                radius: design.constraints.radius ? design.radius : 2,
+              },
+              explanation: "直線的に整えます",
+            },
+          ],
         },
-        explanation: "角丸を小さくします",
-      },
-      {
-        design: {
-          ...design,
-          radius: design.constraints.radius ? design.radius : 2,
-        },
-        explanation: "直線的に整えます",
-      },
-    ],
-  }),
   previewOrigin: "http://127.0.0.1:3100",
   reviewAI: async () => ({
     findings: [

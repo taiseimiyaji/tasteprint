@@ -5,6 +5,8 @@ export function copyExportAssets() {
     "client/components/Preview.tsx",
     "client/components/TemplateControls.tsx",
     "client/styles.css",
+    "client/design-runtime/Library.tsx",
+    "domain/library.ts",
     "domain/design.ts",
     "domain/foundation.ts",
     "domain/tokens.ts",
