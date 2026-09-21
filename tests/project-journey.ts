@@ -20,7 +20,11 @@ export async function projectJourney(page: import("@playwright/test").Page) {
   const ids: string[] = [];
   for (const name of ["業務管理アプリ", "個人サイト"]) {
     await page.goto("/projects");
+    await page
+      .getByRole("button", { name: "新規プロジェクト", exact: true })
+      .click();
     await page.getByLabel("プロジェクト名", { exact: true }).fill(name);
+    await page.getByText("用途などを追加（任意）", { exact: true }).click();
     await page
       .getByLabel("用途", { exact: true })
       .fill(name === "個人サイト" ? "作品紹介" : "業務管理");
@@ -127,12 +131,14 @@ export async function projectJourney(page: import("@playwright/test").Page) {
     has: page.getByRole("heading", { name: "個人サイト", exact: true }),
   });
   await card.getByRole("button", { name: "アーカイブ", exact: true }).click();
+  await page.getByRole("button", { name: /^アーカイブ \(/ }).click();
   await expect(
     card.getByRole("button", { name: "アーカイブ解除", exact: true }),
   ).toBeVisible();
   await card
     .getByRole("button", { name: "アーカイブ解除", exact: true })
     .click();
+  await page.getByRole("button", { name: /^進行中 \(/ }).click();
   await card.getByRole("link", { name: "再開", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "個人サイト", exact: true }),

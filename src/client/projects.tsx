@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouterState, Link as RouterLink } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Workspace } from "./workspace";
@@ -188,6 +188,8 @@ export function ProjectsApp() {
             taste={taste.data.current}
             projects={projects.data || []}
             error={projects.error?.message || ""}
+            loading={projects.isPending || projects.isFetching}
+            onRetry={() => void projects.refetch()}
           />
         )}
       </AppShell>
@@ -229,113 +231,288 @@ function ProjectList({
   taste,
   projects,
   error,
+  loading,
+  onRetry,
 }: {
   taste: TasteRevision;
   projects: Project[];
   error: string;
+  loading: boolean;
+  onRetry: () => void;
 }) {
-  const [brief, setBrief, draftError] = useDraft("tasteprint.new-project", {
-    name: "",
-    purpose: "",
-    audience: "",
-    desired: "",
-    avoid: "",
-  });
-  const [useTaste, setUseTaste] = useState(true);
+  const [brief, setBrief, draftError] = useDraft<Brief>(
+    "tasteprint.new-project",
+    { name: "", purpose: "", audience: "", desired: "", avoid: "" },
+  );
+  const [useTaste, setUseTaste] = useDraft(
+    "tasteprint.new-project.use-taste",
+    true,
+  );
+  const [archived, setArchived] = useState(false),
+    [search, setSearch] = useState(""),
+    [notice, setNotice] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
   const action = useAction(),
     client = useQueryClient();
+  const visible = projects
+    .filter(
+      (p) =>
+        !!p.archivedAt === archived &&
+        `${p.brief.name} ${p.brief.purpose}`
+          .toLocaleLowerCase()
+          .includes(search.trim().toLocaleLowerCase()),
+    )
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
     <main className="projects-page">
       <div className="eyebrow">YOUR PROJECTS</div>
-      <h1>
-        プロジェクト<span className="brand-dot">.</span>
-      </h1>
-      <p>同じ好みから、用途ごとに設計を育てる。</p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void action.run(async () => {
-            const p = await req<Project>("/api/projects", {
-              brief,
-              useTaste,
-              sourceTasteProfileRevision: taste.revision,
-            });
-            localStorage.removeItem("tasteprint.new-project");
-            location.href = `/projects/${p.id}/overview`;
-          });
-        }}
-      >
-        <h2>新規プロジェクト</h2>
-        <BriefFields value={brief} onChange={setBrief} />
-        <label>
-          <input
-            type="checkbox"
-            checked={useTaste}
-            onChange={(e) => setUseTaste(e.target.checked)}
-          />
-          共通の好みを使う
-        </label>
-        <p>
-          共通 r{taste.revision} · {Object.keys(taste.snapshot.answers).length}{" "}
-          回答 · {taste.snapshot.principles.length} 原則 ·{" "}
-          {taste.snapshot.confirmed
-            ? "確定済み"
-            : "未確認（あとから入力できます）"}
-        </p>
+      <div className="project-list-heading">
+        <div>
+          <h1>
+            プロジェクト<span className="brand-dot">.</span>
+          </h1>
+          <p>同じ好みから、用途ごとに設計を育てる。</p>
+        </div>
         <button
           className="button primary"
-          disabled={action.busy || !brief.name.trim()}
+          onClick={() => dialog.current?.showModal()}
         >
-          プロジェクトを作成
+          新規プロジェクト
         </button>
-      </form>
-      {[action.error, error, draftError].filter(Boolean).map((e) => (
-        <p role="alert" key={e}>
-          {e}
+      </div>
+      <div className="project-list-tools">
+        <nav className="section-navigation" aria-label="プロジェクトの表示">
+          <button
+            className="button"
+            aria-pressed={!archived}
+            onClick={() => setArchived(false)}
+          >
+            進行中 ({projects.filter((p) => !p.archivedAt).length})
+          </button>
+          <button
+            className="button"
+            aria-pressed={archived}
+            onClick={() => setArchived(true)}
+          >
+            アーカイブ ({projects.filter((p) => p.archivedAt).length})
+          </button>
+        </nav>
+        <label>
+          プロジェクトを検索
+          <input
+            type="search"
+            placeholder="名前・用途で検索"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+      </div>
+      <p role="status" aria-live="polite">
+        {notice ||
+          (loading
+            ? "プロジェクトを読み込み中…"
+            : `${archived ? "アーカイブ" : "進行中"} · ${visible.length} 件 · 更新が新しい順`)}
+      </p>
+      {error && (
+        <div role="alert">
+          <p>一覧を読み込めませんでした。{error}</p>
+          <button className="button" onClick={onRetry} disabled={loading}>
+            一覧を再読み込み
+          </button>
+        </div>
+      )}
+      {action.error && !dialog.current?.open && (
+        <p role="alert">
+          {action.error}。一覧を再読み込みして再試行してください。
+          <button className="button" onClick={onRetry}>
+            一覧を再読み込み
+          </button>
         </p>
-      ))}
-      <div className="project-list">
-        {projects.map((p) => (
-          <article key={p.id}>
-            <h2>{p.brief.name}</h2>
-            <p>{p.brief.purpose || "用途未設定"}</p>
-            <p>
-              {p.archivedAt ? "アーカイブ中" : "進行中"} · 確定 r
-              {p.activeRevision} · 更新{" "}
-              {new Date(p.updatedAt).toLocaleString("ja-JP")}
-            </p>
-            <RouterLink
-              className="button"
-              to={`/projects/${p.id}/overview` as "/"}
-            >
-              再開
-            </RouterLink>
-            {p.latestExport && (
-              <RouterLink
-                className="button"
-                to={`/projects/${p.id}/export` as "/"}
-              >
-                最新Export r{p.latestExport.revision}
-              </RouterLink>
-            )}
-            <button
-              className="button"
-              disabled={action.busy}
-              onClick={() =>
-                void action.run(async () => {
-                  await req(`/api/projects/${p.id}/archive`, {
-                    baseRevision: p.activeRevision,
-                    archived: !p.archivedAt,
-                  });
-                  await client.invalidateQueries({ queryKey: ["projects"] });
-                })
-              }
-            >
-              {p.archivedAt ? "アーカイブ解除" : "アーカイブ"}
+      )}
+      {!loading && !error && visible.length === 0 && (
+        <div className="project-empty">
+          <h2>
+            {search.trim()
+              ? "検索条件に一致するプロジェクトがありません"
+              : projects.length === 0
+                ? "最初のプロジェクトを作りましょう"
+                : archived
+                  ? "アーカイブはありません"
+                  : "進行中のプロジェクトはありません"}
+          </h2>
+          {search.trim() ? (
+            <button className="button" onClick={() => setSearch("")}>
+              検索をクリア
             </button>
+          ) : (
+            <>
+              <p>
+                名前だけで始められます。好みや詳しい用途はあとから入力できます。
+              </p>
+              <RouterLink className="button" to={"/profile" as "/"}>
+                共通の好みを編集
+              </RouterLink>
+              {!archived && projects.length > 0 && (
+                <button className="button" onClick={() => setArchived(true)}>
+                  アーカイブを見る
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      <div
+        className="project-list project-rows"
+        aria-label={archived ? "アーカイブ一覧" : "進行中の一覧"}
+        aria-busy={loading}
+      >
+        {visible.map((p) => (
+          <article key={p.id}>
+            <div className="project-row-title">
+              <h2>{p.brief.name}</h2>
+              <p>{p.brief.purpose || "用途未設定"}</p>
+              <p className="project-meta">
+                {p.archivedAt ? "アーカイブ中" : "進行中"} · 設計 r
+                {p.activeRevision} · 更新{" "}
+                {new Date(p.updatedAt).toLocaleString("ja-JP")}
+              </p>
+            </div>
+            <div className="project-row-export">
+              {p.latestExport ? (
+                <RouterLink to={`/projects/${p.id}/export` as "/"}>
+                  最新Export r{p.latestExport.revision}
+                </RouterLink>
+              ) : (
+                <span>まだ出力していません</span>
+              )}
+            </div>
+            <div className="project-row-actions">
+              <RouterLink
+                className="button primary"
+                to={`/projects/${p.id}/overview` as "/"}
+              >
+                再開
+              </RouterLink>
+              <button
+                className="button"
+                disabled={action.busy}
+                onClick={() =>
+                  void action.run(async () => {
+                    await req(`/api/projects/${p.id}/archive`, {
+                      baseRevision: p.activeRevision,
+                      archived: !p.archivedAt,
+                    });
+                    await client.invalidateQueries({ queryKey: ["projects"] });
+                    setNotice(
+                      `${p.brief.name}を${p.archivedAt ? "進行中に戻しました" : "アーカイブしました"}。${p.archivedAt ? "進行中" : "アーカイブ"}タブから確認できます。`,
+                    );
+                  })
+                }
+              >
+                {p.archivedAt ? "アーカイブ解除" : "アーカイブ"}
+              </button>
+            </div>
           </article>
         ))}
       </div>
+      <dialog
+        ref={dialog}
+        className="project-create-dialog"
+        aria-labelledby="create-project-title"
+        onCancel={(e) => {
+          if (action.busy) e.preventDefault();
+        }}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void action.run(async () => {
+              const p = await req<Project>("/api/projects", {
+                brief,
+                useTaste,
+                sourceTasteProfileRevision: taste.revision,
+              });
+              localStorage.removeItem("tasteprint.new-project");
+              localStorage.removeItem("tasteprint.new-project.use-taste");
+              location.href = `/projects/${p.id}/overview`;
+            });
+          }}
+        >
+          <h2 id="create-project-title">新規プロジェクト</h2>
+          <p>名前だけで作成できます。閉じても入力は下書きとして残ります。</p>
+          <fieldset disabled={action.busy}>
+            <label>
+              プロジェクト名
+              <input
+                autoFocus
+                required
+                maxLength={100}
+                value={brief.name}
+                onChange={(e) => setBrief({ ...brief, name: e.target.value })}
+              />
+            </label>
+            <details>
+              <summary>用途などを追加（任意）</summary>
+              <div className="brief-fields">
+                {(
+                  [
+                    ["purpose", "用途"],
+                    ["audience", "対象ユーザー"],
+                    ["desired", "目指す印象"],
+                    ["avoid", "避けたい印象"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key}>
+                    {label}
+                    <input
+                      maxLength={2000}
+                      value={brief[key]}
+                      onChange={(e) =>
+                        setBrief({ ...brief, [key]: e.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            </details>
+            <label>
+              <input
+                type="checkbox"
+                checked={useTaste}
+                onChange={(e) => setUseTaste(e.target.checked)}
+              />
+              共通の好みを使う
+            </label>
+            <p>
+              共通 r{taste.revision} ·{" "}
+              {taste.snapshot.confirmed
+                ? "確定済み"
+                : "未確認（あとから入力できます）"}
+            </p>
+          </fieldset>
+          {[action.error, draftError].filter(Boolean).map((e) => (
+            <p role="alert" key={e}>
+              {e}。入力は保持しています。
+            </p>
+          ))}
+          <div className="project-create-actions">
+            <button
+              type="button"
+              className="button"
+              disabled={action.busy}
+              onClick={() => dialog.current?.close()}
+            >
+              閉じる
+            </button>
+            <button
+              className="button primary"
+              disabled={action.busy || !brief.name.trim()}
+            >
+              {action.busy ? "作成中…" : "プロジェクトを作成"}
+            </button>
+          </div>
+        </form>
+      </dialog>
     </main>
   );
 }

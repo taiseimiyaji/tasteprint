@@ -675,3 +675,146 @@ test("taste comparison supports visible choices, progress, recovery and stale dr
     "both",
   );
 });
+
+test("project list supports resume, search, archive, creation drafts and recovery", async ({
+  page,
+}) => {
+  await page.goto("/projects");
+  await page
+    .getByRole("button", { name: "新規プロジェクト", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByLabel("プロジェクト名", { exact: true }),
+  ).toBeFocused();
+  await dialog
+    .getByLabel("プロジェクト名", { exact: true })
+    .fill("一覧改善の検証プロジェクト");
+  await dialog.getByText("用途などを追加（任意）", { exact: true }).click();
+  await dialog.getByLabel("用途", { exact: true }).fill("検索と再開の確認");
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await page.reload();
+  await page
+    .getByRole("button", { name: "新規プロジェクト", exact: true })
+    .click();
+  await expect(
+    dialog.getByLabel("プロジェクト名", { exact: true }),
+  ).toHaveValue("一覧改善の検証プロジェクト");
+  await page.route("**/api/projects", async (route) => {
+    if (route.request().method() === "POST")
+      await route.fulfill({
+        status: 500,
+        json: { error: "作成のテストエラー" },
+      });
+    else await route.continue();
+  });
+  await dialog
+    .getByRole("button", { name: "プロジェクトを作成", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText("入力は保持");
+  await page.unroute("**/api/projects");
+  await dialog
+    .getByRole("button", { name: "プロジェクトを作成", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "一覧改善の検証プロジェクト",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.goto("/projects");
+  await page
+    .getByLabel("プロジェクトを検索", { exact: true })
+    .fill("検索と再開");
+  const row = page.locator(".project-list article");
+  await expect(row).toHaveCount(1);
+  await row.getByRole("button", { name: "アーカイブ", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("アーカイブしました");
+  await expect(row).toHaveCount(0);
+  await page.getByRole("button", { name: /^アーカイブ \(/ }).click();
+  await expect(row).toHaveCount(1);
+  await row
+    .getByRole("button", { name: "アーカイブ解除", exact: true })
+    .click();
+  await page.getByRole("button", { name: /^進行中 \(/ }).click();
+  await expect(row).toHaveCount(1);
+  await page
+    .getByLabel("プロジェクトを検索", { exact: true })
+    .fill("存在しない検索語");
+  await expect(
+    page.getByRole("heading", {
+      name: "検索条件に一致するプロジェクトがありません",
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "検索をクリア" }).click();
+  const actual = await (await page.request.get("/api/projects")).json();
+  const many = Array.from({ length: 12 }, (_, i) => ({
+    ...actual[0],
+    id: `sample-${i}`,
+    brief: {
+      ...actual[0].brief,
+      name: i === 0 ? "長いプロジェクト名".repeat(8) : `プロジェクト ${i}`,
+      purpose: "用途や再開する作業の説明",
+    },
+    archivedAt: null,
+  }));
+  await page.route("**/api/projects", (route) => route.fulfill({ json: many }));
+  await page.reload();
+  await expect(row).toHaveCount(12);
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({
+      path: `test-results/project-list-${width}.png`,
+      fullPage: true,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await page
+    .getByRole("button", { name: "新規プロジェクト", exact: true })
+    .click();
+  await page.screenshot({
+    path: "test-results/project-create-390.png",
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
+  await page.unroute("**/api/projects");
+  await page.route("**/api/projects", (route) => route.fulfill({ json: [] }));
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "最初のプロジェクトを作りましょう" }),
+  ).toBeVisible();
+  await page.unroute("**/api/projects");
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({
+      json: many.map((p) => ({ ...p, archivedAt: new Date().toISOString() })),
+    }),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "進行中のプロジェクトはありません" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "アーカイブを見る", exact: true })
+    .click();
+  await expect(row).toHaveCount(12);
+  await page.unroute("**/api/projects");
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 500, json: { error: "一覧のテストエラー" } }),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "一覧を読み込めませんでした" }),
+  ).toBeVisible({ timeout: 20000 });
+  await page.unroute("**/api/projects");
+  await page
+    .getByRole("button", { name: "一覧を再読み込み", exact: true })
+    .click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "一覧を読み込めませんでした" }),
+  ).not.toBeVisible();
+});
