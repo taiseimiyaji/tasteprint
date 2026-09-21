@@ -451,7 +451,12 @@ test("shared and project pages keep one sidebar and scoped navigation", async ({
   await expect(
     globalNav.getByRole("link", { name: "プロジェクト", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("heading", { name: "プロジェクト.", exact: true }),
+  ).toBeVisible();
+  await expect(sidebar).toBeVisible();
   const initialBox = await sidebar.boundingBox();
+  expect(initialBox).not.toBeNull();
   await globalNav
     .getByRole("link", { name: "自分の好み", exact: true })
     .click();
@@ -817,4 +822,148 @@ test("project list supports resume, search, archive, creation drafts and recover
   await expect(
     page.getByRole("alert").filter({ hasText: "一覧を読み込めませんでした" }),
   ).not.toBeVisible();
+});
+
+test("editors share save status, failure recovery, conflict protection and responsive actions", async ({
+  page,
+}) => {
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "保存体験の検証" }, useTaste: false },
+    })
+  ).json();
+  for (const [route, target, field, value] of [
+    ["foundation", "Foundation", "accent", "#224466"],
+    ["components", "Components", "利用ルール", "操作にはラベルを表示"],
+    ["patterns", "Patterns", "余白 (px)", "28"],
+  ]) {
+    await page.goto(`/projects/${project.id}/${route}`);
+    const actions = page.locator(".editor-actions");
+    await expect(actions).toContainText(`保存体験の検証 · ${target}`);
+    await expect(actions).toContainText("保存済み · 設計 r");
+    const input = page.getByLabel(field, { exact: true });
+    await input.fill(value);
+    await expect(actions).toContainText("下書き・未保存");
+    await expect(actions).toContainText("仮Preview");
+    const endpoint = `**/api/projects/${project.id}/foundation/save`;
+    await page.route(endpoint, (route) =>
+      route.fulfill({
+        status: 500,
+        json: { message: "通信テストエラー。再試行してください。" },
+      }),
+    );
+    await actions
+      .getByRole("button", { name: "変更を保存", exact: true })
+      .click();
+    await expect(actions.getByRole("alert")).toContainText("入力は保持");
+    await expect(input).toHaveValue(value);
+    await page.unroute(endpoint);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route(endpoint, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await actions
+      .getByRole("button", { name: "変更を保存", exact: true })
+      .click();
+    await expect(actions.getByRole("status")).toContainText("保存中");
+    await expect(input).toBeDisabled();
+    release();
+    await expect(actions.getByRole("status")).toContainText("保存済み");
+    await page.unroute(endpoint);
+    await page.reload();
+    await expect(input).toHaveValue(value);
+    for (const width of [1440, 768, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({
+        path: `test-results/editor-${route}-${width}.png`,
+        fullPage: true,
+      });
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+  await page.goto(`/projects/${project.id}/patterns`);
+  await page.getByLabel("余白 (px)").fill("-1");
+  await expect(page.getByRole("alert")).toContainText("0〜96の整数");
+  await expect(
+    page.getByRole("button", { name: "変更を保存", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "未保存の変更を取り消す", exact: true })
+    .click();
+  await expect(page.getByLabel("余白 (px)")).toHaveValue("28");
+  await page.goto(`/projects/${project.id}/foundation`);
+  const accent = page.getByLabel("accent", { exact: true });
+  await accent.fill("invalid");
+  await expect(accent).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("alert")).toContainText("カラーコード");
+  await expect(
+    page.getByRole("button", { name: "変更を保存", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "未保存の変更を取り消す", exact: true })
+    .click();
+  await expect(accent).toHaveValue("#224466");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  const current = (
+    await (
+      await page.request.get(`/api/projects/${project.id}/foundation`)
+    ).json()
+  ).current;
+  await page.request.post(`/api/projects/${project.id}/foundation/save`, {
+    data: {
+      baseRevision: current.revision,
+      design: { ...current.design, accent: "#778899" },
+      reason: "別画面で確定",
+      requestId: crypto.randomUUID(),
+    },
+  });
+  await accent.fill("#334455");
+  await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(page.locator(".editor-actions")).toContainText(
+    "古い版・確認が必要",
+  );
+  await expect(accent).toHaveValue("#334455");
+  await expect(
+    page.getByRole("button", { name: "変更を保存", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "最新の確定版を読み込む", exact: true })
+    .click();
+  await expect(accent).toHaveValue("#778899");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.goto(`/projects/${project.id}/overview`);
+  await page.getByLabel("用途", { exact: true }).fill("通信失敗から再試行");
+  await page.route(`**/api/projects/${project.id}`, async (route) => {
+    if (route.request().method() === "POST")
+      await route.fulfill({ status: 500, json: { message: "通信失敗" } });
+    else await route.continue();
+  });
+  await page
+    .getByRole("button", { name: "概要・方針を保存", exact: true })
+    .click();
+  await expect(page.locator(".editor-actions")).toContainText("保存失敗");
+  await expect(page.getByLabel("用途", { exact: true })).toHaveValue(
+    "通信失敗から再試行",
+  );
+  await page.unroute(`**/api/projects/${project.id}`);
+  await page
+    .getByRole("button", { name: "概要・方針を保存", exact: true })
+    .click();
+  await expect(page.locator(".editor-actions")).toContainText("保存済み");
+  await page.reload();
+  await expect(page.getByLabel("用途", { exact: true })).toHaveValue(
+    "通信失敗から再試行",
+  );
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.screenshot({
+    path: "test-results/editor-overview-390.png",
+    fullPage: true,
+  });
 });

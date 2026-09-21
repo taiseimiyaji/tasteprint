@@ -9,6 +9,8 @@ export function EditorActions({
   error,
   notice,
   preview,
+  invalid,
+  disabledReason,
   children,
 }: {
   scope: string;
@@ -20,6 +22,8 @@ export function EditorActions({
   error?: string;
   notice?: string;
   preview?: boolean;
+  invalid?: boolean;
+  disabledReason?: string;
   children: ReactNode;
 }) {
   const status = busy
@@ -28,9 +32,11 @@ export function EditorActions({
       ? "古い版・確認が必要"
       : error
         ? "保存失敗"
-        : dirty
-          ? "下書き・未保存"
-          : "保存済み";
+        : invalid
+          ? "入力の確認が必要"
+          : dirty
+            ? "下書き・未保存"
+            : "保存済み";
   return (
     <div className="editor-actions" aria-label={`${target}の保存操作`}>
       <div className="editor-status" role="status" aria-live="polite">
@@ -44,6 +50,7 @@ export function EditorActions({
         {notice && !dirty && !busy && !error && <span>{notice}</span>}
       </div>
       <div className="editor-buttons">{children}</div>
+      {disabledReason && <p className="editor-help">{disabledReason}</p>}
       {error && (
         <p className="editor-error" role="alert">
           {error} 入力は保持しています。
