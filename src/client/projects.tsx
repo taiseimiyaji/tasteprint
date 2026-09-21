@@ -3,6 +3,8 @@ import { useRouterState, Link as RouterLink } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Workspace } from "./workspace";
 import { AppShell } from "./navigation";
+import { EditorActions } from "./components/EditorActions";
+import { TasteComparison, TasteSummary } from "./components/TasteComparison";
 import { References } from "./components/References";
 import { ScopeContext, jsonRequest, useScope } from "./scope";
 import {
@@ -440,176 +442,155 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
     baseProfileRevision: current.revision,
     ...current.snapshot,
   });
+  const [position, setPosition] = useDraft("tasteprint.profile.position", 0);
+  const [section, setSection] = useState("taste");
+  const [references, setReferences] = useState<
+    { id: string; version: number; accepted: number[] }[] | null
+  >(null);
+  const signature = (items: unknown[]) =>
+    JSON.stringify(
+      items
+        .map((item) => {
+          const r = item as { id: string; version: number; accepted: number[] };
+          return [r.id, r.version, r.accepted.length];
+        })
+        .sort(),
+    );
+  const dirty =
+    !current.snapshot.confirmed ||
+    JSON.stringify([draft.answers, draft.reasons, draft.principles]) !==
+      JSON.stringify([
+        current.snapshot.answers,
+        current.snapshot.reasons,
+        current.snapshot.principles,
+      ]) ||
+    (references !== null &&
+      signature(references) !== signature(current.snapshot.references));
+  const stale = draft.baseProfileRevision !== current.revision;
   const action = useAction(),
     client = useQueryClient();
   const [notice, setNotice] = useState("");
+  const reset = () =>
+    setDraft({ baseProfileRevision: current.revision, ...current.snapshot });
   return (
-    <main className="projects-page">
+    <main className="projects-page profile-page">
       <div className="eyebrow">YOUR DESIGN LANGUAGE</div>
       <h1>
         自分の好み<span className="brand-dot">.</span>
       </h1>
       <p>
-        プロジェクトを作る前でも保存できます。更新は既存プロジェクトに自動反映されません。
+        見比べて「好き」を集める。保存した好みを、プロジェクトごとの設計に使えます。
       </p>
-      <p>
-        確定版 r{current.revision} ·{" "}
-        {current.snapshot.confirmed ? "確認済み" : "未確認"}
-      </p>
-      {draft.baseProfileRevision !== current.revision && (
+      <EditorActions
+        scope="すべてのプロジェクトで使う好み"
+        target="共通の好み"
+        revision={current.revision}
+        dirty={dirty}
+        stale={stale}
+        busy={action.busy}
+        error={action.error || draftError}
+        notice={notice}
+      >
+        <button
+          className="button"
+          type="button"
+          disabled={action.busy || (!dirty && !stale)}
+          onClick={reset}
+        >
+          {stale ? "最新の確定版を読み込む" : "未保存の変更を取り消す"}
+        </button>
+        <button
+          className="button primary"
+          form="profile-form"
+          disabled={action.busy || stale}
+        >
+          共通の好みを保存
+        </button>
+      </EditorActions>
+      {stale && (
         <p role="alert">
-          共通の好みが更新されています。下書きは保持しています。
-          <button
-            onClick={() =>
-              setDraft({
-                baseProfileRevision: current.revision,
-                ...current.snapshot,
-              })
-            }
-          >
-            最新の確定版を読み込む
-          </button>
+          共通の好みが更新されています。下書きは保持しています。最新の確定版を読み込むと、この下書きを置き換えます。
         </p>
       )}
+      <nav className="section-navigation" aria-label="好みの編集項目">
+        {[
+          ["taste", "見比べる"],
+          ["dna", "DNA・原則"],
+          ["references", "参考を集める"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            className="button"
+            type="button"
+            aria-pressed={section === key}
+            onClick={() => setSection(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
       <form
+        id="profile-form"
+        className="profile-form"
         onSubmit={(e) => {
           e.preventDefault();
           void action.run(async () => {
-            const r = await req<TasteRevision>("/api/profile", draft);
+            const r = await req<TasteRevision>("/api/profile", draft).catch(
+              (e) => {
+                if (e.status === 409)
+                  void client.invalidateQueries({ queryKey: ["profile"] });
+                throw e;
+              },
+            );
             setDraft({ baseProfileRevision: r.revision, ...r.snapshot });
             await client.invalidateQueries({ queryKey: ["profile"] });
             setNotice("共通の好みを保存しました");
           });
         }}
       >
-        <h2>Taste</h2>
-        <p>比較セット taste-v1 · 未回答は推測しません。</p>
-        {questions.map((q) => (
-          <fieldset className="taste-question" key={q.id}>
-            <legend>
-              {q.title} · {q.context}
-            </legend>
-            <details>
-              <summary>A/Bの画面を見比べる</summary>
-              <div className="taste-options">
-                {(["a", "b"] as const).map((choice, index) => (
-                  <button
-                    type="button"
-                    className={`taste-card ${draft.answers[q.id] === choice ? "chosen" : ""}`}
-                    key={choice}
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        answers: { ...draft.answers, [q.id]: choice },
-                      })
-                    }
-                  >
-                    <div
-                      className={`taste-example taste-${q.axis} option-${choice}`}
-                    >
-                      <div className="taste-example-title">{q.context}</div>
-                      {[
-                        "Website redesign",
-                        "Brand guidelines",
-                        "Customer portal",
-                      ].map((name, i) => (
-                        <div className="taste-example-row" key={name}>
-                          <span className="taste-symbol">{i + 1}</span>
-                          <span>
-                            {name}
-                            <small>Design team · Updated today</small>
-                          </span>
-                          <i />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="taste-caption">
-                      <span>{choice.toUpperCase()}</span>
-                      <strong>{q.labels[index]}</strong>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </details>
-            <label>
-              回答
-              <select
-                aria-label={q.id}
-                value={draft.answers[q.id] || ""}
-                onChange={(e) => {
-                  const answers = { ...draft.answers };
-                  if (e.target.value) answers[q.id] = e.target.value as Choice;
-                  else delete answers[q.id];
-                  setDraft({ ...draft, answers });
-                }}
-              >
-                <option value="">未回答</option>
-                {(
-                  [
-                    ["a", q.labels[0]],
-                    ["b", q.labels[1]],
-                    ["both", "両方"],
-                    ["neither", "どちらでもない"],
-                    ["skip", "スキップ"],
-                  ] as const
-                ).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              理由
-              <input
-                aria-label={`${q.id} 理由`}
-                maxLength={2000}
-                value={draft.reasons[q.id] || ""}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    reasons: { ...draft.reasons, [q.id]: e.target.value },
-                  })
-                }
-              />
-            </label>
-          </fieldset>
-        ))}
-        <h2>Design DNA</h2>
-        <pre>{JSON.stringify(profile(draft.answers), null, 2)}</pre>
-        <p>
-          回答から算出した傾向です。「共通の好みを保存」で確認・確定します。
-        </p>
-        <h2>採用する原則・根拠</h2>
-        <Principles
-          values={draft.principles}
-          onChange={(principles) => setDraft({ ...draft, principles })}
-        />
-        <button className="button primary" disabled={action.busy}>
-          共通の好みを保存
-        </button>
+        <fieldset className="editor-fieldset" disabled={action.busy}>
+          <div hidden={section !== "taste"}>
+            <TasteComparison
+              value={draft}
+              onChange={(value) => setDraft({ ...draft, ...value })}
+              position={position}
+              onPosition={setPosition}
+            />
+          </div>
+          <div hidden={section !== "dna"}>
+            <TasteSummary value={draft} />
+            <h2>採用する原則・根拠</h2>
+            <Principles
+              values={draft.principles}
+              onChange={(principles) => setDraft({ ...draft, principles })}
+            />
+          </div>
+        </fieldset>
       </form>
-      {(action.error || draftError) && (
-        <p role="alert">{action.error || draftError}</p>
-      )}
-      {notice && <p role="status">{notice}</p>}
-      <h2>共通の参考</h2>
-      <p>
-        保存先:
-        自分の好み。分析は明示的に採用した項目だけが原則候補になります。登録・削除後に「共通の好みを保存」で参考の版を確定してください。
+      <section hidden={section !== "references"}>
+        <h2>共通の参考</h2>
+        <p>
+          保存先:
+          自分の好み。分析は明示的に採用した項目だけが原則候補になります。登録・削除後に「共通の好みを保存」で参考の版を確定してください。
+        </p>
+        <References
+          onChange={setReferences}
+          onAdopt={(p) => {
+            setDraft((d) => ({
+              ...d,
+              principles: [...d.principles.filter((v) => v.id !== p.id), p],
+            }));
+            setSection("dna");
+          }}
+        />
+      </section>
+      <p className="scope-help">
+        共通の好みを更新しても、既存プロジェクトには自動反映されません。
       </p>
-      <References
-        onChange={() => {}}
-        onAdopt={(p) =>
-          setDraft((d) => ({
-            ...d,
-            principles: [...d.principles.filter((v) => v.id !== p.id), p],
-          }))
-        }
-      />
     </main>
   );
 }
+
 function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
   const scope = useScope();
   const q = useQuery({

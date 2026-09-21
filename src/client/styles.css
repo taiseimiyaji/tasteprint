@@ -3091,3 +3091,170 @@ svg {
     padding-bottom: 12px;
   }
 }
+
+.editor-actions {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  margin: 24px 0;
+  background: #f4f5ee;
+  border: 1px solid #dfe3d7;
+  border-radius: 7px;
+}
+.editor-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: #58654d;
+  overflow-wrap: anywhere;
+}
+.editor-status strong {
+  color: #30352d;
+}
+.editor-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.editor-buttons .button {
+  margin: 0;
+}
+.editor-error {
+  flex-basis: 100%;
+  font-size: 13px;
+}
+.editor-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.section-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0;
+}
+.section-navigation .button {
+  margin: 0;
+}
+.section-navigation [aria-pressed="true"] {
+  background: #e5eada;
+  border-color: #899d6e;
+  color: #3d5330;
+  font-weight: 600;
+}
+.profile-page .profile-form {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.taste-question-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+.taste-question-navigation label {
+  max-width: 100%;
+}
+.taste-comparison progress {
+  width: 100%;
+  height: 5px;
+  accent-color: #65764d;
+}
+.taste-comparison .taste-heading {
+  margin: 18px 0;
+}
+.taste-comparison .taste-heading h2 {
+  margin: 8px 0;
+}
+.taste-comparison .taste-example {
+  min-height: 240px;
+}
+.taste-response {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+}
+.taste-pagination {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dna-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.dna-summary article {
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #dfe3d7;
+  border-radius: 7px;
+}
+.dna-summary h3 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+.dna-summary small,
+.scope-help {
+  color: #65715a;
+}
+.dna-reason {
+  margin-top: 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.profile-page [hidden] {
+  display: none !important;
+}
+.taste-comparison :focus-visible,
+.section-navigation :focus-visible {
+  outline: 2px solid #65764d;
+  outline-offset: 3px;
+}
+@media (max-width: 720px) {
+  .editor-actions {
+    padding: 12px;
+    gap: 8px;
+  }
+  .editor-status {
+    font-size: 11px;
+  }
+  .editor-buttons .button {
+    padding: 8px 10px;
+  }
+  .taste-response,
+  .dna-summary {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .taste-comparison .taste-options {
+    grid-template-columns: 1fr;
+  }
+  .taste-comparison .taste-example {
+    min-height: 0;
+    padding: 12px;
+  }
+  .taste-comparison .taste-example-title {
+    margin-bottom: 8px;
+  }
+  .taste-comparison .taste-heading {
+    text-align: left;
+  }
+  .taste-pagination .button {
+    margin: 4px 0;
+  }
+}

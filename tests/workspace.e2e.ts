@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { initialState } from "../src/client/state";
+import { questions } from "../src/domain/design";
 
 let session = "";
 let projectId = "";
@@ -195,6 +196,7 @@ test("reference and taste workflow preserves explicit choices", async ({
   });
   await page.goto("/profile");
   await page.getByLabel("density-0", { exact: true }).selectOption("a");
+  await page.getByLabel("質問を選ぶ").selectOption("1");
   await page.getByLabel("density-1", { exact: true }).selectOption("skip");
   await page
     .getByRole("button", { name: "共通の好みを保存", exact: true })
@@ -572,4 +574,104 @@ test("mobile menu exposes named destinations, closes on navigation and supports 
     path: "test-results/navigation-foundation-mobile.png",
     animations: "disabled",
   });
+});
+
+test("taste comparison supports visible choices, progress, recovery and stale drafts", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/profile");
+  await page.getByLabel("質問を選ぶ").selectOption("0");
+  await expect(
+    page.getByRole("button", { name: "A: 余白で呼吸をつくる", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "B: 一覧性を高める", exact: true })
+    .press("Enter");
+  await page
+    .getByLabel("density-0 理由", { exact: true })
+    .fill("比較してから選ぶ");
+  await page.getByRole("button", { name: "次の質問", exact: true }).click();
+  await page
+    .getByRole("button", { name: "スキップして次へ", exact: true })
+    .click();
+  await page.getByLabel("質問を選ぶ").selectOption("0");
+  await expect(
+    page.getByRole("button", { name: "B: 一覧性を高める", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.getByLabel("density-0 理由", { exact: true })).toHaveValue(
+    "比較してから選ぶ",
+  );
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 1050 });
+    await expect(
+      page.getByRole("button", { name: "共通の好みを保存", exact: true }),
+    ).toBeInViewport();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `test-results/taste-${width}.png`,
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 1050 });
+  await page.getByRole("button", { name: "参考を集める", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Reference URL" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "DNA・原則", exact: true }).click();
+  await expect(page.getByRole("region", { name: "好みの傾向" })).toBeVisible();
+  await page.route("**/api/profile", async (route) => {
+    if (route.request().method() === "POST")
+      await route.fulfill({
+        status: 500,
+        json: { message: "テスト用保存失敗" },
+      });
+    else await route.continue();
+  });
+  await page
+    .getByRole("button", { name: "共通の好みを保存", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("テスト用保存失敗");
+  await page.unroute("**/api/profile");
+  await page
+    .getByRole("button", { name: "共通の好みを保存", exact: true })
+    .click();
+  await expect(
+    page.getByText("共通の好みを保存しました", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "見比べる", exact: true }).click();
+  for (let i = 0; i < 14; i++) {
+    await page.getByLabel("質問を選ぶ").selectOption(String(i));
+    await page
+      .getByLabel(questions[i].id, { exact: true })
+      .selectOption("both");
+  }
+  await expect(
+    page.getByText("14 回答 · 0 スキップ · 0 未回答", { exact: true }),
+  ).toBeVisible();
+  // Simulate a save from another browser without overwriting this tab's local draft.
+  const remote = await (await page.request.get("/api/profile")).json();
+  const updated = await page.request.post("/api/profile", {
+    data: {
+      ...remote.current.snapshot,
+      baseProfileRevision: remote.current.revision,
+    },
+  });
+  expect(updated.ok()).toBe(true);
+  await page.reload();
+  await expect(
+    page.getByText(/共通の好みが更新されています。下書きは保持/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "共通の好みを保存", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel(questions[13].id, { exact: true })).toHaveValue(
+    "both",
+  );
 });
