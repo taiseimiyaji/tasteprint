@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Design } from "../../domain/design";
 import {
   applicableStates,
@@ -10,12 +11,21 @@ export function LibraryEditor({
   kind,
   name,
   onChange,
+  onValidityChange,
 }: {
   design: Design;
   kind: "components" | "patterns";
   name: string;
   onChange: (patch: Partial<Design>) => void;
+  onValidityChange?: (valid: boolean) => void;
 }) {
+  const [gapInput, setGapInput] = useState<string>();
+  const [gapError, setGapError] = useState("");
+  useEffect(() => {
+    setGapInput(undefined);
+    setGapError("");
+    onValidityChange?.(true);
+  }, [name, design, onValidityChange]);
   const config =
     kind === "components"
       ? design.components[name as ComponentName]
@@ -30,35 +40,68 @@ export function LibraryEditor({
       aria-label={`${name} 設定`}
     >
       <h2>{name} 設定</h2>
-      <p>変更は仮表示されます。保存または候補の採用でrevisionを確定します。</p>
+      <p>
+        変更は仮表示されます。「変更を保存」またはAI候補の採用で設計を確定します。Exportは確定版を使います。
+      </p>
       {"variant" in config ? (
         <>
           <label>
-            variant
+            見た目の種類（variant）
             <select
               aria-label="variant"
+              aria-description="見た目の種類。塗りつぶし・枠線・控えめを選びます"
               value={config.variant}
               onChange={(e) => edit("variant", e.target.value)}
             >
               {["solid", "outline", "subtle"].map((v) => (
-                <option key={v}>{v}</option>
+                <option key={v} value={v}>
+                  {
+                    (
+                      {
+                        solid: "塗りつぶし",
+                        outline: "枠線",
+                        subtle: "控えめ",
+                        sm: "小",
+                        md: "標準",
+                        lg: "大",
+                      } as Record<string, string>
+                    )[v]
+                  }
+                </option>
               ))}
             </select>
           </label>
           <label>
-            size
+            大きさ（size）
             <select
               aria-label="size"
+              aria-description="大きさ。小・標準・大を選びます"
               value={config.size}
               onChange={(e) => edit("size", e.target.value)}
             >
               {["sm", "md", "lg"].map((v) => (
-                <option key={v}>{v}</option>
+                <option key={v} value={v}>
+                  {
+                    (
+                      {
+                        solid: "塗りつぶし",
+                        outline: "枠線",
+                        subtle: "控えめ",
+                        sm: "小",
+                        md: "標準",
+                        lg: "大",
+                      } as Record<string, string>
+                    )[v]
+                  }
+                </option>
               ))}
             </select>
           </label>
           <fieldset>
             <legend>適用可能な状態</legend>
+            <p>
+              defaultは通常の表示で必須です。hoverはホバー、focusはフォーカス、disabledは無効、loadingは処理中、errorはエラー、emptyは空の表示です。
+            </p>
             {applicableStates[name as ComponentName].map((state) => (
               <label key={state}>
                 <input
@@ -88,13 +131,28 @@ export function LibraryEditor({
               type="number"
               min={0}
               max={96}
-              value={config.gap}
+              value={gapInput ?? config.gap}
+              aria-invalid={!!gapError}
+              aria-describedby={gapError ? "pattern-gap-error" : undefined}
               onChange={(e) => {
                 const n = e.target.valueAsNumber;
-                if (Number.isInteger(n) && n >= 0 && n <= 96) edit("gap", n);
+                if (Number.isInteger(n) && n >= 0 && n <= 96) {
+                  setGapError("");
+                  onValidityChange?.(true);
+                  edit("gap", n);
+                } else {
+                  setGapInput(e.target.value);
+                  setGapError("0〜96の整数を入力してください。");
+                  onValidityChange?.(false);
+                }
               }}
             />
           </label>
+          {gapError && (
+            <p id="pattern-gap-error" role="alert" className="error-text">
+              {gapError}
+            </p>
+          )}
           <label>
             レスポンシブ動作
             <select

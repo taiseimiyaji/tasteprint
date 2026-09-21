@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { configurationDiff, affectedScreens } from "../domain/library";
 import { LibraryEditor } from "./components/LibraryEditor";
+import { EditorActions } from "./components/EditorActions";
 import { FoundationEditor } from "./components/FoundationEditor";
 import {
   foundationRequest as requestFoundation,
@@ -97,6 +98,7 @@ export function Workspace({
   const [foundationError, setFoundationError] = useState("");
   const [busy, setBusy] = useState(false);
   const [validInput, setValidInput] = useState(true);
+  const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
   useEffect(() => {
     let active = true;
@@ -117,7 +119,7 @@ export function Workspace({
       .catch((e) => {
         if (active)
           setFoundationError(
-            `${e.message} Inspirationで接続後、Foundationに戻ってください。`,
+            `${e.message} ページを再読み込みして再試行してください。`,
           );
       });
     return () => {
@@ -126,6 +128,7 @@ export function Workspace({
   }, [path]);
   async function commit(path: string, body: unknown) {
     setBusy(true);
+    setFoundationError("");
     try {
       const result = parseRevision(
         await foundationRequest<Revision>(
@@ -152,6 +155,20 @@ export function Workspace({
       setNotice("設計を保存しました");
     } catch (e) {
       setFoundationError(e instanceof Error ? e.message : "保存に失敗しました");
+      if ((e as { status?: number }).status === 409) {
+        try {
+          const latest = await foundationRequest<{
+            current: Revision;
+            history: Revision[];
+          }>("/");
+          setSaved(parseRevision(latest.current));
+          setRevisions(latest.history);
+        } catch {
+          setFoundationError(
+            "最新の版を取得できません。入力を残したままページを再読み込みしてください。",
+          );
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -204,7 +221,7 @@ export function Workspace({
         !saved ||
         JSON.stringify(saved.design) !== JSON.stringify(state.design)
       )
-        throw new Error("先にFoundationの変更を保存してください。");
+        throw new Error("先に設計の変更を保存してください。");
       await jsonRequest(`${scope.api}/conversations`, {
         baseRevision: saved.revision,
         text,
@@ -263,6 +280,24 @@ export function Workspace({
     proposal.mutate(text);
   };
 
+  const dirty =
+    !!saved && JSON.stringify(saved.design) !== JSON.stringify(state.design);
+  const stale = !!saved && draftBase !== saved.revision;
+  const editable = ["foundation", "components", "patterns"].includes(
+    current.id,
+  );
+  const staged = displayDesign !== state.design;
+  const saveDisabledReason = !saved
+    ? "確定版の読み込みを待ってください。"
+    : stale
+      ? "下書きの版が古くなっています。内容を確認し、最新の確定版を読み込んでください。"
+      : !validInput
+        ? "入力欄のエラーを修正すると保存できます。"
+        : staged
+          ? "AI候補を採用するか見送ってから手動の変更を保存してください。"
+          : !dirty
+            ? "保存する変更はありません。"
+            : undefined;
   return (
     <div className={`workspace ${chatOpen ? "" : "chat-closed"}`}>
       <div className="workspace-body">
@@ -272,25 +307,15 @@ export function Workspace({
             <span>{current.name}</span>
           </div>
           <div className="topbar-actions">
-            <span className={`save-status ${saveError ? "save-error" : ""}`}>
-              {saveError ? (
-                "保存容量が不足しています"
-              ) : (
-                <>
-                  <span className="local-dot" />{" "}
-                  {saved &&
-                  JSON.stringify(saved.design) === JSON.stringify(state.design)
-                    ? `Foundation r${saved.revision} 保存済み`
-                    : "Foundation 未確定"}
-                </>
-              )}
+            <span className="save-status">
+              設計 r{saved?.revision ?? "—"} · 出力は確定版を使用
             </span>
             <button
               className="icon-button"
               aria-label="元に戻す"
               title="元に戻す"
               onClick={undo}
-              disabled={!history.length}
+              disabled={busy || !history.length}
             >
               <RotateCcw size={16} />
             </button>
@@ -325,9 +350,99 @@ export function Workspace({
                 <p>{current.label}</p>
               </div>
               <Pill>
-                <span className="local-dot" /> Working draft
+                <span className="local-dot" /> プロジェクトの設計
               </Pill>
             </div>
+            {editable && (
+              <EditorActions
+                scope={projectName}
+                target={current.name}
+                revision={saved?.revision ?? 0}
+                dirty={dirty}
+                busy={busy}
+                stale={stale}
+                invalid={!validInput}
+                error={
+                  foundationError ||
+                  (saveError
+                    ? "下書きを保存できません。ブラウザーの空き容量を確認してください。"
+                    : "")
+                }
+                preview={dirty || staged}
+                disabledReason={saveDisabledReason}
+              >
+                {staged && !stale ? (
+                  <>
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() => {
+                        proposal.reset();
+                        setFoundationError("");
+                      }}
+                    >
+                      見送る
+                    </button>
+                    <button
+                      className="button primary"
+                      disabled={busy}
+                      onClick={() => {
+                        if (proposal.data?.supported)
+                          void commit("/apply", {
+                            id: proposal.data.candidates[candidateIndex].id,
+                          });
+                      }}
+                    >
+                      採用する
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="button"
+                      disabled={
+                        !saved ||
+                        busy ||
+                        (!dirty && validInput && !stale && !staged)
+                      }
+                      onClick={() => {
+                        setState((s) => ({ ...s, design: saved!.design }));
+                        setDraftBase(saved!.revision);
+                        proposal.reset();
+                        setHistory([]);
+                        setFoundationError("");
+                        setValidInput(true);
+                        setEditorVersion((v) => v + 1);
+                      }}
+                    >
+                      {stale
+                        ? "最新の確定版を読み込む"
+                        : "未保存の変更を取り消す"}
+                    </button>
+                    <button
+                      className="button primary"
+                      disabled={busy || !!saveDisabledReason}
+                      onClick={() =>
+                        void commit("/save", {
+                          design: state.design,
+                          reason: `手動で${current.name}を編集`,
+                          requestId: crypto.randomUUID(),
+                        })
+                      }
+                    >
+                      変更を保存
+                    </button>
+                  </>
+                )}
+              </EditorActions>
+            )}
+            {!editable && (
+              <p role="status">
+                {dirty || staged
+                  ? "仮Previewを表示中。Exportは保存済みの確定版を出力します。"
+                  : `確定した設計 r${saved?.revision ?? 0} を表示しています。`}
+              </p>
+            )}
             {current.id === "foundation" && (
               <>
                 <div
@@ -364,56 +479,13 @@ export function Workspace({
                     disabled={!saved || busy}
                   >
                     <FoundationEditor
+                      key={editorVersion}
                       design={state.design}
                       tab={tab}
                       onChange={updateDesign}
                       onValidityChange={setValidInput}
                     />
                   </fieldset>
-                  {saved && draftBase !== saved.revision && (
-                    <p role="alert">
-                      下書きの版が古くなっています。確定内容を確認し、「未保存の変更を取り消す」で読み直してください。
-                    </p>
-                  )}
-                  {foundationError && (
-                    <p className="error-text" role="alert">
-                      {foundationError}
-                    </p>
-                  )}
-                  <div className="proposal-actions">
-                    <button
-                      className="button primary"
-                      disabled={
-                        !saved ||
-                        !validInput ||
-                        busy ||
-                        JSON.stringify(saved.design) ===
-                          JSON.stringify(state.design)
-                      }
-                      onClick={() =>
-                        void commit("/save", {
-                          baseRevision: saved!.revision,
-                          design: state.design,
-                          reason: "手動でFoundationを編集",
-                          requestId: crypto.randomUUID(),
-                        })
-                      }
-                    >
-                      変更を保存
-                    </button>
-                    <button
-                      className="button"
-                      disabled={!saved || busy}
-                      onClick={() => {
-                        setState((s) => ({ ...s, design: saved!.design }));
-                        setDraftBase(saved!.revision);
-                        proposal.reset();
-                        setHistory([]);
-                      }}
-                    >
-                      未保存の変更を取り消す
-                    </button>
-                  </div>
                   <details>
                     <summary>
                       確定履歴（revision {saved?.revision ?? "未接続"}）
@@ -577,6 +649,8 @@ export function Workspace({
                   className="foundation-inputs"
                 >
                   <LibraryEditor
+                    key={editorVersion}
+                    onValidityChange={setValidInput}
                     design={state.design}
                     kind="components"
                     name={component}
@@ -636,6 +710,8 @@ export function Workspace({
                   className="foundation-inputs"
                 >
                   <LibraryEditor
+                    key={editorVersion}
+                    onValidityChange={setValidInput}
                     design={state.design}
                     kind="patterns"
                     name={pattern}
@@ -650,50 +726,6 @@ export function Workspace({
             )}
             {(current.id === "components" || current.id === "patterns") && (
               <section className="foundation-editor">
-                {saved && draftBase !== saved.revision && (
-                  <p role="alert">
-                    下書きの版が古くなっています。確定内容を確認し、「未保存の変更を取り消す」で読み直してください。
-                  </p>
-                )}
-                {foundationError && (
-                  <p className="error-text" role="alert">
-                    {foundationError}
-                  </p>
-                )}
-                <div className="proposal-actions">
-                  <button
-                    className="button primary"
-                    disabled={
-                      !saved ||
-                      !validInput ||
-                      busy ||
-                      JSON.stringify(saved.design) ===
-                        JSON.stringify(state.design)
-                    }
-                    onClick={() =>
-                      void commit("/save", {
-                        baseRevision: saved!.revision,
-                        design: state.design,
-                        reason: "手動でComponents / Patternsを編集",
-                        requestId: crypto.randomUUID(),
-                      })
-                    }
-                  >
-                    変更を保存
-                  </button>
-                  <button
-                    className="button"
-                    disabled={!saved || busy}
-                    onClick={() => {
-                      setState((s) => ({ ...s, design: saved!.design }));
-                      setDraftBase(saved!.revision);
-                      proposal.reset();
-                      setHistory([]);
-                    }}
-                  >
-                    未保存の変更を取り消す
-                  </button>
-                </div>
                 <details>
                   <summary>
                     確定履歴（revision {saved?.revision ?? "未接続"}）
@@ -841,7 +873,7 @@ export function Workspace({
                   ].map((text) => (
                     <button
                       key={text}
-                      disabled={proposal.isPending}
+                      disabled={busy || proposal.isPending}
                       onClick={() => ask(text)}
                     >
                       {text}
@@ -899,28 +931,7 @@ export function Workspace({
                           ))}
                         </div>
                         <small>プレビューに仮反映しています</small>
-                        <div className="proposal-actions">
-                          <button
-                            className="button primary small"
-                            disabled={busy}
-                            onClick={() => {
-                              if (proposal.data?.supported) {
-                                void commit("/apply", {
-                                  id: proposal.data.candidates[candidateIndex]
-                                    .id,
-                                });
-                              }
-                            }}
-                          >
-                            採用する <Check size={12} />
-                          </button>
-                          <button
-                            className="button small"
-                            onClick={() => proposal.reset()}
-                          >
-                            見送る
-                          </button>
-                        </div>
+                        <p>画面上部の保存バーから採用・見送りを選べます。</p>
                       </>
                     ) : (
                       <p>候補はありません。</p>

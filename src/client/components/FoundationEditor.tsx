@@ -6,6 +6,59 @@ import {
   type decisionSchema,
 } from "../../domain/foundation";
 import type { z } from "zod";
+const labels: Record<string, string> = {
+  accent: "アクセント色",
+  canvas: "画面の背景色",
+  surface: "面の背景色",
+  ink: "本文の文字色",
+  muted: "補助の文字色",
+  borderColor: "境界線の色",
+  success: "成功の色",
+  warning: "警告の色",
+  danger: "エラーの色",
+  focus: "フォーカスの色",
+  fontSize: "本文の文字サイズ (px)",
+  fontFamily: "フォントの種類",
+  heading1: "大見出しの文字サイズ (px)",
+  heading2: "中見出しの文字サイズ (px)",
+  heading3: "小見出しの文字サイズ (px)",
+  lineHeight: "行の高さ (倍率)",
+  bodyWeight: "本文の太さ",
+  headingWeight: "見出しの太さ",
+  spacing: "基本の余白 (px)",
+  spacingScale: "余白の段階 (px)",
+  pagePadding: "ページの余白 (px)",
+  sectionGap: "セクション間の余白 (px)",
+  controlHeight: "入力・ボタンの高さ (px)",
+  rowHeight: "一覧行の高さ (px)",
+  radius: "標準の角丸 (px)",
+  radiusNone: "角丸なし (0px)",
+  radiusXs: "最小の角丸 (px)",
+  radiusSm: "小さな角丸 (px)",
+  radiusLg: "大きな角丸 (px)",
+  radiusPill: "丸いバッジの角丸 (px)",
+  radiusUsage: "角丸の使い分け",
+  border: "境界線を表示",
+  borderWidth: "境界線の太さ (px)",
+  borderPolicy: "境界線の使い方",
+  shadow: "影を表示",
+  shadowX: "影の横方向 (px)",
+  shadowY: "影の縦方向 (px)",
+  shadowBlur: "影のぼかし (px)",
+  shadowSpread: "影の広がり (px)",
+  shadowColor: "影の色",
+  shadowOpacity: "影の不透明度 (0〜1)",
+  shadowAllowed: "影を使える場所",
+  duration: "動きの時間 (ms)",
+  easing: "動きの速度変化",
+  reducedMotion: "動きを減らす設定",
+  compactBreakpoint: "小画面の境界 (px)",
+  mediumBreakpoint: "中画面の境界 (px)",
+  wideBreakpoint: "大画面の境界 (px)",
+  compactPolicy: "小画面での配置",
+  mediumPolicy: "中画面での配置",
+  widePolicy: "大画面での配置",
+};
 export function FoundationEditor({
   design,
   tab,
@@ -19,6 +72,7 @@ export function FoundationEditor({
 }) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
+  const [errorKey, setErrorKey] = useState("");
   useEffect(() => {
     setInputs({});
     setError("");
@@ -41,7 +95,16 @@ export function FoundationEditor({
     const result = designSchema.safeParse({ ...design, [key]: value });
     if (!result.success) {
       setInputs((s) => ({ ...s, [key]: String(raw) }));
-      setError(result.error.issues[0].message);
+      setErrorKey(key);
+      setError(
+        typeof old === "number"
+          ? "設定できる範囲の数値を入力してください。"
+          : Array.isArray(old)
+            ? "小さい順に、重複しない数値をカンマ区切りで入力してください。"
+            : /^#[0-9a-fA-F]{6}$/.test(String(old))
+              ? "#に続く6桁のカラーコードを入力してください（例: #536647）。"
+              : "入力形式を確認してください。",
+      );
       onValidityChange(false);
       return;
     }
@@ -70,11 +133,6 @@ export function FoundationEditor({
       <p className="muted">
         入力はPreviewへ仮反映されます。「変更を保存」で確定します。ロックはAIからの変更を禁止します。
       </p>
-      {error && (
-        <p role="alert" className="error-text">
-          {error}
-        </p>
-      )}
       {fieldGroups[tab as keyof typeof fieldGroups].map((key) => {
         const value = design[key];
         const rule = design.constraints[key] ?? emptyDecision;
@@ -97,11 +155,14 @@ export function FoundationEditor({
                       style={{ background: value }}
                     />
                   )}
-                {key}
+                <span id={`field-${key}-label`}>{labels[key] || key}</span>{" "}
+                <small>{key}</small>
               </strong>
               {typeof value === "boolean" ? (
                 <input
                   aria-label={key}
+                  aria-describedby={`field-${key}-label${error && errorKey === key ? ` field-${key}-error` : ""}`}
+                  aria-invalid={!!error && errorKey === key}
                   type="checkbox"
                   checked={value}
                   onChange={(e) => edit(key, e.target.checked)}
@@ -109,6 +170,8 @@ export function FoundationEditor({
               ) : options ? (
                 <select
                   aria-label={key}
+                  aria-describedby={`field-${key}-label${error && errorKey === key ? ` field-${key}-error` : ""}`}
+                  aria-invalid={!!error && errorKey === key}
                   value={String(value)}
                   onChange={(e) => edit(key, e.target.value)}
                 >
@@ -119,6 +182,8 @@ export function FoundationEditor({
               ) : (
                 <input
                   aria-label={key}
+                  aria-describedby={`field-${key}-label${error && errorKey === key ? ` field-${key}-error` : ""}`}
+                  aria-invalid={!!error && errorKey === key}
                   type={typeof value === "number" ? "number" : "text"}
                   step="any"
                   value={
@@ -129,6 +194,11 @@ export function FoundationEditor({
                 />
               )}
             </label>
+            {error && errorKey === key && (
+              <p id={`field-${key}-error`} role="alert" className="error-text">
+                {error}
+              </p>
+            )}
             {key === "spacingScale" && (
               <small>px値を小さい順にカンマ区切りで入力</small>
             )}

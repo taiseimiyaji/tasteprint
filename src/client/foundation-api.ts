@@ -30,7 +30,10 @@ export async function foundationRequest<T>(
   });
   const data = await response.json();
   if (!response.ok)
-    throw new Error(data.message || "入力内容を確認してください。");
+    throw Object.assign(
+      new Error(data.message || "入力内容を確認してください。"),
+      { status: response.status },
+    );
   return data;
 }
 export function parseRevision(value: Revision): Revision {

@@ -3376,3 +3376,79 @@ svg {
     padding: 20px;
   }
 }
+
+.editor-help {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: #536647;
+}
+.overview-fields {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.foundation-field strong small {
+  font-weight: 400;
+  color: #65705e;
+  margin-left: 6px;
+}
+.foundation-field [aria-invalid="true"] {
+  border-color: #b34040;
+}
+.workspace .editor-actions {
+  margin-bottom: 24px;
+}
+@media (max-width: 720px) {
+  .workspace .editor-actions {
+    top: 0;
+  }
+  .topbar .save-status {
+    max-width: 145px;
+    white-space: normal;
+  }
+}
+.library-editor > h2,
+.library-editor > p {
+  grid-column: 1 / -1;
+}
+.library-editor input:not([type="checkbox"]),
+.library-editor select,
+.library-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #bec8b5;
+  border-radius: 4px;
+  background: #fff;
+}
+.library-editor textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.library-editor label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.library-editor input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--green);
+}
+.library-editor fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 0;
+}
+.library-editor fieldset p {
+  margin: 0;
+  font-size: 12px;
+  color: #536647;
+  width: 100%;
+}
+.library-editor [aria-invalid="true"] {
+  border-color: #b34040;
+}

@@ -97,6 +97,9 @@ test("Dialog traps focus and restores it; Tabs support arrows and all applicable
   );
   for (const [name, c] of Object.entries(defaultDesign.components)) {
     await render(`component:${name}`);
+    await expect(
+      page.getByRole("heading", { name, exact: true }),
+    ).toBeVisible();
     for (const state of c.states) {
       await page.getByLabel("表示状態").selectOption(state);
       await expect(page.locator(".specimen-control")).toHaveAttribute(

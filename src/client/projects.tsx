@@ -24,6 +24,7 @@ function useAction() {
   return {
     error,
     busy,
+    clear: () => setError(""),
     run: async (fn: () => Promise<unknown>) => {
       setBusy(true);
       setError("");
@@ -647,8 +648,10 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   const action = useAction(),
     client = useQueryClient();
   const [notice, setNotice] = useState("");
-  const reset = () =>
+  const reset = () => {
+    action.clear();
     setDraft({ baseProfileRevision: current.revision, ...current.snapshot });
+  };
   return (
     <main className="projects-page profile-page">
       <div className="eyebrow">YOUR DESIGN LANGUAGE</div>
@@ -856,6 +859,11 @@ function Overview({
     )
       setDraft((d) => ({ ...d, baseRevision: current.revision }));
   }, [current.revision]);
+  const [notice, setNotice] = useState("");
+  const dirty =
+    JSON.stringify([draft.brief, draft.policies]) !==
+    JSON.stringify([current.snapshot.brief, current.snapshot.policies]);
+  const stale = draft.baseRevision !== current.revision;
   const sync = async () => {
     await refresh();
     await client.invalidateQueries({ queryKey: ["projects"] });
@@ -865,45 +873,76 @@ function Overview({
       <div className="eyebrow">PROJECT OVERVIEW</div>
       <h1>{current.snapshot.brief.name}</h1>
       <p>概要・設計方針 · 確定 r{current.revision}</p>
+      <EditorActions
+        scope={current.snapshot.brief.name}
+        target="概要・方針"
+        revision={current.revision}
+        dirty={dirty}
+        busy={action.busy}
+        stale={stale}
+        error={action.error || error}
+        notice={notice}
+        disabledReason={
+          stale
+            ? "下書きの版が古くなっています。最新の確定版を読み込んでください。"
+            : !dirty
+              ? "保存する変更はありません。"
+              : !draft.brief.name.trim()
+                ? "プロジェクト名を入力してください。"
+                : undefined
+        }
+      >
+        <button
+          className="button"
+          disabled={action.busy || (!dirty && !stale)}
+          onClick={() => {
+            action.clear();
+            setDraft({
+              baseRevision: current.revision,
+              brief: current.snapshot.brief,
+              policies: current.snapshot.policies,
+            });
+          }}
+        >
+          {stale ? "最新の確定版を読み込む" : "未保存の変更を取り消す"}
+        </button>
+        <button
+          form="overview-form"
+          className="button primary"
+          disabled={action.busy || stale || !dirty || !draft.brief.name.trim()}
+        >
+          概要・方針を保存
+        </button>
+      </EditorActions>
       <form
+        id="overview-form"
         onSubmit={(e) => {
           e.preventDefault();
           void action.run(async () => {
-            const r = await req<Revision>(scope.api, draft);
+            let r: Revision;
+            try {
+              r = await req<Revision>(scope.api, draft);
+            } catch (e) {
+              if ((e as { status?: number }).status === 409) await sync();
+              throw e;
+            }
             setDraft({ ...draft, baseRevision: r.revision });
             await sync();
+            setNotice("概要・方針を保存しました");
           });
         }}
       >
-        <BriefFields
-          value={draft.brief}
-          onChange={(brief) => setDraft({ ...draft, brief })}
-        />
-        <h2>このプロジェクト固有の方針・例外</h2>
-        <Principles
-          values={draft.policies}
-          onChange={(policies) => setDraft({ ...draft, policies })}
-        />
-        <button className="button primary" disabled={action.busy}>
-          概要・方針を保存
-        </button>
-        {draft.baseRevision !== current.revision && (
-          <p role="alert">
-            下書きの版が古くなっています。入力を確認してください。
-            <button
-              type="button"
-              onClick={() =>
-                setDraft({
-                  baseRevision: current.revision,
-                  brief: current.snapshot.brief,
-                  policies: current.snapshot.policies,
-                })
-              }
-            >
-              確定内容に戻す
-            </button>
-          </p>
-        )}
+        <fieldset disabled={action.busy} className="overview-fields">
+          <BriefFields
+            value={draft.brief}
+            onChange={(brief) => setDraft({ ...draft, brief })}
+          />
+          <h2>このプロジェクト固有の方針・例外</h2>
+          <Principles
+            values={draft.policies}
+            onChange={(policies) => setDraft({ ...draft, policies })}
+          />
+        </fieldset>
       </form>
       <h2>共通の好みから採用</h2>
       <p>
@@ -948,9 +987,13 @@ function Overview({
               <h4>
                 {d.kind} · {d.key}
               </h4>
-              <pre>
-                {JSON.stringify(d.before)} → {JSON.stringify(d.after)}
-              </pre>
+              <details>
+                <summary>変更前・変更後の詳細</summary>
+                <pre>
+                  {JSON.stringify(d.before, null, 2)} →{" "}
+                  {JSON.stringify(d.after, null, 2)}
+                </pre>
+              </details>
               {d.conflict && <p role="alert">競合: {d.conflict}</p>}
               <label>
                 反映方法
@@ -1037,7 +1080,6 @@ function Overview({
       >
         選択した判断を共通に追加
       </button>
-      {(action.error || error) && <p role="alert">{action.error || error}</p>}
     </main>
   );
 }
