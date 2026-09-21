@@ -8,18 +8,13 @@ import {
   Check,
   ChevronRight,
   CircleHelp,
-  ClipboardCheck,
   Code2,
   Fingerprint,
-  Image,
-  Layers,
-  LayoutTemplate,
   LoaderCircle,
   Monitor,
   Palette,
   PanelRightClose,
   RotateCcw,
-  SlidersHorizontal,
   Smartphone,
   Sparkles,
   Tablet,
@@ -41,56 +36,7 @@ import { ReviewPanel } from "./components/ReviewPanel";
 import { initialState, type WorkspaceState } from "./state";
 import { profile, type Design } from "../domain/design";
 
-export const steps = [
-  {
-    id: "inspiration",
-    name: "Inspiration",
-    label: "好きの手がかりを集める",
-    icon: Image,
-  },
-  {
-    id: "taste",
-    name: "Taste",
-    label: "見比べて、好みを見つける",
-    icon: Fingerprint,
-  },
-  {
-    id: "foundation",
-    name: "Foundation",
-    label: "感覚を、具体的なかたちに。",
-    icon: SlidersHorizontal,
-  },
-  {
-    id: "components",
-    name: "Components",
-    label: "細部にも、あなたらしさを。",
-    icon: Layers,
-  },
-  {
-    id: "patterns",
-    name: "Patterns",
-    label: "使い方まで、デザインする。",
-    icon: LayoutTemplate,
-  },
-  {
-    id: "preview",
-    name: "Preview",
-    label: "いつもの画面で、確かめる。",
-    icon: Monitor,
-  },
-  {
-    id: "review",
-    name: "AI Review",
-    label: "最初の感覚に、立ち返る。",
-    icon: ClipboardCheck,
-  },
-  {
-    id: "export",
-    name: "Export",
-    label: "あなたの感覚を、次の制作へ。",
-    icon: ArrowDownToLine,
-  },
-];
+import { steps } from "./navigation";
 const tabs = [
   "Colors",
   "Typography",
@@ -213,7 +159,17 @@ export function Workspace({
   const [tab, setTab] = useState("Colors");
   const [screen, setScreen] = useState("list");
   const [width, setWidth] = useState("desktop");
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(
+    () => window.matchMedia("(min-width: 1051px)").matches,
+  );
+  useEffect(() => {
+    const compact = window.matchMedia("(max-width: 1050px)");
+    const closeOnCompact = () => {
+      if (compact.matches) setChatOpen(false);
+    };
+    compact.addEventListener("change", closeOnCompact);
+    return () => compact.removeEventListener("change", closeOnCompact);
+  }, []);
   const [prompt, setPrompt] = useState(
     () => localStorage.getItem(`tasteprint.${scope.id}.prompt`) || "",
   );
@@ -309,50 +265,6 @@ export function Workspace({
 
   return (
     <div className={`workspace ${chatOpen ? "" : "chat-closed"}`}>
-      <aside className="sidebar">
-        <Link to="/$step" params={{ step: "foundation" }} className="wordmark">
-          <Fingerprint size={30} strokeWidth={1.7} />
-          <span>
-            tasteprint<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <div className="project-switch">
-          <span className="project-monogram">P</span>
-          <div>
-            {projectName}
-            <small>My design language</small>
-          </div>
-          <Pill>01</Pill>
-        </div>
-        <div className="nav-label">YOUR DESIGN JOURNEY</div>
-        <nav>
-          {steps.map((s, i) => (
-            <Link
-              key={s.id}
-              to="/$step"
-              params={{ step: s.id }}
-              className={`nav-item ${current.id === s.id ? "active" : ""}`}
-            >
-              <s.icon size={17} strokeWidth={1.6} />
-              <span>{s.name}</span>
-              <small>{String(i + 1).padStart(2, "0")}</small>
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-note">
-          <div className="tiny-orbit">✳</div>
-          <p>
-            Good design starts
-            <br />
-            with knowing your taste.
-          </p>
-          <span>あなたの「好き」が、設計の起点。</span>
-        </div>
-        <div className="sidebar-bottom">
-          <span className="local-dot" /> Local workspace{" "}
-          <span className="version">v0.1</span>
-        </div>
-      </aside>
       <div className="workspace-body">
         <header className="topbar">
           <div>
@@ -850,7 +762,8 @@ export function Workspace({
                   <pre>{markdown}</pre>
                 </div>
                 <p className="muted export-note">
-                  一括 ZIP には DTCG トークン、React テンプレート、3画面の PNG、導入手順と manifest が含まれます。
+                  一括 ZIP には DTCG トークン、React テンプレート、3画面の
+                  PNG、導入手順と manifest が含まれます。
                 </p>
               </>
             )}
