@@ -3258,3 +3258,121 @@ svg {
     margin: 4px 0;
   }
 }
+
+.project-list-heading,
+.project-list-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.project-list-tools .section-navigation {
+  margin: 0;
+}
+.project-list-tools > label {
+  width: min(360px, 100%);
+}
+.project-rows {
+  display: block;
+}
+.project-rows article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px auto;
+  gap: 24px;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 24px 0;
+}
+.project-row-title h2 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.project-row-title p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.project-meta,
+.project-row-export {
+  font-size: 12px;
+  color: var(--muted);
+}
+.project-row-actions,
+.project-create-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.project-empty {
+  padding: 32px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+.project-empty .button {
+  margin-right: 8px;
+}
+.project-create-dialog {
+  padding: 0;
+  width: min(580px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--paper);
+}
+.project-create-dialog::backdrop {
+  background: rgb(25 35 25 / 40%);
+}
+.project-create-dialog form {
+  margin: 0;
+  padding: 24px;
+  border: 0;
+}
+.project-create-dialog fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.project-create-dialog details {
+  margin: 20px 0;
+}
+.project-create-actions {
+  justify-content: flex-end;
+  position: sticky;
+  bottom: -24px;
+  background: var(--paper);
+  padding: 16px 0;
+}
+@media (max-width: 1100px) {
+  .project-rows article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .project-row-export {
+    grid-row: 2;
+  }
+  .project-row-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+@media (max-width: 720px) {
+  .project-list-heading,
+  .project-list-tools {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .project-rows article {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .project-row-actions {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .project-empty {
+    padding: 20px;
+  }
+}
