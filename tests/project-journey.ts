@@ -6,6 +6,7 @@ export async function projectJourney(page: import("@playwright/test").Page) {
   await page.goto("/profile");
   await page.getByLabel("density-0", { exact: true }).selectOption("b");
   await page.getByLabel("density-0 理由", { exact: true }).fill("一覧性を優先");
+  await page.getByRole("button", { name: "DNA・原則", exact: true }).click();
   await page.getByRole("button", { name: "原則を追加", exact: true }).click();
   const field = page.locator(".principle-fields").last();
   await field
@@ -122,11 +123,9 @@ export async function projectJourney(page: import("@playwright/test").Page) {
     } else expect(json.snapshot.taste.answers["density-0"]).toBe("a");
   }
   await page.goto("/projects");
-  const card = page
-    .locator(".project-list article")
-    .filter({
-      has: page.getByRole("heading", { name: "個人サイト", exact: true }),
-    });
+  const card = page.locator(".project-list article").filter({
+    has: page.getByRole("heading", { name: "個人サイト", exact: true }),
+  });
   await card.getByRole("button", { name: "アーカイブ", exact: true }).click();
   await expect(
     card.getByRole("button", { name: "アーカイブ解除", exact: true }),
