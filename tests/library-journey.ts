@@ -13,8 +13,11 @@ test("library edits persist, restore and stay isolated from the editor theme", a
     })
   ).json();
   await page.goto(`/projects/${project.id}/components`);
+  await expect(
+    page.getByRole("heading", { name: "Components.", exact: true }),
+  ).toBeVisible();
   const hostColor = await page
-    .locator("h1")
+    .getByRole("heading", { name: "Components.", exact: true })
     .evaluate((el) => getComputedStyle(el).color);
   await page.getByLabel("variant", { exact: true }).selectOption("subtle");
   await page.getByLabel("size", { exact: true }).selectOption("lg");

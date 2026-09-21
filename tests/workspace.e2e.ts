@@ -361,8 +361,8 @@ test("late saves and stale drafts cannot overwrite the next project's screen", a
     .getByRole("link", { name: "再開", exact: true })
     .click();
   await page
-    .locator(".project-steps")
-    .getByRole("link", { name: "foundation", exact: true })
+    .getByRole("navigation", { name: "プロジェクトの設計" })
+    .getByRole("link", { name: "Foundation", exact: true })
     .click();
   release();
   await expect(
@@ -439,3 +439,137 @@ test("bundle export offers explicit PNG failure recovery and downloads portable 
   await expect(page.getByText(/Draft · PNG 3画面/)).toBeVisible();
 });
 import "./library-journey";
+
+test("shared and project pages keep one sidebar and scoped navigation", async ({
+  page,
+}) => {
+  const sidebar = page.getByRole("complementary", { name: "サイドバー" });
+  const globalNav = page.getByRole("navigation", { name: "アプリ全体" });
+  await page.goto("/");
+  await expect(
+    globalNav.getByRole("link", { name: "プロジェクト", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  const initialBox = await sidebar.boundingBox();
+  await globalNav
+    .getByRole("link", { name: "自分の好み", exact: true })
+    .click();
+  await expect(
+    globalNav.getByRole("link", { name: "自分の好み", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await page
+    .getByLabel("density-0 理由", { exact: true })
+    .fill("Navigation draft");
+  await page.getByLabel("プロジェクト切り替え").selectOption(projectId);
+  await expect(
+    page.getByRole("heading", { name: "Workspace regression", exact: true }),
+  ).toBeVisible();
+  const projectNav = page.getByRole("navigation", {
+    name: "プロジェクトの設計",
+  });
+  for (const [label, step] of [
+    ["概要・設計方針", "overview"],
+    ["Foundation", "foundation"],
+    ["Components", "components"],
+    ["Patterns", "patterns"],
+    ["Preview", "preview"],
+    ["AI Review", "review"],
+    ["Export", "export"],
+    ["Inspiration", "inspiration"],
+  ]) {
+    const link = projectNav.getByRole("link", { name: label, exact: true });
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/${step}$`));
+    await expect(link).toHaveAttribute("aria-current", "page");
+    await expect(sidebar).toHaveCount(1);
+    await expect(page.locator("h1")).toBeVisible();
+    const box = await sidebar.boundingBox();
+    expect(box?.x).toBe(initialBox?.x);
+    expect(box?.width).toBe(initialBox?.width);
+  }
+  await globalNav
+    .getByRole("link", { name: "自分の好み", exact: true })
+    .click();
+  await expect(page.getByLabel("density-0 理由", { exact: true })).toHaveValue(
+    "Navigation draft",
+  );
+  await page.screenshot({
+    path: "test-results/navigation-profile-desktop.png",
+    animations: "disabled",
+  });
+  await globalNav
+    .getByRole("link", { name: "プロジェクト", exact: true })
+    .click();
+  await page.screenshot({
+    path: "test-results/navigation-projects-desktop.png",
+    animations: "disabled",
+  });
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto(`/projects/${projectId}/foundation`);
+  await expect(
+    page.getByRole("heading", { name: "Foundation." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "対話パネルを閉じる" }),
+  ).toHaveCount(0);
+  expect(await sidebar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "test-results/navigation-tablet.png" });
+});
+
+test("mobile menu exposes named destinations, closes on navigation and supports Escape", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const menu = page.getByRole("button", { name: "メニュー", exact: true });
+  const globalNav = page.getByRole("navigation", { name: "アプリ全体" });
+  await expect(
+    page.getByRole("heading", { name: "プロジェクト." }),
+  ).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    globalNav.getByRole("link", { name: "自分の好み", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  await page.getByLabel("プロジェクト切り替え").selectOption(projectId);
+  await expect(
+    page.getByRole("heading", { name: "Workspace regression", exact: true }),
+  ).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  await page.screenshot({ path: "test-results/navigation-mobile-menu.png" });
+  await page
+    .getByRole("navigation", { name: "プロジェクトの設計" })
+    .getByRole("link", { name: "Foundation", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Foundation." }),
+  ).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    page.getByRole("button", { name: "対話パネルを閉じる" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "対話パネルを切り替え" }).click();
+  await page.getByRole("button", { name: "対話パネルを閉じる" }).click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/navigation-foundation-mobile.png",
+    animations: "disabled",
+  });
+});

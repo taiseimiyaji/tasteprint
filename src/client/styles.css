@@ -2676,31 +2676,14 @@ svg {
 }
 
 .global-navigation {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 12px 24px;
-  background: #fbfcf9;
-  border-bottom: 1px solid #dce1d7;
-  flex-wrap: wrap;
+  flex-direction: column;
+  margin: 26px 0 0;
 }
-.global-navigation a,
 .project-summary a {
   color: #3d5330;
   text-decoration: none;
   font-weight: 600;
-}
-.global-navigation label {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.global-navigation select {
-  max-width: 240px;
 }
 .project-summary {
   padding: 12px 24px;
@@ -2786,13 +2769,6 @@ svg {
   overflow-wrap: anywhere;
 }
 @media (max-width: 600px) {
-  .global-navigation {
-    gap: 12px;
-    padding: 12px;
-  }
-  .global-navigation label {
-    margin-left: 0;
-  }
   .projects-page {
     padding: 24px 16px;
   }
@@ -2801,26 +2777,6 @@ svg {
   }
   .projects-page form {
     padding: 16px;
-  }
-}
-
-.workspace {
-  align-items: flex-start;
-}
-.workspace .sidebar {
-  position: sticky;
-  inset: auto;
-  top: 64px;
-  height: calc(100vh - 64px);
-}
-.workspace .workspace-body {
-  margin-left: 0;
-  flex: 1;
-}
-@media (max-width: 720px) {
-  .workspace .sidebar {
-    top: 100px;
-    height: calc(100vh - 100px);
   }
 }
 
@@ -2938,4 +2894,200 @@ svg {
   height: calc(var(--component-height) / 2);
   min-height: 0;
   padding: 0;
+}
+
+/* One application frame for shared taste, projects, and every design screen. */
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100dvh;
+}
+.app-shell > .app-sidebar {
+  width: 224px;
+  position: sticky;
+  inset: auto;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+}
+.app-content {
+  flex: 1;
+  min-width: 0;
+}
+.app-content > .workspace {
+  min-height: 100dvh;
+}
+.app-content .workspace-body {
+  width: 100%;
+  margin-left: 0;
+}
+.app-sidebar .wordmark {
+  padding: 0;
+  font-size: 24px;
+  gap: 8px;
+}
+.app-sidebar .project-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin: 22px 0;
+  font-size: 11px;
+  color: #66715c;
+}
+.app-sidebar select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 1px solid #dfe3d7;
+  border-radius: 4px;
+  background: #fff;
+  color: #39452e;
+  font-size: 13px;
+}
+.app-sidebar .nav-label {
+  letter-spacing: 1px;
+  display: block;
+}
+.app-sidebar .nav-item {
+  color: #66715c;
+}
+.app-sidebar .nav-item.active {
+  color: #3d5330;
+}
+.sidebar-guidance p {
+  padding: 0 13px;
+  margin: 12px 0;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #727b69;
+}
+.app-sidebar .sidebar-note {
+  padding-top: 24px;
+}
+.app-sidebar .sidebar-note > span {
+  color: #737d68;
+}
+.sidebar-toggle {
+  display: none;
+}
+.app-content > .projects-page {
+  width: 100%;
+}
+.projects-page h1 {
+  font-family: "Manrope Variable", sans-serif;
+  letter-spacing: -1px;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.projects-page > .eyebrow {
+  margin-bottom: 12px;
+}
+.projects-page > p {
+  color: #727b69;
+}
+.projects-page > form > h2:first-child {
+  margin-top: 0;
+}
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  background: #fff;
+  border: 2px solid #65764d;
+  transform: translateY(-150%);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.app-sidebar :focus-visible {
+  outline: 2px solid #65764d;
+  outline-offset: 3px;
+}
+@media (max-width: 720px) {
+  .app-shell {
+    display: block;
+  }
+  .app-shell > .app-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    overflow: visible;
+  }
+  .sidebar-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .app-sidebar .wordmark {
+    font-size: 23px;
+  }
+  .app-sidebar .wordmark > span,
+  .app-sidebar .nav-item > span {
+    display: inline;
+  }
+  .sidebar-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  .sidebar-navigation {
+    display: none;
+  }
+  .sidebar-navigation.is-open {
+    display: block;
+  }
+  .app-sidebar nav {
+    margin-top: 12px;
+  }
+  .app-sidebar .nav-item {
+    justify-content: flex-start;
+    padding: 12px;
+  }
+  .app-sidebar .sidebar-note,
+  .app-sidebar .sidebar-bottom {
+    display: none;
+  }
+  .app-content .workspace-body {
+    width: 100%;
+    margin-left: 0;
+  }
+  .app-content .projects-page {
+    padding: 28px 20px 64px;
+  }
+}
+
+@media (min-width: 721px) and (max-height: 1000px) {
+  .app-sidebar .sidebar-note {
+    display: none;
+  }
+  .app-sidebar .sidebar-bottom {
+    margin-top: auto;
+  }
+}
+
+.app-content .topbar {
+  column-gap: 16px;
+}
+.app-content .topbar-actions {
+  flex-shrink: 0;
+}
+.app-content .save-status {
+  white-space: nowrap;
+}
+@media (min-width: 721px) and (max-width: 1050px) {
+  .app-content .topbar {
+    height: auto;
+    min-height: 68px;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
 }

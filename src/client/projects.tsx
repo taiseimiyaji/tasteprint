@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouterState, Link as RouterLink } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Workspace } from "./workspace";
+import { AppShell } from "./navigation";
 import { References } from "./components/References";
 import { ScopeContext, jsonRequest, useScope } from "./scope";
 import {
@@ -102,52 +103,56 @@ export function ProjectsApp() {
   }, [!!taste.data]);
   if (!taste.data)
     return (
-      <main className="projects-page">
-        <h1>Tasteprint</h1>
-        {(taste.error as { status?: number })?.status === 401 ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void action.run(async () => {
-                await req("/api/pair", { code });
-                await taste.refetch();
-              });
-            }}
-          >
-            <label>
-              接続コード
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-              />
-            </label>
-            <button className="button primary" disabled={action.busy}>
-              接続する
-            </button>
-          </form>
-        ) : (
-          <>
-            <p>{taste.error?.message || "読み込み中…"}</p>
-            <button className="button" onClick={() => void taste.refetch()}>
-              再試行
-            </button>
-          </>
-        )}
-        {action.error && <p role="alert">{action.error}</p>}
-      </main>
+      <AppShell path={path} ready={false}>
+        <main className="projects-page">
+          <h1>Tasteprint</h1>
+          {(taste.error as { status?: number })?.status === 401 ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action.run(async () => {
+                  await req("/api/pair", { code });
+                  await taste.refetch();
+                });
+              }}
+            >
+              <label>
+                接続コード
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              </label>
+              <button className="button primary" disabled={action.busy}>
+                接続する
+              </button>
+            </form>
+          ) : (
+            <>
+              <p>{taste.error?.message || "読み込み中…"}</p>
+              <button className="button" onClick={() => void taste.refetch()}>
+                再試行
+              </button>
+            </>
+          )}
+          {action.error && <p role="alert">{action.error}</p>}
+        </main>
+      </AppShell>
     );
   if (!migrationReady)
     return (
-      <main className="projects-page">
-        <h1>保存データを確認しています</h1>
-        <p role="alert">
-          {action.error || "バックアップと移行が完了するまでお待ちください。"}
-        </p>
-        {action.error && (
-          <button onClick={() => location.reload()}>再試行</button>
-        )}
-      </main>
+      <AppShell path={path} ready={false}>
+        <main className="projects-page">
+          <h1>保存データを確認しています</h1>
+          <p role="alert">
+            {action.error || "バックアップと移行が完了するまでお待ちください。"}
+          </p>
+          {action.error && (
+            <button onClick={() => location.reload()}>再試行</button>
+          )}
+        </main>
+      </AppShell>
     );
   const parts = path.split("/"),
     id = parts[1] === "projects" ? parts[2] : undefined;
@@ -167,47 +172,23 @@ export function ProjectsApp() {
       };
   return (
     <ScopeContext.Provider value={scope}>
-      <div className="global-navigation">
-        <RouterLink to={"/profile" as "/"}>自分の好み</RouterLink>
-        <RouterLink to={"/projects" as "/"}>プロジェクト</RouterLink>
-        <strong>{scope.name}</strong>
-        <label>
-          切り替え
-          <select
-            aria-label="プロジェクト切り替え"
-            value={id || ""}
-            onChange={(e) => {
-              location.href = e.target.value
-                ? `/projects/${e.target.value}/overview`
-                : "/profile";
-            }}
-          >
-            <option value="">自分の好み</option>
-            {projects.data
-              ?.filter((p) => !p.archivedAt || p.id === id)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.brief.name}
-                </option>
-              ))}
-          </select>
-        </label>
-      </div>
-      {id ? (
-        <ProjectArea
-          key={id}
-          step={parts[3] || "overview"}
-          taste={taste.data.current}
-        />
-      ) : parts[1] === "profile" ? (
-        <ProfileEditor key="profile" current={taste.data.current} />
-      ) : (
-        <ProjectList
-          taste={taste.data.current}
-          projects={projects.data || []}
-          error={projects.error?.message || ""}
-        />
-      )}
+      <AppShell path={path} projects={projects.data}>
+        {id ? (
+          <ProjectArea
+            key={id}
+            step={parts[3] || "overview"}
+            taste={taste.data.current}
+          />
+        ) : parts[1] === "profile" ? (
+          <ProfileEditor key="profile" current={taste.data.current} />
+        ) : (
+          <ProjectList
+            taste={taste.data.current}
+            projects={projects.data || []}
+            error={projects.error?.message || ""}
+          />
+        )}
+      </AppShell>
     </ScopeContext.Provider>
   );
 }
@@ -263,7 +244,10 @@ function ProjectList({
     client = useQueryClient();
   return (
     <main className="projects-page">
-      <h1>プロジェクト</h1>
+      <div className="eyebrow">YOUR PROJECTS</div>
+      <h1>
+        プロジェクト<span className="brand-dot">.</span>
+      </h1>
       <p>同じ好みから、用途ごとに設計を育てる。</p>
       <form
         onSubmit={(e) => {
@@ -461,7 +445,10 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   const [notice, setNotice] = useState("");
   return (
     <main className="projects-page">
-      <h1>自分の好み</h1>
+      <div className="eyebrow">YOUR DESIGN LANGUAGE</div>
+      <h1>
+        自分の好み<span className="brand-dot">.</span>
+      </h1>
       <p>
         プロジェクトを作る前でも保存できます。更新は既存プロジェクトに自動反映されません。
       </p>
@@ -645,20 +632,21 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
   const data = q.data;
   return (
     <>
-      <div className="project-summary">
-        <RouterLink to={`${scope.route}/overview` as "/"}>
-          概要・設計方針
-        </RouterLink>
-        {data.project.archivedAt && (
-          <span>アーカイブ中 · 変更するには一覧から解除してください</span>
-        )}
-        {taste.revision !==
-          data.current.snapshot.sourceTasteProfileRevision && (
-          <RouterLink to={`${scope.route}/overview` as "/"}>
-            共通の好みに更新があります · 差分を確認
-          </RouterLink>
-        )}
-      </div>
+      {(data.project.archivedAt ||
+        taste.revision !==
+          data.current.snapshot.sourceTasteProfileRevision) && (
+        <div className="project-summary" role="status">
+          {data.project.archivedAt && (
+            <span>アーカイブ中 · 変更するには一覧から解除してください</span>
+          )}
+          {taste.revision !==
+            data.current.snapshot.sourceTasteProfileRevision && (
+            <RouterLink to={`${scope.route}/overview` as "/"}>
+              共通の好みに更新があります · 差分を確認
+            </RouterLink>
+          )}
+        </div>
+      )}
       {step === "overview" ? (
         <Overview
           key={scope.id}
@@ -716,27 +704,9 @@ function Overview({
   };
   return (
     <main className="projects-page">
+      <div className="eyebrow">PROJECT OVERVIEW</div>
       <h1>{current.snapshot.brief.name}</h1>
       <p>概要・設計方針 · 確定 r{current.revision}</p>
-      <nav className="project-steps">
-        {[
-          "foundation",
-          "components",
-          "patterns",
-          "preview",
-          "review",
-          "export",
-          "inspiration",
-        ].map((s) => (
-          <RouterLink
-            className="button"
-            key={s}
-            to={`${scope.route}/${s}` as "/"}
-          >
-            {s}
-          </RouterLink>
-        ))}
-      </nav>
       <form
         onSubmit={(e) => {
           e.preventDefault();
