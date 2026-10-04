@@ -69,7 +69,7 @@ async function holdAdds(page: Page, base: string) {
       hold.enter();
       await hold.held;
       return route.fulfill({
-        status: 503,
+        status: 400,
         json: { message: "ADD_REFERENCE_FAILURE" },
       });
     }
@@ -120,7 +120,7 @@ for (const profile of [false, true]) {
       pending.waits.forEach((wait) => wait.release());
     }
   });
-  test(`${label} failed add retains its URL, permits editing and protects an explicit retry`, async ({
+  test(`${label} rejected add retains its URL, permits editing and protects an explicit retry`, async ({
     page,
   }) => {
     const f = await setup(page, profile),

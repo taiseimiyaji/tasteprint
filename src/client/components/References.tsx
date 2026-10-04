@@ -43,6 +43,39 @@ async function referenceRequest<T>(
     );
   return data;
 }
+function usableReference(value: unknown): value is SavedReference {
+  if (!value || typeof value !== "object") return false;
+  const r = value as SavedReference;
+  return (
+    referenceInputSchema.safeParse(value).success &&
+    [r.name, r.url, r.likes, r.dislikes].every(
+      (field) => typeof field === "string",
+    ) &&
+    (r.assetId === undefined || typeof r.assetId === "string") &&
+    typeof r.id === "string" &&
+    /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(r.id) &&
+    Number.isInteger(r.version) &&
+    r.version > 0 &&
+    Array.isArray(r.accepted) &&
+    r.accepted.every((index) => Number.isInteger(index) && index >= 0)
+  );
+}
+type CreationCandidate = Pick<
+  SavedReference,
+  "id" | "version" | "name" | "url" | "likes" | "assetId"
+>;
+function usableCandidate(value: unknown): value is CreationCandidate {
+  if (!value || typeof value !== "object") return false;
+  const r = value as CreationCandidate;
+  return (
+    [r.name, r.url, r.likes].every((field) => typeof field === "string") &&
+    typeof r.id === "string" &&
+    /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(r.id) &&
+    Number.isInteger(r.version) &&
+    r.version > 0 &&
+    (r.assetId === undefined || typeof r.assetId === "string")
+  );
+}
 const defaults = (name: string, url = ""): ReferenceInput => ({
   name,
   url,
@@ -108,12 +141,53 @@ export function References({
     await commitReferenceJob(client, scope.id, job);
     return job;
   };
+  const [unknownCreation, setUnknownCreation] = useState<{
+    input: ReferenceInput;
+    error: string;
+  }>();
+  const [creationCandidates, setCreationCandidates] =
+    useState<CreationCandidate[]>();
+  const [checkingCreation, setCheckingCreation] = useState(false);
+  const [creationReadError, setCreationReadError] = useState("");
+  const [allowSeparateCreation, setAllowSeparateCreation] = useState(false);
   const saveReference: SaveReference = async (path, method, body) => {
-    const saved = await request<SavedReference>(path, method, body);
+    const createsReference = path === "" && method === "POST";
+    if (createsReference && unknownCreation)
+      throw new Error("追加結果を確認してから別の追加を準備してください。");
+    let saved: SavedReference;
+    try {
+      saved = await request<SavedReference>(path, method, body);
+      // This endpoint creates a version-one input receipt, without derived metadata.
+      if (
+        createsReference &&
+        (!usableReference(saved) ||
+          saved.version !== 1 ||
+          saved.accepted.length !== 0 ||
+          ["assetId", "capture", "analysis", "analysisJobId"].some((key) =>
+            Object.hasOwn(saved, key),
+          ))
+      )
+        throw new Error("追加応答の参考を確認できません。");
+    } catch (e) {
+      // Current creation endpoint rejects validation, pairing/Origin and limits before writing.
+      if (
+        createsReference &&
+        (!(e instanceof ApiError) ||
+          ![400, 401, 403, 409, 413].includes(e.status))
+      ) {
+        setUnknownCreation({
+          input: structuredClone(body as ReferenceInput),
+          error: e instanceof Error ? e.message : "応答を取得できません。",
+        });
+        setCreationCandidates(undefined);
+        setCreationReadError("");
+        setAllowSeparateCreation(false);
+      }
+      throw e;
+    }
     // Cancel older reads, and retain newer versions or an already known absence.
     await client.cancelQueries({ queryKey, exact: true });
     client.setQueryData<ReferenceData>(queryKey, (data) => {
-      const createsReference = path === "" && method === "POST";
       if (
         data &&
         !createsReference &&
@@ -203,6 +277,7 @@ export function References({
         className="reference-form"
         onSubmit={(e) => {
           e.preventDefault();
+          if (busy || unknownCreation) return;
           void run(async () => {
             const parsed = new URL(url);
             const ref = await saveReference(
@@ -228,7 +303,7 @@ export function References({
           placeholder="https://example.com"
           required
         />
-        <button className="button primary" disabled={busy}>
+        <button className="button primary" disabled={busy || !!unknownCreation}>
           参考を追加
         </button>
         <label className="button">
@@ -237,10 +312,11 @@ export function References({
             aria-label="画像を追加"
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            disabled={busy}
+            disabled={busy || !!unknownCreation}
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
+              if (busy || unknownCreation) return;
               if (file)
                 void run(async () => {
                   if (file.size > 10 * 1024 * 1024)
@@ -259,7 +335,106 @@ export function References({
           />
         </label>
       </form>
-      {error && (
+      {unknownCreation && (
+        <section
+          className="editor-error"
+          aria-label="参考の追加結果を確認"
+          style={{ overflowWrap: "anywhere" }}
+        >
+          <div role="alert">
+            <p>
+              追加結果を確認できません。サーバーで追加済みの可能性があるため、新規追加の通常再送を停止しています。
+            </p>
+            <p>{unknownCreation.error}</p>
+          </div>
+          <p>
+            確認対象: {unknownCreation.input.url || unknownCreation.input.name}
+          </p>
+          <p>
+            URLは編集できます。画像は別の追加を準備した後に選び直してください。ページ移動・再読み込み・別タブでは、この確認状態は引き継がれません。
+          </p>
+          <button
+            type="button"
+            className="button"
+            disabled={busy || checkingCreation}
+            onClick={async () => {
+              setCheckingCreation(true);
+              setCreationReadError("");
+              setCreationCandidates(undefined);
+              setAllowSeparateCreation(false);
+              try {
+                const all = await request<{ references: unknown }>();
+                if (
+                  !all ||
+                  !Array.isArray(all.references) ||
+                  !all.references.every(usableCandidate)
+                )
+                  throw new Error("候補一覧の内容を確認できません。");
+                setCreationCandidates(
+                  all.references.filter((r) =>
+                    unknownCreation.input.url
+                      ? r.url === unknownCreation.input.url
+                      : r.name === unknownCreation.input.name.trim(),
+                  ),
+                );
+              } catch (e) {
+                setCreationReadError(
+                  e instanceof Error ? e.message : "候補一覧を取得できません。",
+                );
+              } finally {
+                setCheckingCreation(false);
+              }
+            }}
+          >
+            {checkingCreation ? "追加候補を確認中…" : "追加候補を確認"}
+          </button>
+          {creationReadError && (
+            <p role="alert">
+              候補を確認できませんでした。{creationReadError}{" "}
+              新規追加の停止は維持しています。
+            </p>
+          )}
+          {creationCandidates !== undefined && (
+            <>
+              <p>
+                同じURLまたは画像名の候補: {creationCandidates.length}
+                件。一致しても今回の追加結果とは限りません。候補がなくても、追加されなかったことを保証しません。
+              </p>
+              <ul>
+                {creationCandidates.map((r) => (
+                  <li key={r.id}>
+                    {r.name} · ID {r.id} · v{r.version}
+                    {r.assetId ? " · 画像あり" : ""}
+                    {r.likes ? ` · ${r.likes}` : ""}
+                  </li>
+                ))}
+              </ul>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={allowSeparateCreation}
+                  onChange={(e) => setAllowSeparateCreation(e.target.checked)}
+                />
+                重複する可能性を確認し、別の追加を準備する
+              </label>
+              <button
+                type="button"
+                className="button"
+                disabled={!allowSeparateCreation || busy || checkingCreation}
+                onClick={() => {
+                  setUnknownCreation(undefined);
+                  setCreationCandidates(undefined);
+                  setAllowSeparateCreation(false);
+                  setError("");
+                }}
+              >
+                別の追加を準備
+              </button>
+            </>
+          )}
+        </section>
+      )}
+      {error && error !== unknownCreation?.error && (
         <p role="alert" className="error-text">
           {error}
         </p>
