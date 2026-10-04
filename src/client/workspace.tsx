@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -100,12 +100,14 @@ export function Workspace({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setBusy] = useState(false);
   const [reviewApplying, setReviewApplying] = useState(false);
+  const foundationReadVersion = useRef(0);
   const busy = saving || historyLoading || reviewApplying;
   const [validInput, setValidInput] = useState(true);
   const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
   useEffect(() => {
     let active = true;
+    const readVersion = foundationReadVersion.current;
     foundationRequest<{ current: Revision | null; history: Revision[] }>("/")
       .then(async (data) => {
         const current =
@@ -114,7 +116,8 @@ export function Workspace({
             design: initial.design,
             dna: profile(initial.snapshot?.taste.answers ?? {}),
           }));
-        if (!active) return;
+        // Reads begun before or during an update cannot replace its result.
+        if (!active || readVersion !== foundationReadVersion.current) return;
         setSaved(parseRevision(current));
         setRevisions(data.history.length ? data.history : [current]);
         setHistoryError("");
@@ -122,7 +125,7 @@ export function Workspace({
         setFoundationError("");
       })
       .catch((e) => {
-        if (active)
+        if (active && readVersion === foundationReadVersion.current)
           setFoundationError(
             `${e.message} ページを再読み込みして再試行してください。`,
           );
@@ -147,6 +150,7 @@ export function Workspace({
     }
   }
   async function commit(path: string, body: unknown) {
+    foundationReadVersion.current++;
     setBusy(true);
     setFoundationError("");
     try {
@@ -162,6 +166,7 @@ export function Workspace({
             : body,
         ),
       );
+      foundationReadVersion.current++;
       void queryClient.invalidateQueries({ queryKey: ["project", scope.id] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       setSaved(result);
@@ -194,6 +199,7 @@ export function Workspace({
         }
       }
     } finally {
+      foundationReadVersion.current++;
       setBusy(false);
     }
   }
@@ -801,8 +807,12 @@ export function Workspace({
               <ReviewPanel
                 saved={saved}
                 hasUnsavedDesign={dirty}
-                onApplyingChange={setReviewApplying}
+                onApplyingChange={(applying) => {
+                  foundationReadVersion.current++;
+                  setReviewApplying(applying);
+                }}
                 applied={(r) => {
+                  foundationReadVersion.current++;
                   setSaved(r);
                   setDraftBase(r.revision);
                   void queryClient.invalidateQueries({
