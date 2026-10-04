@@ -298,7 +298,6 @@ export function Workspace({
         "/proposals",
         { baseRevision: saved.revision, prompt: text },
       );
-      setCandidateIndex(0);
       return {
         supported: true as const,
         ...data.candidates[0],
@@ -334,6 +333,7 @@ export function Workspace({
   const ask = (text: string) => {
     if (!text.trim()) return;
     setPrompt(text);
+    setCandidateIndex(0);
     proposal.mutate(text);
   };
 
