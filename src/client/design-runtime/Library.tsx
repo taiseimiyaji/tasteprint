@@ -305,10 +305,12 @@ export function Pattern({
   as?: "div" | "header" | "section" | "form";
 } & React.HTMLAttributes<HTMLElement>) {
   const flatten = (nodes: ReactNode): ReactNode[] =>
-    Children.toArray(nodes).flatMap((node) =>
-      isValidElement<{ children?: ReactNode }>(node) && node.type === Fragment
-        ? flatten(node.props.children)
-        : [node],
+    Children.toArray(
+      Children.map(nodes, (node) =>
+        isValidElement<{ children?: ReactNode }>(node) && node.type === Fragment
+          ? flatten(node.props.children)
+          : node,
+      ),
     );
   const slots = name ? design.patterns[name].structure : [];
   const position = (node: ReactNode) => {
