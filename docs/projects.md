@@ -8,7 +8,7 @@
 
 1. 起動ターミナルの接続コードを入力します。「自分の好み」で比較・参考登録・DNA確認を進め、確定します。
 2. 「プロジェクト」で名前を入力し、必要なら用途・対象ユーザー・目指す／避けたい印象を記入します。「共通の好みを使う」が初期選択で、参照版・回答数・原則数を確認できます。
-3. 概要で固有方針や例外を保存します。例えば共通の「一覧は行」とは別に個人サイトの「作品一覧はカード」を記録できます。Foundation、Components / Patternsの既存操作例、Preview、Review、Exportへ進めます。Tasteの再回答は不要です。
+3. 概要で固有方針や例外を保存します。例えば共通の「一覧は行」とは別に個人サイトの「作品一覧はカード」を記録できます。Foundation、Components / Patternsの設定・操作例、Preview、Review、Exportへ進めます。Tasteの再回答は不要です。
 4. 共通更新後は概要の「差分を確認」で、追加・変更・削除ごとに取り込み／維持を選びます。すべて選択した時だけ新revisionを作成します。既存の具体値は再生成しません。
 5. 「共通の好みに追加」では保存済みの固有原則を選び、理由・出典を確認して追加します。brief・会話・具体値を自動で共通化しません。他プロジェクトは差分採用まで変わりません。
 6. 一覧から再開・アーカイブ／解除できます。アーカイブ中も確定データ・過去Exportを参照でき、変更APIは拒否します。
@@ -32,7 +32,7 @@ backup-before-projects/            # pre-migration SQLite/assets/browser JSON
 
 DBファイルそのものが所有境界です。APIは登録済みprojectIdを検証してからそのDBを選び、参考・ジョブ・候補・レビュー・画像・ExportのIDをそのDB内で解決します。任意のホストパスは受け取りません。同一revision番号・冪等キーでも他プロジェクトとは独立しています。共通参考からプロジェクト用のFoundation・Review APIへはアクセスできません。
 
-Foundationのrevisionを設計revisionとして拡張しました。各行の `design` と `snapshot`（brief、sourceTasteProfileRevision、採用した回答・比較条件・原則・根拠・参考画像、固有方針、維持結果）は一緒に不変保存します。Foundation保存、概要確定、共通差分の採用、復元はこの連番に新しい行を作ります。旧Foundation行は変更せず `project_snapshots` で当時の所有情報を補完します。既存Components / Patternsはこの確定designを使う操作例です。未実装の独立した部品・パターン設計エンジンを完成扱いにはしていません。
+Foundationのrevisionを設計revisionとして拡張しました。各行の `design` と `snapshot`（brief、sourceTasteProfileRevision、採用した回答・比較条件・原則・根拠・参考画像、固有方針、維持結果）は一緒に不変保存します。Foundation保存、概要確定、共通差分の採用、復元はこの連番に新しい行を作ります。旧Foundation行は変更せず `project_snapshots` で当時の所有情報を補完します。Components / Patternsの設定も同じ確定designとrevisionに保存し、同梱部品・パターンの操作例で確認します。任意コンポーネントのコード生成や自由なパターンビルダーは提供していません。詳細は [Components / Patterns](components-patterns.md) を参照してください。
 
 ルートは `/profile` と `/projects/:projectId/:step`。Queryのキャッシュキーと下書きのlocalStorageキーにもprojectIdを含めます。異なるプロジェクトではコンポーネントを再作成し、リクエストは開始時のスコープに固定します。Foundation・概要の下書きは元revisionを保持し、古い入力の上書きを拒否します。参考の分析・撮影には既存の参考version検証も適用します。
 
@@ -56,7 +56,7 @@ Foundationのrevisionを設計revisionとして拡張しました。各行の `d
 
 ## Export
 
-Markdown / JSON / CSSをサーバーで生成してSQLiteに保存します。入力は対象の確定revisionのみ。出力名は `<slug>-<projectIdの先頭8文字>-r<revision>-…`、内容にprojectId・設計revision・採用元共通revisionを記録します。同じrevisionの再要求は保存済みの同じ内容を返します。共通参考の削除後も旧snapshotに根拠・画像が残ります。DTCG / React / PNG / ZIPの一括出力はIssue #5の後続範囲です。
+Markdown / JSON / CSSをサーバーで生成してSQLiteに保存します。入力は対象の確定revisionのみ。出力名は `<slug>-<projectIdの先頭8文字>-r<revision>-…`、内容にprojectId・設計revision・採用元共通revisionを記録します。同じrevisionの再要求は保存済みの同じ内容を返します。共通参考の削除後も旧snapshotに根拠・画像が残ります。「一括 ZIP を生成・再試行」で同じ確定revisionのDTCG tokens、CSS、React components / patterns、3画面のコードとPNG、manifestを含むZIPも取得できます。画像生成に失敗した場合は再試行か「画像なし ZIP を生成」を選べます。範囲と制約は [READMEの一括出力](../README.md#同一-revision-の一括出力issue-5) を参照してください。
 
 ## 既存データの移行と復旧
 

@@ -28,7 +28,7 @@ Codex・PlaywrightのジョブはHTTP要求から独立した寿命を持つ。H
 
 開発時: Vite 127.0.0.1:3000 → /api proxy → Hono 127.0.0.1:3001。
 通常実行時: Hono 127.0.0.1:3000 → API + dist/clientの静的配信。
-Node.js 22.12以上を前提とし、検証にはNode.js 24を使用。依存バージョンはpackage-lock.jsonで固定する。
+Node.js 22.13以上を前提とし、検証にはNode.js 24.13.0を使用。依存バージョンはpackage-lock.jsonで固定する。
 
 フロントはサーバーの型だけをimportし、サーバーの実装や秘密情報をバンドルしない。
 
