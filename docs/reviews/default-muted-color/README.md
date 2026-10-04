@@ -11,7 +11,7 @@ The existing Review runs axe's WCAG 2 AA checks. Breadcrumbs and page descriptio
 
 Ratios use the WCAG relative-luminance formula; displayed values are rounded for comparison. Tests use real Chromium/axe on list, settings and form at 1440px and 390px. The fifteen affected findings across the three desktop screens disappear, with no affected `incomplete` results. The old color remains a positive control and is still reported. The actual Review API must complete three captures and verify color contrast.
 
-This color is one possible solution, not a uniquely required value. Main now makes category labels follow the configured muted token (PR #94); this proposal selects no additional value for those labels. The comparison images use that current stylesheet on both sides. Other machine findings, interactive states and overall accessibility are outside this proposal.
+This color is one possible solution, not a uniquely required value. Main now makes category labels follow the configured muted token (PR #94); this proposal selects no additional value for those labels. The comparison images use the current shared renderer on both sides, including the saved 48px Table row height now rendered by PR #106. This proposal does not choose a new row-height value. Other machine findings, interactive states and overall accessibility are outside this proposal.
 
 ## 1440px comparison
 
