@@ -63,20 +63,25 @@ export function FoundationEditor({
   design,
   tab,
   onChange,
+  onTabChange,
   onValidityChange,
 }: {
   design: Design;
   tab: string;
   onChange: (patch: Partial<Design>) => void;
+  onTabChange: (tab: string) => void;
   onValidityChange: (valid: boolean) => void;
 }) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   useEffect(() => {
-    setInputs({});
-    setErrors({});
-    onValidityChange(true);
-  }, [tab, onValidityChange]);
+    onValidityChange(Object.keys(errors).length === 0);
+  }, [errors, onValidityChange]);
+  const visibleFields: readonly string[] =
+    fieldGroups[tab as keyof typeof fieldGroups];
+  const hiddenErrors = Object.keys(errors).filter(
+    (key) => !visibleFields.includes(key),
+  );
   function edit(key: string, raw: string | boolean) {
     const old = design[key as keyof Design];
     const value =
@@ -140,6 +145,27 @@ export function FoundationEditor({
       <p className="muted">
         入力はPreviewへ仮反映されます。「変更を保存」で確定します。ロックはAIからの変更を禁止します。
       </p>
+      {hiddenErrors.length > 0 && (
+        <div className="editor-error" role="alert">
+          <p>
+            別のカテゴリーに入力エラーがあります。該当する欄を開いて修正してください。
+          </p>
+          {hiddenErrors.map((key) => {
+            const category = Object.entries(fieldGroups).find(([, fields]) =>
+              (fields as readonly string[]).includes(key),
+            )![0];
+            return (
+              <button
+                className="button small"
+                key={key}
+                onClick={() => onTabChange(category)}
+              >
+                {category}の{labels[key] || key}を修正
+              </button>
+            );
+          })}
+        </div>
+      )}
       {fieldGroups[tab as keyof typeof fieldGroups].map((key) => {
         const value = design[key];
         const rule = design.constraints[key] ?? emptyDecision;

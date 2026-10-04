@@ -276,6 +276,16 @@ export function Workspace({
   const [notice, setNotice] = useState("");
   const [component, setComponent] = useState("Button");
   const [pattern, setPattern] = useState("ListPage");
+  function selectPattern(name: string) {
+    setPattern(name);
+    setScreen(
+      name === "SettingsSection"
+        ? "settings"
+        : name === "FormSection"
+          ? "form"
+          : "list",
+    );
+  }
   const connection = useQuery({
     queryKey: ["foundation-connection", scope.id, !!saved],
     enabled: !!saved,
@@ -602,6 +612,7 @@ export function Workspace({
                       key={editorVersion}
                       design={state.design}
                       tab={tab}
+                      onTabChange={setTab}
                       onChange={updateDesign}
                       onValidityChange={setValidInput}
                     />
@@ -776,6 +787,7 @@ export function Workspace({
                     design={state.design}
                     kind="components"
                     name={component}
+                    onSelect={(name) => setComponent(name as typeof component)}
                     onChange={updateDesign}
                   />
                 </fieldset>
@@ -799,16 +811,7 @@ export function Workspace({
                     <button
                       className={`pattern-card ${pattern === p ? "selected" : ""}`}
                       key={p}
-                      onClick={() => {
-                        setPattern(p);
-                        setScreen(
-                          p === "SettingsSection"
-                            ? "settings"
-                            : p === "FormSection"
-                              ? "form"
-                              : "list",
-                        );
-                      }}
+                      onClick={() => selectPattern(p)}
                     >
                       <div className={`pattern-drawing pattern-${i}`}>
                         <i />
@@ -837,6 +840,7 @@ export function Workspace({
                     design={state.design}
                     kind="patterns"
                     name={pattern}
+                    onSelect={selectPattern}
                     onChange={updateDesign}
                   />
                 </fieldset>

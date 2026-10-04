@@ -11,21 +11,24 @@ export function LibraryEditor({
   kind,
   name,
   onChange,
+  onSelect,
   onValidityChange,
 }: {
   design: Design;
   kind: "components" | "patterns";
   name: string;
   onChange: (patch: Partial<Design>) => void;
+  onSelect: (name: string) => void;
   onValidityChange?: (valid: boolean) => void;
 }) {
-  const [gapInput, setGapInput] = useState<string>();
-  const [gapError, setGapError] = useState("");
+  const [invalidGaps, setInvalidGaps] = useState<Record<string, string>>({});
+  const gapInput = invalidGaps[name];
+  const gapError = Object.hasOwn(invalidGaps, name)
+    ? "0〜96の整数を入力してください。"
+    : "";
   useEffect(() => {
-    setGapInput(undefined);
-    setGapError("");
-    onValidityChange?.(true);
-  }, [kind, name, onValidityChange]);
+    onValidityChange?.(Object.keys(invalidGaps).length === 0);
+  }, [invalidGaps, onValidityChange]);
   const config =
     kind === "components"
       ? design.components[name as ComponentName]
@@ -43,6 +46,24 @@ export function LibraryEditor({
       <p>
         変更は仮表示されます。「変更を保存」またはAI候補の採用で設計を確定します。Exportは確定版を使います。
       </p>
+      {Object.keys(invalidGaps).some((entry) => entry !== name) && (
+        <div className="editor-error" role="alert">
+          <p>
+            別のパターンに余白の入力エラーがあります。該当する欄を開いて修正してください。
+          </p>
+          {Object.keys(invalidGaps)
+            .filter((entry) => entry !== name)
+            .map((entry) => (
+              <button
+                className="button small"
+                key={entry}
+                onClick={() => onSelect(entry)}
+              >
+                {entry}の余白を修正
+              </button>
+            ))}
+        </div>
+      )}
       {"variant" in config ? (
         <>
           <label>
@@ -137,14 +158,17 @@ export function LibraryEditor({
               onChange={(e) => {
                 const n = e.target.valueAsNumber;
                 if (Number.isInteger(n) && n >= 0 && n <= 96) {
-                  setGapInput(undefined);
-                  setGapError("");
-                  onValidityChange?.(true);
+                  setInvalidGaps((previous) => {
+                    const next = { ...previous };
+                    delete next[name];
+                    return next;
+                  });
                   edit("gap", n);
                 } else {
-                  setGapInput(e.target.value);
-                  setGapError("0〜96の整数を入力してください。");
-                  onValidityChange?.(false);
+                  setInvalidGaps((previous) => ({
+                    ...previous,
+                    [name]: e.target.value,
+                  }));
                 }
               }}
             />
