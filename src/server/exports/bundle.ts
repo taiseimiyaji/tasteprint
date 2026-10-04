@@ -12,7 +12,7 @@ import {
 } from "../../domain/projects";
 import { z } from "zod";
 
-export const templateVersion = "preview-2";
+export const templateVersion = "preview-3";
 export const openQuestions = [
   "Components / Patterns の個別仕様・全状態は未確認（Preview テンプレートの動作例）",
   "実アプリでの設計・アクセシビリティレビューが必要",
