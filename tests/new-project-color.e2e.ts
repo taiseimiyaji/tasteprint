@@ -9,6 +9,9 @@ const affected = [
   "th:nth-child(2)",
   "th:nth-child(3)",
   "th:nth-child(4)",
+  ...[1, 2, 3, 4, 5].map(
+    (row) => `tr:nth-child(${row}) > td:nth-child(1) > small`,
+  ),
 ];
 for (const width of [1440, 390]) {
   test(`new Project muted text passes the existing contrast check at ${width}, legacy values remain reportable`, async ({
@@ -46,6 +49,10 @@ for (const width of [1440, 390]) {
           { design, screen },
         );
         await page.waitForSelector(".sample-app");
+        await expect(page.locator(".sample-app")).toHaveAttribute(
+          "data-layout",
+          width === 390 ? "compact" : "wide",
+        );
         await expect
           .poll(() =>
             page
@@ -80,7 +87,7 @@ for (const width of [1440, 390]) {
           );
         const styles = await page
           .locator(
-            '.sample-breadcrumb, div[data-slot="title"] > p, .sample-app th',
+            '.sample-breadcrumb, div[data-slot="title"] > p, .sample-app th, .sample-app td:first-child small',
           )
           .evaluateAll((nodes) =>
             nodes.map((el) => {
@@ -104,7 +111,7 @@ for (const width of [1440, 390]) {
         });
         if (version === "before") {
           if (width === 1440)
-            expect(relevant.length).toBe(screen === "list" ? 6 : 2);
+            expect(relevant.length).toBe(screen === "list" ? 11 : 2);
           else expect(relevant.length).toBeGreaterThanOrEqual(2);
         } else {
           expect(relevant).toEqual([]);
