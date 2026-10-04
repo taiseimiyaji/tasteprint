@@ -219,16 +219,30 @@ export function Workspace({
     compact.addEventListener("change", closeOnCompact);
     return () => compact.removeEventListener("change", closeOnCompact);
   }, []);
-  const [prompt, setPrompt] = useState(
-    () => localStorage.getItem(`tasteprint.${scope.id}.prompt`) || "",
-  );
-  useEffect(() => {
+  const promptKey = `tasteprint.${scope.id}.prompt`;
+  const readPrompt = () => {
     try {
-      localStorage.setItem(`tasteprint.${scope.id}.prompt`, prompt);
+      return { value: localStorage.getItem(promptKey) || "", readError: false };
     } catch {
-      setSaveError(true);
+      return { value: "", readError: true };
     }
-  }, [prompt]);
+  };
+  const [promptDraft, setPromptDraft] = useState(readPrompt);
+  const prompt = promptDraft.value;
+  const setPrompt = (value: string) =>
+    setPromptDraft({ value, readError: false });
+  const [promptSaveError, setPromptSaveError] = useState(false);
+  useEffect(() => {
+    // A failed read is not an empty saved prompt. Keep it until a successful
+    // reread or explicit new input, rather than overwriting it on mount.
+    if (promptDraft.readError) return;
+    try {
+      localStorage.setItem(promptKey, promptDraft.value);
+      setPromptSaveError(false);
+    } catch {
+      setPromptSaveError(true);
+    }
+  }, [promptDraft, promptKey]);
   const conversation = useQuery({
     queryKey: ["conversations", scope.id],
     queryFn: () =>
@@ -899,6 +913,32 @@ export function Workspace({
                 <span>ChatGPT認証を使用</span>
               </div>
               <div className="conversation-content">
+                {promptDraft.readError && (
+                  <div role="alert" className="error-text">
+                    <p>
+                      保存済みのリクエストを読み込めません。保存した内容は保持しています。再読込するか、新しい内容を入力してください。
+                    </p>
+                    <button
+                      className="button"
+                      onClick={() => setPromptDraft(readPrompt())}
+                    >
+                      リクエスト下書きを再読込
+                    </button>
+                  </div>
+                )}
+                {promptSaveError && (
+                  <div role="alert" className="error-text">
+                    <p>
+                      リクエストの下書きを保存できません。入力はこの画面に保持しています。
+                    </p>
+                    <button
+                      className="button"
+                      onClick={() => setPromptDraft((draft) => ({ ...draft }))}
+                    >
+                      リクエスト下書きを保存
+                    </button>
+                  </div>
+                )}
                 {conversation.data?.map((m) => (
                   <p key={m.id}>{m.text}</p>
                 ))}
