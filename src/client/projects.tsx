@@ -1099,7 +1099,11 @@ function Overview({
               if ((e as { status?: number }).status === 409) await sync();
               throw e;
             }
-            setDraft({ ...draft, baseRevision: r.revision });
+            setDraft({
+              baseRevision: r.revision,
+              brief: r.snapshot.brief,
+              policies: r.snapshot.policies,
+            });
             await commitProjectRevision(client, scope.id, r);
             await sync();
             setNotice("概要・方針を保存しました");
