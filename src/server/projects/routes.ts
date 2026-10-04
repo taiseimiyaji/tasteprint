@@ -11,7 +11,7 @@ import { foundationRoutes } from "../foundation/routes";
 import { reviewRoutes } from "../review/routes";
 import {
   briefSchema,
-  principleSchema,
+  principlesSchema,
   tasteSchema,
 } from "../../domain/projects";
 import { CodexGateway } from "../codex/gateway";
@@ -136,7 +136,7 @@ export function projectRoutes(
         .object({
           baseRevision: revision,
           brief: briefSchema,
-          policies: z.array(principleSchema).max(100),
+          policies: principlesSchema,
         })
         .parse(await c.req.json());
       return c.json(

@@ -9,6 +9,13 @@ export const principleSchema = z.object({
   locked: z.boolean().default(false),
 });
 export type Principle = z.infer<typeof principleSchema>;
+export const principlesSchema = z
+  .array(principleSchema)
+  .max(100)
+  .refine(
+    (p) => new Set(p.map((v) => v.id)).size === p.length,
+    "原則IDが重複しています",
+  );
 export const tasteSchema = z.object({
   answers: z
     .record(
@@ -17,13 +24,7 @@ export const tasteSchema = z.object({
     )
     .default({}),
   reasons: z.record(z.string().max(100), z.string().max(2000)).default({}),
-  principles: z
-    .array(principleSchema)
-    .max(100)
-    .refine(
-      (p) => new Set(p.map((v) => v.id)).size === p.length,
-      "原則IDが重複しています",
-    ),
+  principles: principlesSchema,
 });
 export type TasteInput = z.infer<typeof tasteSchema>;
 export type TasteSnapshot = TasteInput & {
