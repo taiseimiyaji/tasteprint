@@ -24,6 +24,7 @@ export function RuntimeTheme({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1440);
+  const variables = designVariables(design);
   useEffect(() => {
     const observer = new ResizeObserver((entries) =>
       setWidth(entries[0].contentRect.width),
@@ -73,7 +74,13 @@ export function RuntimeTheme({
       className="sample-app runtime-root"
       style={
         {
-          ...designVariables(design),
+          ...variables,
+          "--preview-shadow": design.shadowAllowed
+            .split(/[、,\n]/)
+            .map((target) => target.trim())
+            .includes("Preview")
+            ? variables["--surface-shadow"]
+            : "none",
           "--preview-accent": design.accent,
           "--preview-radius": `${design.radius}px`,
           "--preview-space": `${design.spacing}px`,
