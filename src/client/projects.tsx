@@ -17,6 +17,10 @@ import {
 import { profile, questions, type Choice } from "../domain/design";
 import type { Project, ExportRecord } from "../server/projects/service";
 import type { Revision } from "./foundation-api";
+type ProjectData = {
+  project: Project;
+  current: Revision & { snapshot: ProjectSnapshot };
+};
 const req = jsonRequest;
 function useAction() {
   const [error, setError] = useState(""),
@@ -723,6 +727,18 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
               },
             );
             setDraft({ baseProfileRevision: r.revision, ...r.snapshot });
+            client.setQueryData<{
+              current: TasteRevision;
+              history: TasteRevision[];
+            }>(["profile"], (data) => ({
+              current: r,
+              history: [
+                ...(data?.history ?? []).filter(
+                  (item) => item.revision !== r.revision,
+                ),
+                r,
+              ],
+            }));
             await client.invalidateQueries({ queryKey: ["profile"] });
             setNotice("共通の好みを保存しました");
           });
@@ -775,11 +791,7 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
   const scope = useScope();
   const q = useQuery({
     queryKey: ["project", scope.id],
-    queryFn: () =>
-      req<{
-        project: Project;
-        current: Revision & { snapshot: ProjectSnapshot };
-      }>(scope.api),
+    queryFn: () => req<ProjectData>(scope.api),
     staleTime: 0,
   });
   if (!q.data)
@@ -919,14 +931,30 @@ function Overview({
         onSubmit={(e) => {
           e.preventDefault();
           void action.run(async () => {
-            let r: Revision;
+            let r: ProjectData["current"];
             try {
-              r = await req<Revision>(scope.api, draft);
+              r = await req<ProjectData["current"]>(scope.api, draft);
             } catch (e) {
               if ((e as { status?: number }).status === 409) await sync();
               throw e;
             }
             setDraft({ ...draft, baseRevision: r.revision });
+            const updateProject = (project: Project): Project => ({
+              ...project,
+              brief: r.snapshot.brief,
+              activeRevision: r.revision,
+              updatedAt: r.createdAt,
+            });
+            client.setQueryData<ProjectData>(["project", scope.id], (data) =>
+              data
+                ? { current: r, project: updateProject(data.project) }
+                : data,
+            );
+            client.setQueryData<Project[]>(["projects"], (projects) =>
+              projects?.map((project) =>
+                project.id === scope.id ? updateProject(project) : project,
+              ),
+            );
             await sync();
             setNotice("概要・方針を保存しました");
           });

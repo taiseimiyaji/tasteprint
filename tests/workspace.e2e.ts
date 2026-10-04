@@ -1331,3 +1331,90 @@ test("older project drafts gain library defaults without losing edits or base re
   expect(saved.design.constraints.radius.locked).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test("overview keeps the committed revision when follow-up reads fail", async ({
+  page,
+}) => {
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "概要再取得失敗" }, useTaste: false },
+    })
+  ).json();
+  await page.goto(`/projects/${project.id}/overview`);
+  await page.getByLabel("用途", { exact: true }).fill("保存済みの用途");
+  await page.getByLabel("プロジェクト名", { exact: true }).fill("概要保存済み");
+  await page.route(`**/api/projects/${project.id}`, async (route) => {
+    if (route.request().method() === "GET")
+      await route.fulfill({ status: 500, json: { message: "保存後GET失敗" } });
+    else await route.continue();
+  });
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 500, json: { message: "一覧再取得失敗" } }),
+  );
+  const actions = page.locator(".editor-actions");
+  await actions
+    .getByRole("button", { name: "概要・方針を保存", exact: true })
+    .click();
+  await expect(actions).not.toContainText("保存中", { timeout: 15000 });
+  const saved = (
+    await (await page.request.get(`/api/projects/${project.id}`)).json()
+  ).current;
+  expect(saved.revision).toBe(2);
+  expect(saved.snapshot.brief.purpose).toBe("保存済みの用途");
+  expect(saved.snapshot.brief.name).toBe("概要保存済み");
+  await expect(
+    page.getByLabel("プロジェクト切り替え").locator("option:checked"),
+  ).toHaveText("概要保存済み");
+  await expect(actions).toContainText("保存済み · 設計 r2");
+  await expect(actions).not.toContainText("古い版・確認が必要");
+  await expect(
+    page.getByRole("button", { name: "最新の確定版を読み込む", exact: true }),
+  ).toHaveCount(0);
+  await page.unroute(`**/api/projects/${project.id}`);
+  await page.unroute("**/api/projects");
+  await page.reload();
+  await expect(actions).toContainText("保存済み · 設計 r2");
+  await expect(page.getByLabel("用途", { exact: true })).toHaveValue(
+    "保存済みの用途",
+  );
+  await expect(page.getByLabel("プロジェクト名", { exact: true })).toHaveValue(
+    "概要保存済み",
+  );
+});
+
+test("profile keeps the committed revision when follow-up reads fail", async ({
+  page,
+}) => {
+  const original = (await (await page.request.get("/api/profile")).json())
+    .current;
+  const choice = original.snapshot.answers["density-0"] === "a" ? "b" : "a";
+  await page.goto("/profile");
+  await page.getByLabel("density-0", { exact: true }).selectOption(choice);
+  await page.route("**/api/profile", async (route) => {
+    if (route.request().method() === "GET")
+      await route.fulfill({
+        status: 500,
+        json: { message: "保存後Profile GET失敗" },
+      });
+    else await route.continue();
+  });
+  const actions = page.locator(".editor-actions");
+  await actions
+    .getByRole("button", { name: "共通の好みを保存", exact: true })
+    .click();
+  await expect(actions).not.toContainText("保存中", { timeout: 15000 });
+  const saved = (await (await page.request.get("/api/profile")).json()).current;
+  expect(saved.revision).toBe(original.revision + 1);
+  expect(saved.snapshot.answers["density-0"]).toBe(choice);
+  await expect(actions).toContainText(`保存済み · 共通 r${saved.revision}`);
+  await expect(actions).not.toContainText("古い版・確認が必要");
+  await expect(
+    page.getByRole("button", { name: "最新の確定版を読み込む", exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("**/api/profile");
+  await page.reload();
+  await expect(actions).toContainText(`保存済み · 共通 r${saved.revision}`);
+  await expect(page.getByLabel("density-0", { exact: true })).toHaveValue(
+    choice,
+  );
+});
