@@ -6,7 +6,7 @@ import {
   foundationRequest as requestFoundation,
 } from "../foundation-api";
 import { PreviewFrame } from "./PreviewFrame";
-import { useScope } from "../scope";
+import { Link, useScope } from "../scope";
 async function reviewRequest<T>(
   base: string,
   path = "",
@@ -24,9 +24,13 @@ async function reviewRequest<T>(
 export function ReviewPanel({
   saved,
   applied,
+  hasUnsavedDesign,
+  onApplyingChange,
 }: {
   saved: Revision | null;
   applied: (r: Revision) => void;
+  hasUnsavedDesign: boolean;
+  onApplyingChange: (applying: boolean) => void;
 }) {
   const scope = useScope();
   const request = <T,>(path = "", body?: unknown) =>
@@ -76,6 +80,15 @@ export function ReviewPanel({
       <p>
         保存済みrevisionのFoundation方針・ルール・設定と一覧／設定／フォームの画像を使用します。画像と設定をOpenAIへ送信します。未保存の編集・未確定のTaste回答は含みません。
       </p>
+      {hasUnsavedDesign && (
+        <p role="status">
+          未保存の設計を保持しています。修正案を適用する前に、
+          <Link to="/$step" params={{ step: "foundation" }}>
+            Foundationで保存・取消を確認
+          </Link>
+          してください。
+        </p>
+      )}
       <button
         className="button primary"
         disabled={!saved || busy}
@@ -251,17 +264,22 @@ export function ReviewPanel({
               ))}
               <button
                 className="button primary"
-                disabled={busy || !!stale}
+                disabled={busy || !!stale || hasUnsavedDesign}
                 onClick={() =>
                   action(async () => {
-                    const revision = await foundationRequest<Revision>(
-                      "/apply",
-                      { id: candidate.id },
-                    );
-                    applied(revision);
-                    setCandidate(undefined);
-                    setCandidates([]);
-                    await refresh();
+                    onApplyingChange(true);
+                    try {
+                      const revision = await foundationRequest<Revision>(
+                        "/apply",
+                        { id: candidate.id },
+                      );
+                      applied(revision);
+                      setCandidate(undefined);
+                      setCandidates([]);
+                      await refresh();
+                    } finally {
+                      onApplyingChange(false);
+                    }
                   })
                 }
               >

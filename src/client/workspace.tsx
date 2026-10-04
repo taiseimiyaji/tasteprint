@@ -99,7 +99,8 @@ export function Workspace({
   const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setBusy] = useState(false);
-  const busy = saving || historyLoading;
+  const [reviewApplying, setReviewApplying] = useState(false);
+  const busy = saving || historyLoading || reviewApplying;
   const [validInput, setValidInput] = useState(true);
   const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -382,7 +383,7 @@ export function Workspace({
                 target={current.name}
                 revision={saved?.revision ?? 0}
                 dirty={dirty}
-                busy={saving}
+                busy={saving || reviewApplying}
                 stale={stale}
                 invalid={!validInput}
                 error={
@@ -799,6 +800,8 @@ export function Workspace({
             {current.id === "review" && (
               <ReviewPanel
                 saved={saved}
+                hasUnsavedDesign={dirty}
+                onApplyingChange={setReviewApplying}
                 applied={(r) => {
                   setSaved(r);
                   setDraftBase(r.revision);

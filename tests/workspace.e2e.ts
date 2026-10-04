@@ -260,7 +260,12 @@ test("review images, evidence, dismissal, preview and explicit revision apply", 
   page,
 }) => {
   test.setTimeout(120000);
-  await page.goto(`/projects/${projectId}/review`);
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "Review regression" }, useTaste: false },
+    })
+  ).json();
+  await page.goto(`/projects/${project.id}/review`);
   await page.getByRole("button", { name: "3画面を撮影してレビュー" }).click();
   await expect(page.getByText("要判断の指摘数:", { exact: false })).toBeVisible(
     { timeout: 90000 },
@@ -1418,3 +1423,228 @@ test("profile keeps the committed revision when follow-up reads fail", async ({
     choice,
   );
 });
+
+for (const resolution of ["save", "discard"] as const) {
+  test(`Review protects a retained draft until explicit ${resolution}`, async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    const project = await (
+      await page.request.post("/api/projects", {
+        data: {
+          brief: { name: `Review draft ${resolution}` },
+          useTaste: false,
+        },
+      })
+    ).json();
+    const current = async () =>
+      (
+        await (
+          await page.request.get(`/api/projects/${project.id}/foundation`)
+        ).json()
+      ).current;
+    const initial = await current();
+    await page.goto(`/projects/${project.id}/foundation`);
+    await page
+      .getByRole("textbox", { name: "accent", exact: true })
+      .fill("#abcdef");
+    await page
+      .locator("nav")
+      .getByRole("link", { name: "AI Review", exact: true })
+      .click();
+    await expect(
+      page.getByText("未保存の設計を保持しています。", { exact: false }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "3画面を撮影してレビュー", exact: true })
+      .click();
+    await expect(
+      page.getByText("要判断の指摘数:", { exact: false }),
+    ).toBeVisible({ timeout: 90000 });
+    await page
+      .getByRole("button", { name: "修正案を作成", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "仮Preview:", exact: false })
+      .first()
+      .click();
+    await expect(
+      page.getByRole("button", { name: "まとめて適用", exact: true }),
+    ).toBeDisabled();
+    expect((await current()).revision).toBe(1);
+    await page.reload();
+    await expect(
+      page.getByText("未保存の設計を保持しています。", { exact: false }),
+    ).toBeVisible();
+    await page
+      .getByRole("link", { name: "Foundationで保存・取消を確認", exact: true })
+      .click();
+    await expect(
+      page.getByRole("textbox", { name: "accent", exact: true }),
+    ).toHaveValue("#abcdef");
+    await page.reload();
+    await expect(
+      page.getByRole("textbox", { name: "accent", exact: true }),
+    ).toHaveValue("#abcdef");
+    if (resolution === "save") {
+      await page
+        .getByRole("button", { name: "変更を保存", exact: true })
+        .click();
+      await expect(page.locator(".editor-actions")).toContainText(
+        "保存済み · 設計 r2",
+      );
+    } else {
+      await page
+        .getByRole("button", { name: "未保存の変更を取り消す", exact: true })
+        .click();
+      await expect(
+        page.getByRole("textbox", { name: "accent", exact: true }),
+      ).toHaveValue(initial.design.accent);
+    }
+    await page
+      .locator("nav")
+      .getByRole("link", { name: "AI Review", exact: true })
+      .click();
+    await expect(
+      page.getByText("未保存の設計を保持しています。", { exact: false }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "3画面を撮影してレビュー", exact: true })
+      .click();
+    await expect(
+      page.getByText("要判断の指摘数:", { exact: false }),
+    ).toBeVisible({ timeout: 90000 });
+    await expect(
+      page.getByText("古い結果 · 再レビューしてください", { exact: false }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "修正案を作成", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "仮Preview:", exact: false })
+      .first()
+      .click();
+    await page
+      .getByRole("button", { name: "まとめて適用", exact: true })
+      .click();
+    await expect(
+      page.getByText("古い結果 · 再レビューしてください", { exact: false }),
+    ).toBeVisible();
+    const committed = await current();
+    expect(committed.revision).toBe(resolution === "save" ? 3 : 2);
+    expect(committed.design.accent).toBe(
+      resolution === "save" ? "#abcdef" : initial.design.accent,
+    );
+    await page
+      .locator("nav")
+      .getByRole("link", { name: "Foundation", exact: true })
+      .click();
+    await page.reload();
+    await expect(
+      page.getByRole("textbox", { name: "accent", exact: true }),
+    ).toHaveValue(committed.design.accent);
+    await expect(page.locator(".editor-actions")).toContainText(
+      `保存済み · 設計 r${committed.revision}`,
+    );
+  });
+}
+
+for (const outcome of ["success", "failure"] as const) {
+  test(`Review apply keeps editors protected across navigation until ${outcome}`, async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    const project = await (
+      await page.request.post("/api/projects", {
+        data: { brief: { name: `Review pending ${outcome}` }, useTaste: false },
+      })
+    ).json();
+    await page.goto(`/projects/${project.id}/review`);
+    await page
+      .getByRole("button", { name: "3画面を撮影してレビュー", exact: true })
+      .click();
+    await expect(
+      page.getByText("要判断の指摘数:", { exact: false }),
+    ).toBeVisible({ timeout: 90000 });
+    await page
+      .getByRole("button", { name: "修正案を作成", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "仮Preview:", exact: false })
+      .first()
+      .click();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const endpoint = `**/api/projects/${project.id}/foundation/apply`;
+    await page.route(endpoint, async (route) => {
+      await gate;
+      if (outcome === "failure")
+        await route.fulfill({
+          status: 500,
+          json: { message: "Review適用失敗" },
+        });
+      else await route.continue();
+    });
+    await page
+      .getByRole("button", { name: "まとめて適用", exact: true })
+      .click();
+    try {
+      await page
+        .locator("nav")
+        .getByRole("link", { name: "Foundation", exact: true })
+        .click();
+      await expect(page.locator(".editor-actions")).toContainText("保存中");
+      await expect(
+        page.getByRole("textbox", { name: "accent", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", {
+          name: "未保存の変更を取り消す",
+          exact: true,
+        }),
+      ).toBeDisabled();
+      await page
+        .locator("nav")
+        .getByRole("link", { name: "Preview", exact: true })
+        .click();
+      await expect(
+        page.getByRole("slider", { name: "角丸", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", {
+          name: "角丸をもう少し弱くしたい",
+          exact: true,
+        }),
+      ).toBeDisabled();
+    } finally {
+      release();
+    }
+    const revision = outcome === "success" ? 2 : 1;
+    await expect(page.locator(".editor-actions")).toContainText(
+      `保存済み · 設計 r${revision}`,
+    );
+    await expect(
+      page.getByRole("slider", { name: "角丸", exact: true }),
+    ).toBeEnabled();
+    await page.unroute(endpoint);
+    await page
+      .locator("nav")
+      .getByRole("link", { name: "Foundation", exact: true })
+      .click();
+    const accent = page.getByRole("textbox", { name: "accent", exact: true });
+    await expect(accent).toBeEnabled();
+    await accent.fill("#abcdef");
+    await page.reload();
+    await expect(accent).toHaveValue("#abcdef");
+    await expect(page.locator(".editor-actions")).toContainText(
+      "下書き・未保存",
+    );
+    const current = (
+      await (
+        await page.request.get(`/api/projects/${project.id}/foundation`)
+      ).json()
+    ).current;
+    expect(current.revision).toBe(revision);
+    expect(current.design.accent).not.toBe("#abcdef");
+  });
+}
