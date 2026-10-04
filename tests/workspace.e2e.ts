@@ -4,31 +4,13 @@ import { readFile } from "node:fs/promises";
 import { initialState } from "../src/client/state";
 import { questions } from "../src/domain/design";
 
-let session = "";
 let projectId = "";
 test.beforeAll(async ({ request }) => {
-  const response = await request.post("/api/pair", {
-    headers: { Origin: "http://127.0.0.1:3100" },
-    data: { code: "e2e-pair-code" },
-  });
-  expect(response.ok()).toBe(true);
-  session = response.headers()["set-cookie"].split(";")[0].split("=")[1];
   const created = await request.post("/api/projects", {
-    headers: { Cookie: `tasteprint_session=${session}` },
     data: { brief: { name: "Workspace regression" }, useTaste: false },
   });
+  expect(created.ok()).toBe(true);
   projectId = (await created.json()).id;
-});
-test.beforeEach(async ({ context }) => {
-  await context.addCookies([
-    {
-      name: "tasteprint_session",
-      value: session,
-      url: "http://127.0.0.1:3100",
-      httpOnly: true,
-      sameSite: "Strict",
-    },
-  ]);
 });
 
 test("foundation, proposal staging, undo, persistence, and export work together", async ({
