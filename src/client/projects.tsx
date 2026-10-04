@@ -454,8 +454,16 @@ function ProjectList({
                 useTaste,
                 sourceTasteProfileRevision: taste.revision,
               });
-              localStorage.removeItem("tasteprint.new-project");
-              localStorage.removeItem("tasteprint.new-project.use-taste");
+              // The project is committed. Optional browser cleanup must not
+              // report creation as failed or offer another creation attempt.
+              for (const key of [
+                "tasteprint.new-project",
+                "tasteprint.new-project.use-taste",
+              ]) {
+                try {
+                  localStorage.removeItem(key);
+                } catch {}
+              }
               location.href = `/projects/${p.id}/overview`;
             });
           }}
