@@ -1648,3 +1648,156 @@ for (const outcome of ["success", "failure"] as const) {
     expect(current.design.accent).not.toBe("#abcdef");
   });
 }
+
+async function analyzedProfileReference(
+  page: import("@playwright/test").Page,
+  name: string,
+) {
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "参考を集める", exact: true }).click();
+  const png = await sharp({
+    create: { width: 1440, height: 1000, channels: 3, background: "white" },
+  })
+    .png()
+    .toBuffer();
+  await page
+    .getByLabel("画像を追加", { exact: true })
+    .setInputFiles({ name, mimeType: "image/png", buffer: png });
+  const card = page
+    .getByRole("article")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  await expect(card.getByAltText(`${name}の参考画像`)).toBeVisible();
+  await card.getByLabel("送信対象を確認しました").check();
+  await card
+    .getByRole("button", { name: "Codexで分析する", exact: true })
+    .click();
+  await expect(
+    card.getByText("画像上部の見出し", { exact: true }),
+  ).toBeVisible();
+  const refs = (
+    await (await page.request.get("/api/profile/references")).json()
+  ).references;
+  const id = refs.find((ref: { name: string }) => ref.name === name).id;
+  return { card, id, principleId: `reference:${id}:0` };
+}
+async function saveAdoptedProfile(
+  page: import("@playwright/test").Page,
+  principleId: string,
+) {
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        JSON.parse(
+          localStorage.getItem("tasteprint.profile.draft")!,
+        ).principles.map((p: { id: string }) => p.id),
+      ),
+    )
+    .toContain(principleId);
+  await page
+    .getByRole("button", { name: "共通の好みを保存", exact: true })
+    .click();
+  await expect(page.getByText("共通の好みを保存しました")).toBeVisible();
+  const current = (await (await page.request.get("/api/profile")).json())
+    .current;
+  expect(
+    current.snapshot.principles.find(
+      (p: { id: string }) => p.id === principleId,
+    ).text,
+  ).toBe("見出しと本文の強弱を付ける");
+  await page.reload();
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(
+        localStorage.getItem("tasteprint.profile.draft")!,
+      ).principles.map((p: { id: string }) => p.id),
+    ),
+  ).toContain(principleId);
+}
+for (const outcome of ["success", "failure"] as const) {
+  test(`Profile save protects reference adoption until ${outcome}`, async ({
+    page,
+  }) => {
+    const { card, principleId } = await analyzedProfileReference(
+      page,
+      `profile-save-${outcome}.png`,
+    );
+    const adopt = card.getByRole("button", {
+      name: "設計方針として採用",
+      exact: true,
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route("**/api/profile", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      const response = outcome === "success" ? await route.fetch() : undefined;
+      await gate;
+      if (response) await route.fulfill({ response });
+      else
+        await route.fulfill({
+          status: 500,
+          json: { message: "Profile保存失敗" },
+        });
+    });
+    await page
+      .getByRole("button", { name: "共通の好みを保存", exact: true })
+      .click();
+    try {
+      await expect(page.locator(".editor-actions")).toContainText("保存中");
+      await expect(adopt).toBeDisabled();
+      await expect(
+        page.getByRole("textbox", { name: "Reference URL" }),
+      ).toBeDisabled();
+      await expect(
+        card.getByRole("button", { name: "削除", exact: true }),
+      ).toBeDisabled();
+    } finally {
+      release();
+    }
+    await expect(page.locator(".editor-actions")).not.toContainText("保存中");
+    await expect(adopt).toBeEnabled();
+    await page.unroute("**/api/profile");
+    await adopt.click();
+    await saveAdoptedProfile(page, principleId);
+  });
+  test(`Reference adoption protects Profile save until ${outcome}`, async ({
+    page,
+  }) => {
+    const { card, id, principleId } = await analyzedProfileReference(
+      page,
+      `reference-accept-${outcome}.png`,
+    );
+    const adopt = card.getByRole("button", {
+      name: "設計方針として採用",
+      exact: true,
+    });
+    const save = page.getByRole("button", {
+      name: "共通の好みを保存",
+      exact: true,
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const endpoint = `**/api/profile/references/${id}/accept`;
+    await page.route(endpoint, async (route) => {
+      const response = outcome === "success" ? await route.fetch() : undefined;
+      await gate;
+      if (response) await route.fulfill({ response });
+      else
+        await route.fulfill({ status: 500, json: { message: "参考採用失敗" } });
+    });
+    await adopt.click();
+    try {
+      await expect(save).toBeDisabled();
+    } finally {
+      release();
+    }
+    await expect(save).toBeEnabled();
+    await page.unroute(endpoint);
+    if (outcome === "failure") {
+      await expect(
+        card.getByRole("button", { name: "設計方針として採用", exact: true }),
+      ).toBeEnabled();
+      await adopt.click();
+    }
+    await saveAdoptedProfile(page, principleId);
+  });
+}

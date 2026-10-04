@@ -49,9 +49,11 @@ const defaults = (name: string, url = ""): ReferenceInput => ({
 export function References({
   onChange,
   onAdopt,
+  onBusyChange,
 }: {
   onChange: (references: SavedReference[]) => void;
   onAdopt?: (principle: Principle) => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const scope = useScope(),
     base = `${scope.api}/references`;
@@ -82,6 +84,7 @@ export function References({
   async function run(action: () => Promise<unknown>) {
     setError("");
     setBusy(true);
+    onBusyChange?.(true);
     try {
       await action();
       await client.invalidateQueries({ queryKey: ["references", scope.id] });
@@ -89,6 +92,7 @@ export function References({
       setError(e instanceof Error ? e.message : "処理に失敗しました。");
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
   const needsPair =
