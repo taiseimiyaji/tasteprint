@@ -3,12 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   aspects,
   referenceInputSchema,
-  selectionSchema,
   type Job,
   type SavedReference,
   type ReferenceInput,
 } from "../../domain/reference";
 import { useStoredDraft, DraftReadRecovery } from "../draft-storage";
+import { parseReferenceInputDraft } from "../draft-shapes";
 import { useScope } from "../scope";
 import type { Principle } from "../../domain/projects";
 import { commitReferenceJob, type ReferenceData } from "../query-cache";
@@ -64,32 +64,23 @@ const savedDraft = (r: SavedReference): ReferenceDraft => ({
   ...referenceInput(r),
   baseVersion: r.version,
 });
-// An empty selection is a valid unsaved edit, even though it cannot be saved.
-const draftInputSchema = referenceInputSchema.extend({
-  selections: selectionSchema.array().max(12),
-});
 function parseReferenceDraft(
   stored: unknown,
   r: SavedReference,
 ): ReferenceDraft {
-  try {
-    const input = draftInputSchema.safeParse(stored);
-    if (!input.success) return savedDraft(r);
-    const version = Object.hasOwn(stored as object, "baseVersion")
-      ? (stored as Record<string, unknown>).baseVersion
-      : (stored as Record<string, unknown>).version;
-    return {
-      ...input.data,
-      baseVersion:
-        typeof version === "number" && Number.isInteger(version) && version > 0
-          ? version
-          : sameInput(input.data, r)
-            ? r.version
-            : null,
-    };
-  } catch {
-    return savedDraft(r);
-  }
+  const input = parseReferenceInputDraft(stored);
+  const version = Object.hasOwn(stored as object, "baseVersion")
+    ? (stored as Record<string, unknown>).baseVersion
+    : (stored as Record<string, unknown>).version;
+  return {
+    ...input,
+    baseVersion:
+      typeof version === "number" && Number.isInteger(version) && version > 0
+        ? version
+        : sameInput(input, r)
+          ? r.version
+          : null,
+  };
 }
 type SaveJob = (path: string, body?: unknown) => Promise<Job>;
 type SaveReference = (

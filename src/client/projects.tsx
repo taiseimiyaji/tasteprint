@@ -15,6 +15,7 @@ import {
   type Brief,
   type Principle,
   type TasteRevision,
+  type TasteInput,
   type TasteDiff,
   type ProjectSnapshot,
 } from "../domain/projects";
@@ -30,6 +31,13 @@ import {
   type ProjectData,
 } from "./query-cache";
 import { useStoredDraft as useDraft, DraftReadRecovery } from "./draft-storage";
+import {
+  parseBriefDraft,
+  parseProfileDraft,
+  parseOverviewDraft,
+  parsePositionDraft,
+  parseUseTasteDraft,
+} from "./draft-shapes";
 const req = jsonRequest;
 function useAction() {
   const [error, setError] = useState(""),
@@ -238,10 +246,12 @@ function ProjectList({
   const [brief, setBrief, draftError, briefRecovery] = useDraft<Brief>(
     "tasteprint.new-project",
     { name: "", purpose: "", audience: "", desired: "", avoid: "" },
+    parseBriefDraft,
   );
   const [useTaste, setUseTaste, tasteDraftError, tasteRecovery] = useDraft(
     "tasteprint.new-project.use-taste",
     true,
+    parseUseTasteDraft,
   );
   const [archived, setArchived] = useState(false),
     [search, setSearch] = useState(""),
@@ -648,16 +658,20 @@ function Principles({
   );
 }
 function ProfileEditor({ current }: { current: TasteRevision }) {
-  const [draft, setDraft, draftError, draftRecovery] = useDraft(
+  const [draft, setDraft, draftError, draftRecovery] = useDraft<
+    TasteInput & { baseProfileRevision: number }
+  >(
     "tasteprint.profile.draft",
     {
       baseProfileRevision: current.revision,
       ...current.snapshot,
     },
+    parseProfileDraft,
   );
   const [position, setPosition, positionError, positionRecovery] = useDraft(
     "tasteprint.profile.position",
     0,
+    parsePositionDraft,
   );
   const [section, setSection] = useState("taste");
   const [referencesBusy, setReferencesBusy] = useState(false);
@@ -929,6 +943,7 @@ function Overview({
       brief: current.snapshot.brief,
       policies: current.snapshot.policies,
     },
+    parseOverviewDraft,
   );
   const [diff, setDiff] = useState<{
       baseRevision: number;

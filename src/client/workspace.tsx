@@ -40,7 +40,8 @@ import { projectMarkdown } from "../domain/project-export";
 import { References } from "./components/References";
 import { PreviewFrame } from "./components/PreviewFrame";
 import { ReviewPanel } from "./components/ReviewPanel";
-import { initialState, stateSchema, type WorkspaceState } from "./state";
+import { initialState, type WorkspaceState } from "./state";
+import { parseWorkspaceDraft } from "./draft-shapes";
 import { profile, type Design } from "../domain/design";
 
 import { steps } from "./navigation";
@@ -89,12 +90,7 @@ export function Workspace({
         },
         baseRevision: initial.revision,
       },
-      (stored) => ({
-        state: stateSchema.parse(stored),
-        baseRevision:
-          (stored as { baseRevision?: number }).baseRevision ??
-          initial.revision,
-      }),
+      (stored) => parseWorkspaceDraft(stored, initial.revision),
       (draft) => ({ ...draft.state, baseRevision: draft.baseRevision }),
     );
   const state = workspaceDraft.state,

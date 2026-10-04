@@ -7,7 +7,7 @@ export type DraftRecovery<T> = {
 export function useStoredDraft<T>(
   key: string,
   initial: T,
-  decode: (stored: unknown) => T = (stored) => stored as T,
+  decode: (stored: unknown) => T,
   encode: (value: T) => unknown = (value) => value,
 ) {
   const read = () => {
