@@ -488,13 +488,19 @@ export class ProjectService {
     const selected = changes
       .filter((c) => choices[c.key] === "adopt")
       .map((c) => c.key);
+    const taste = mergeTaste(r.snapshot.taste, latest.snapshot, selected);
+    if (taste.principles.length > 100)
+      throw new ServiceError(
+        400,
+        "取り込み後の原則は100件までです。取り込み・維持の選択を見直してください。",
+      );
     return this.commit(
       id,
       base,
       {
         ...r.snapshot,
         sourceTasteProfileRevision: latest.revision,
-        taste: mergeTaste(r.snapshot.taste, latest.snapshot, selected),
+        taste,
         maintained: [
           ...r.snapshot.maintained.filter(
             (m) => !changes.some((c) => c.key === m.key),
