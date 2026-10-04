@@ -5,10 +5,12 @@ import {
   emptyTaste,
   type TasteRevision,
   type ProjectSnapshot,
+  type Conversation,
 } from "../src/domain/projects";
 import type { Project, ExportRecord } from "../src/server/projects/service";
 import {
   commitExport,
+  commitConversation,
   beginProjectStatusWrite,
   commitProject,
   commitProfile,
@@ -57,6 +59,46 @@ const record = (id: string, second: number): ExportRecord => ({
 });
 
 describe("accepted mutation replies remain authoritative in shared queries", () => {
+  it("merges late conversation replies by server order, keeps identical text under distinct IDs, and cancels only the matching read", async () => {
+    const client = new QueryClient();
+    const message = (id: string, sequence: number): Conversation => ({
+      id,
+      sequence,
+      projectId: "one",
+      baseRevision: 1,
+      text: "same instruction",
+      createdAt: "2026-10-04T00:00:00.000Z",
+    });
+    const a = message("a", 1),
+      b = message("b", 2),
+      c = { ...message("c", 3), createdAt: "2025-10-04T00:00:00.000Z" };
+    await commitConversation(client, b);
+    let release!: (value: Conversation[]) => void;
+    const pending = client
+      .fetchQuery({
+        queryKey: ["conversations", "one"],
+        queryFn: () =>
+          new Promise<Conversation[]>((resolve) => (release = resolve)),
+      })
+      .catch(() => undefined);
+    let otherRelease!: (value: Conversation[]) => void;
+    const other = { ...message("other", 1), projectId: "two" };
+    const otherPending = client.fetchQuery({
+      queryKey: ["conversations", "two"],
+      queryFn: () =>
+        new Promise<Conversation[]>((resolve) => (otherRelease = resolve)),
+    });
+    await commitConversation(client, a);
+    release([]);
+    otherRelease([other]);
+    await pending;
+    expect(await otherPending).toEqual([other]);
+    await commitConversation(client, c);
+    await commitConversation(client, b);
+    expect(client.getQueryData(["conversations", "one"])).toEqual([a, b, c]);
+    expect(client.getQueryData(["conversations", "two"])).toEqual([other]);
+    client.clear();
+  });
   it("cancels the old exact read without cancelling another scope", async () => {
     const client = new QueryClient();
     client.setQueryData(["profile"], {

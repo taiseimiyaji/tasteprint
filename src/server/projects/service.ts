@@ -23,6 +23,7 @@ import {
   tasteDiff,
   mergeTaste,
   type Brief,
+  type Conversation,
   type Principle,
   type ProjectSnapshot,
   type TasteRevision,
@@ -525,13 +526,18 @@ export class ProjectService {
       ],
     });
   }
-  conversations(id: string) {
+  conversations(id: string): Conversation[] {
     return this.scope(id)
-      .references.db.prepare("SELECT data FROM conversations ORDER BY rowid")
+      .references.db.prepare(
+        "SELECT rowid AS sequence, data FROM conversations ORDER BY rowid",
+      )
       .all()
-      .map((r) => JSON.parse(String(r.data)));
+      .map((r) => ({
+        ...JSON.parse(String(r.data)),
+        sequence: Number(r.sequence),
+      }));
   }
-  addConversation(id: string, base: number, text: string) {
+  addConversation(id: string, base: number, text: string): Conversation {
     this.base(id, base);
     const value = {
       id: randomUUID(),
@@ -540,10 +546,10 @@ export class ProjectService {
       text,
       createdAt: new Date().toISOString(),
     };
-    this.scope(id)
+    const inserted = this.scope(id)
       .references.db.prepare("INSERT INTO conversations VALUES (?,?)")
       .run(value.id, JSON.stringify(value));
-    return value;
+    return { ...value, sequence: Number(inserted.lastInsertRowid) };
   }
   exportSummaries(id: string) {
     return this.exports(id).map((r) => ({

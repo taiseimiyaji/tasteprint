@@ -47,7 +47,7 @@ Foundationのrevisionを設計revisionとして拡張しました。各行の `d
 - `GET/POST /api/projects/:id/taste-diff`: 最新共通版の差分／全項目の選択適用（両方のbase版）。
 - `POST /api/projects/:id/promote`: 保存済み原則IDの明示昇格（両方のbase版）。
 - `/api/projects/:id/{foundation,references,reviews}/...`: 既存サービスのスコープ分離。
-- `GET/POST /api/projects/:id/conversations`: 現行の提案リクエスト履歴／記録（`baseRevision`）。候補と採用理由は同じDBの提案・revision履歴に残ります。
+- `GET/POST /api/projects/:id/conversations`: 現行の提案リクエスト履歴／記録（`baseRevision`）。両応答の`sequence`はプロジェクト内の保存順で、履歴の表示順にも使います。候補と採用理由は同じDBの提案・revision履歴に残ります。
 - `GET/POST /api/projects/:id/exports`: 履歴／対象確定revisionからの生成。
 - `GET /api/projects/:id/exports/:exportId/:filename`: 所有関係を検証した過去成果物のダウンロード。
 - `POST /api/migration/browser`: 一度きりのブラウザ移行。

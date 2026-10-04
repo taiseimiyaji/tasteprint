@@ -46,6 +46,14 @@ export const briefSchema = z.object({
   avoid: z.string().max(2000).default(""),
 });
 export type Brief = z.infer<typeof briefSchema>;
+export type Conversation = {
+  id: string;
+  projectId: string;
+  baseRevision: number;
+  text: string;
+  createdAt: string;
+  sequence: number;
+};
 export type ProjectSnapshot = {
   projectId: string;
   brief: Brief;
