@@ -96,7 +96,10 @@ export function Workspace({
   const [saved, setSaved] = useState<Revision | null>(initial);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [foundationError, setFoundationError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [saving, setBusy] = useState(false);
+  const busy = saving || historyLoading;
   const [validInput, setValidInput] = useState(true);
   const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -113,6 +116,7 @@ export function Workspace({
         if (!active) return;
         setSaved(parseRevision(current));
         setRevisions(data.history.length ? data.history : [current]);
+        setHistoryError("");
         // Drafts are scoped and intentionally retained until the user saves or discards.
         setFoundationError("");
       })
@@ -126,6 +130,21 @@ export function Workspace({
       active = false;
     };
   }, [path]);
+  async function refreshHistory() {
+    try {
+      const data = await foundationRequest<{ history: Revision[] }>("/");
+      setRevisions((previous) =>
+        [
+          ...new Map(
+            [...previous, ...data.history].map((r) => [r.revision, r]),
+          ).values(),
+        ].sort((a, b) => a.revision - b.revision),
+      );
+      setHistoryError("");
+    } catch {
+      setHistoryError("設計は保存済みですが、履歴を更新できませんでした。");
+    }
+  }
   async function commit(path: string, body: unknown) {
     setBusy(true);
     setFoundationError("");
@@ -147,12 +166,16 @@ export function Workspace({
       setSaved(result);
       setDraftBase(result.revision);
       setState((s) => ({ ...s, design: result.design }));
-      const data = await foundationRequest<{ history: Revision[] }>("/");
-      setRevisions(data.history);
+      setRevisions((history) =>
+        history.some((r) => r.revision === result.revision)
+          ? history
+          : [...history, result],
+      );
       setFoundationError("");
       proposal.reset();
       setHistory([]);
       setNotice("設計を保存しました");
+      await refreshHistory();
     } catch (e) {
       setFoundationError(e instanceof Error ? e.message : "保存に失敗しました");
       if ((e as { status?: number }).status === 409) {
@@ -359,7 +382,7 @@ export function Workspace({
                 target={current.name}
                 revision={saved?.revision ?? 0}
                 dirty={dirty}
-                busy={busy}
+                busy={saving}
                 stale={stale}
                 invalid={!validInput}
                 error={
@@ -435,6 +458,22 @@ export function Workspace({
                   </>
                 )}
               </EditorActions>
+            )}
+            {historyError && editable && (
+              <div className="editor-help" role="status">
+                <p>{historyError}</p>
+                <button
+                  className="button small"
+                  disabled={busy || historyLoading}
+                  onClick={async () => {
+                    setHistoryLoading(true);
+                    await refreshHistory();
+                    setHistoryLoading(false);
+                  }}
+                >
+                  {historyLoading ? "履歴を取得中…" : "履歴を再取得"}
+                </button>
+              </div>
             )}
             {!editable && (
               <p role="status">
