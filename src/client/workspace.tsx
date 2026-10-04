@@ -171,6 +171,7 @@ export function Workspace({
       setSaved(result);
       setDraftBase(result.revision);
       setState((s) => ({ ...s, design: result.design }));
+      setEditorVersion((v) => v + 1);
       setRevisions((history) =>
         history.some((r) => r.revision === result.revision)
           ? history
@@ -321,6 +322,7 @@ export function Workspace({
     const previous = history.at(-1);
     if (!previous) return;
     setState((s) => ({ ...s, design: previous }));
+    setEditorVersion((v) => v + 1);
     setHistory((h) => h.slice(0, -1));
     proposal.reset();
     setNotice("ひとつ前の設定に戻しました");
@@ -843,6 +845,7 @@ export function Workspace({
                   setSaved(r);
                   setDraftBase(r.revision);
                   setState((s) => ({ ...s, design: r.design }));
+                  setEditorVersion((v) => v + 1);
                   setRevisions((v) => [...v, r]);
                   await commitProjectRevision(queryClient, scope.id, r);
                   void queryClient.invalidateQueries({
