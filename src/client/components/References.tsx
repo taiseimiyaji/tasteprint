@@ -211,6 +211,7 @@ export function References({
         <input
           aria-label="Reference URL"
           type="url"
+          disabled={busy}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://example.com"
