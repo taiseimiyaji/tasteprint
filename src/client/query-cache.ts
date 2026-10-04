@@ -1,4 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type { Job, SavedReference } from "../domain/reference";
 import type { ProjectSnapshot, TasteRevision } from "../domain/projects";
 import type { ExportRecord, Project } from "../server/projects/service";
 import type { Revision } from "./foundation-api";
@@ -136,4 +137,32 @@ export async function commitExport(client: QueryClient, reply: ExportRecord) {
       data ? { ...data, project: update(data.project) } : data,
     ),
   ]);
+}
+
+export type ReferenceData = { references: SavedReference[]; jobs: Job[] };
+
+export async function commitReferenceJob(
+  client: QueryClient,
+  scopeId: string,
+  reply: Job,
+) {
+  await commitQuery<ReferenceData>(client, ["references", scopeId], (data) => {
+    const previous = data?.jobs.find((job) => job.id === reply.id);
+    const active = (job: Job) => ["queued", "running"].includes(job.state);
+    // Jobs never restart under the same ID. A late accepted reply must not
+    // restore active controls after a cancellation or completed poll.
+    if (
+      previous &&
+      ((!active(previous) && active(reply)) ||
+        previous.updatedAt > reply.updatedAt)
+    )
+      return data;
+    return {
+      references: data?.references ?? [],
+      jobs: [
+        ...(data?.jobs ?? []).filter((job) => job.id !== reply.id),
+        reply,
+      ].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    };
+  });
 }

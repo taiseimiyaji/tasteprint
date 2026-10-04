@@ -30,7 +30,16 @@ const service = new ProjectService(dir, {
   referenceFactory: (directory) =>
     new ReferenceService(
       directory,
-      async () => {
+      async (url, signal) => {
+        // Allow cancellation UI tests to observe a real active Mock job.
+        if (new URL(url).pathname === "/e2e-pending")
+          await new Promise<void>((_resolve, reject) => {
+            if (signal.aborted) reject(signal.reason);
+            else
+              signal.addEventListener("abort", () => reject(signal.reason), {
+                once: true,
+              });
+          });
         throw new CaptureError(
           "TIMEOUT",
           "30秒以内に取得できませんでした。画像アップロードで続行できます。",

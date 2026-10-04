@@ -8,6 +8,7 @@ import {
 } from "../../domain/reference";
 import { useScope } from "../scope";
 import type { Principle } from "../../domain/projects";
+import { commitReferenceJob, type ReferenceData } from "../query-cache";
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -46,7 +47,7 @@ const defaults = (name: string, url = ""): ReferenceInput => ({
   likes: "",
   dislikes: "",
 });
-type ReferenceData = { references: SavedReference[]; jobs: Job[] };
+type SaveJob = (path: string, body?: unknown) => Promise<Job>;
 type SaveReference = (
   path: string,
   method: string,
@@ -67,6 +68,11 @@ export function References({
     referenceRequest<T>(base, path, method, body);
   const client = useQueryClient();
   const queryKey = ["references", scope.id];
+  const saveJob: SaveJob = async (path, body) => {
+    const job = await request<Job>(path, "POST", body);
+    await commitReferenceJob(client, scope.id, job);
+    return job;
+  };
   const saveReference: SaveReference = async (path, method, body) => {
     const saved = await request<SavedReference>(path, method, body);
     // An earlier poll must not overwrite this reply while the next request waits.
@@ -159,7 +165,7 @@ export function References({
               defaults(parsed.hostname, parsed.href),
             );
             setUrl("");
-            await request(`/${ref.id}/jobs`, "POST", {
+            await saveJob(`/${ref.id}/jobs`, {
               version: ref.version,
               type: "capture",
               key: crypto.randomUUID(),
@@ -234,6 +240,7 @@ export function References({
             reference={ref}
             onAdopt={onAdopt}
             saveReference={saveReference}
+            saveJob={saveJob}
             removeReference={removeReference}
             jobs={query.data.jobs.filter((j) => j.referenceId === ref.id)}
             run={run}
@@ -251,6 +258,7 @@ function ReferenceCard({
   reference: r,
   onAdopt,
   saveReference,
+  saveJob,
   removeReference,
   jobs,
   run,
@@ -259,6 +267,7 @@ function ReferenceCard({
   reference: SavedReference;
   onAdopt?: (principle: Principle) => void;
   saveReference: SaveReference;
+  saveJob: SaveJob;
   removeReference: (id: string) => Promise<void>;
   jobs: Job[];
   run: (action: () => Promise<unknown>) => Promise<void>;
@@ -286,7 +295,9 @@ function ReferenceCard({
     setDraft((d) => (JSON.stringify(d) === JSON.stringify(r) ? r : d));
     setConsent(false);
   }, [r.version]);
-  const job = jobs.at(-1);
+  const job =
+    [...jobs].reverse().find((j) => ["running", "queued"].includes(j.state)) ??
+    jobs.at(-1);
   const active = jobs.some(
     (j) => j.state === "running" || j.state === "queued",
   );
@@ -307,7 +318,7 @@ function ReferenceCard({
     });
   const start = (type: Job["type"]) =>
     run(() =>
-      request(`/${r.id}/jobs`, "POST", {
+      saveJob(`/${r.id}/jobs`, {
         type,
         version: r.version,
         key: crypto.randomUUID(),
@@ -359,7 +370,7 @@ function ReferenceCard({
                 className="button"
                 disabled={busy}
                 onClick={() =>
-                  void run(() => request(`/jobs/${job.id}/cancel`, "POST"))
+                  void run(() => saveJob(`/jobs/${job.id}/cancel`))
                 }
               >
                 中断する
