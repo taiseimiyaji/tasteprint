@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Review } from "../../domain/review";
 import {
   type Candidate,
@@ -45,10 +45,24 @@ export function ReviewPanel({
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidate, setCandidate] = useState<Candidate>();
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const readVersion = useRef(0);
+  function commitReview(savedReview: Review, select = false) {
+    readVersion.current++;
+    setReviews((previous) =>
+      select
+        ? [savedReview, ...previous.filter((r) => r.id !== savedReview.id)]
+        : previous.some((r) => r.id === savedReview.id)
+          ? previous.map((r) => (r.id === savedReview.id ? savedReview : r))
+          : [...previous, savedReview],
+    );
+    setReadError("");
+  }
   async function refresh(preserveSelection = false) {
+    const version = readVersion.current;
     setReading((count) => count + 1);
     try {
       const data = await request<Review[]>();
+      if (version !== readVersion.current) return;
       setReviews((previous) => {
         const selected =
           preserveSelection && data.find((r) => r.id === previous[0]?.id);
@@ -58,7 +72,8 @@ export function ReviewPanel({
       });
       setReadError("");
     } catch (e) {
-      setReadError(e instanceof Error ? e.message : "結果を取得できません。");
+      if (version === readVersion.current)
+        setReadError(e instanceof Error ? e.message : "結果を取得できません。");
     } finally {
       setReading((count) => count - 1);
     }
@@ -109,8 +124,11 @@ export function ReviewPanel({
           action(async () => {
             setCandidates([]);
             setCandidate(undefined);
-            await request("", { baseRevision: saved!.revision });
-            await refresh();
+            commitReview(
+              await request<Review>("", { baseRevision: saved!.revision }),
+              true,
+            );
+            await refresh(true);
           })
         }
       >
@@ -218,12 +236,14 @@ export function ReviewPanel({
                       disabled={busy}
                       onClick={() =>
                         action(async () => {
-                          await request(`/${review.id}/dismiss`, {
-                            baseRevision: saved!.revision,
-                            findingId: f.id,
-                            reason: reasons[f.id] || "",
-                          });
-                          await refresh();
+                          commitReview(
+                            await request<Review>(`/${review.id}/dismiss`, {
+                              baseRevision: saved!.revision,
+                              findingId: f.id,
+                              reason: reasons[f.id] || "",
+                            }),
+                          );
+                          await refresh(true);
                         })
                       }
                     >
