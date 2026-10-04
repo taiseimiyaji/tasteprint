@@ -375,6 +375,11 @@ svg {
   position: relative;
   white-space: nowrap;
 }
+.foundation-tabs > [role="tab"]:focus-visible,
+.foundation-editor[role="tabpanel"]:focus-visible {
+  outline: 2px solid #647d51;
+  outline-offset: -2px;
+}
 .foundation-tabs > button[aria-selected="true"],
 .foundation-tabs > button.active-tab {
   color: #536647;

@@ -534,18 +534,51 @@ export function Workspace({
                   role="tablist"
                   aria-label="Foundation categories"
                 >
-                  {tabs.map((t) => (
+                  {tabs.map((t, i) => (
                     <button
                       role="tab"
+                      id={`foundation-tab-${t}`}
+                      aria-controls="foundation-panel"
                       aria-selected={t === tab}
+                      tabIndex={t === tab ? 0 : -1}
                       key={t}
                       onClick={() => setTab(t)}
+                      onKeyDown={(e) => {
+                        if (
+                          !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                            e.key,
+                          )
+                        )
+                          return;
+                        e.preventDefault();
+                        const next =
+                          e.key === "Home"
+                            ? 0
+                            : e.key === "End"
+                              ? tabs.length - 1
+                              : (i +
+                                  (e.key === "ArrowRight" ? 1 : -1) +
+                                  tabs.length) %
+                                tabs.length;
+                        setTab(tabs[next]);
+                        (
+                          e.currentTarget.parentElement?.children[
+                            next
+                          ] as HTMLElement
+                        ).focus();
+                      }}
                     >
                       {t}
                     </button>
                   ))}
                 </div>
-                <section className="foundation-editor">
+                <section
+                  className="foundation-editor"
+                  id="foundation-panel"
+                  role="tabpanel"
+                  aria-labelledby={`foundation-tab-${tab}`}
+                  tabIndex={0}
+                >
                   <div className="section-label">
                     <span>
                       {tab === "Colors"
