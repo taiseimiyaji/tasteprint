@@ -252,10 +252,15 @@ for (const profile of [true, false]) {
     await card
       .getByRole("button", { name: "設計方針として採用", exact: true })
       .click();
-    if (profile)
+    if (profile) {
+      // Adoption switches to DNA asynchronously after its accepted reply.
+      await expect(
+        page.getByRole("button", { name: "DNA・原則", exact: true }),
+      ).toHaveAttribute("aria-pressed", "true");
       await page
         .getByRole("button", { name: "参考を集める", exact: true })
         .click();
+    }
     await expect(
       card.getByRole("button", { name: "採用済み", exact: true }),
     ).toBeDisabled();
