@@ -364,6 +364,7 @@ export class ProjectService {
       .run(
         JSON.stringify({
           ...r,
+          design: { ...r.design, muted: "#6c7164" },
           snapshot,
           dna: snapshot.taste.dna,
         }),
