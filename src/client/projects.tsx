@@ -626,6 +626,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   });
   const [position, setPosition] = useDraft("tasteprint.profile.position", 0);
   const [section, setSection] = useState("taste");
+  const [referencesBusy, setReferencesBusy] = useState(false);
   const [references, setReferences] = useState<
     { id: string; version: number; accepted: number[] }[] | null
   >(null);
@@ -686,7 +687,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
         <button
           className="button primary"
           form="profile-form"
-          disabled={action.busy || stale}
+          disabled={action.busy || referencesBusy || stale}
         >
           共通の好みを保存
         </button>
@@ -769,16 +770,19 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
           保存先:
           自分の好み。分析は明示的に採用した項目だけが原則候補になります。登録・削除後に「共通の好みを保存」で参考の版を確定してください。
         </p>
-        <References
-          onChange={setReferences}
-          onAdopt={(p) => {
-            setDraft((d) => ({
-              ...d,
-              principles: [...d.principles.filter((v) => v.id !== p.id), p],
-            }));
-            setSection("dna");
-          }}
-        />
+        <fieldset className="editor-fieldset" disabled={action.busy}>
+          <References
+            onChange={setReferences}
+            onBusyChange={setReferencesBusy}
+            onAdopt={(p) => {
+              setDraft((d) => ({
+                ...d,
+                principles: [...d.principles.filter((v) => v.id !== p.id), p],
+              }));
+              setSection("dna");
+            }}
+          />
+        </fieldset>
       </section>
       <p className="scope-help">
         共通の好みを更新しても、既存プロジェクトには自動反映されません。
