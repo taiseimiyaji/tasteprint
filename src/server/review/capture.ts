@@ -200,6 +200,8 @@ export function reviewCapture(
       );
       for (let i = 0; i < (await controls.count()); i++) {
         const control = controls.nth(i);
+        if (!(await control.isVisible()) || !(await control.isEnabled()))
+          continue;
         const style = () =>
           control.evaluate((el) => {
             const c = getComputedStyle(el);
@@ -212,9 +214,12 @@ export function reviewCapture(
               c.backgroundColor,
             ].join(";");
           });
+        await control.evaluate((el) => (el as HTMLElement).blur());
         const before = await style();
         await page.keyboard.press("Tab");
         await control.focus();
+        if (!(await control.evaluate((el) => document.activeElement === el)))
+          continue;
         if (before === (await style()))
           findings.push({
             id: randomUUID(),
@@ -242,7 +247,7 @@ export function reviewCapture(
           "states",
         ],
         scope: [
-          `${screen}: viewport ${width}×1000、初期表示、全ページPNG（高さは内容によって伸びます）、入力とボタンのfocus状態`,
+          `${screen}: viewport ${width}×1000、初期表示、全ページPNG（高さは内容によって伸びます）、表示中・有効・フォーカス可能な入力とボタン・選択欄のfocus状態`,
           ...audit.incomplete.map((r) => `${screen}: ${r.id} は手動確認が必要`),
         ],
       };
