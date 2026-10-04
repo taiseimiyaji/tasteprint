@@ -34,7 +34,7 @@ import { projectMarkdown } from "../domain/project-export";
 import { References } from "./components/References";
 import { PreviewFrame } from "./components/PreviewFrame";
 import { ReviewPanel } from "./components/ReviewPanel";
-import { initialState, type WorkspaceState } from "./state";
+import { initialState, stateSchema, type WorkspaceState } from "./state";
 import { profile, type Design } from "../domain/design";
 
 import { steps } from "./navigation";
@@ -69,7 +69,7 @@ export function Workspace({
   const loadProject = (): WorkspaceState => {
     try {
       const draft = localStorage.getItem(draftKey(scope.id));
-      if (draft) return JSON.parse(draft);
+      if (draft) return stateSchema.parse(JSON.parse(draft));
     } catch {}
     return {
       ...initialState,
