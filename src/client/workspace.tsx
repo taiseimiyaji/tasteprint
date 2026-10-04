@@ -283,7 +283,7 @@ export function Workspace({
   const dirty =
     !!saved && JSON.stringify(saved.design) !== JSON.stringify(state.design);
   const stale = !!saved && draftBase !== saved.revision;
-  const editable = ["foundation", "components", "patterns"].includes(
+  const editable = ["foundation", "components", "patterns", "preview"].includes(
     current.id,
   );
   const staged = displayDesign !== state.design;
@@ -606,6 +606,7 @@ export function Workspace({
                 <div className="preview-settings">
                   <Range
                     label="角丸"
+                    disabled={busy || proposal.isPending}
                     value={state.design.radius}
                     min={0}
                     max={20}
@@ -613,6 +614,7 @@ export function Workspace({
                   />
                   <Range
                     label="余白"
+                    disabled={busy || proposal.isPending}
                     value={state.design.spacing}
                     min={8}
                     max={24}
@@ -902,6 +904,7 @@ export function Workspace({
                             <button
                               className="button small"
                               aria-pressed={candidateIndex === i}
+                              disabled={busy}
                               key={c.id}
                               onClick={() => setCandidateIndex(i)}
                             >
@@ -960,7 +963,7 @@ export function Workspace({
                     <span>試して、選んで、あなたの形に。</span>
                     <button
                       aria-label="提案を依頼"
-                      disabled={!prompt.trim() || proposal.isPending}
+                      disabled={busy || !prompt.trim() || proposal.isPending}
                     >
                       <ArrowUp size={17} />
                     </button>
@@ -991,12 +994,14 @@ function Range({
   value,
   min,
   max,
+  disabled,
   onChange,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
+  disabled?: boolean;
   onChange: (n: number) => void;
 }) {
   return (
@@ -1010,6 +1015,8 @@ function Range({
       </span>
       <input
         type="range"
+        aria-label={label}
+        disabled={disabled}
         min={min}
         max={max}
         value={value}

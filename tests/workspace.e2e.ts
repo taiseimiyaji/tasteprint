@@ -967,3 +967,191 @@ test("editors share save status, failure recovery, conflict protection and respo
     fullPage: true,
   });
 });
+
+test("Preview saves, cancels and recovers drafts without mixing them into exports", async ({
+  page,
+}) => {
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "Preview保存" }, useTaste: false },
+    })
+  ).json();
+  const url = `/projects/${project.id}/preview`;
+  const endpoint = `**/api/projects/${project.id}/foundation/save`;
+  await page.goto(url);
+  const actions = page.locator(".editor-actions");
+  const radius = page.getByRole("slider", { name: "角丸", exact: true });
+  const spacing = page.getByRole("slider", { name: "余白", exact: true });
+  const save = actions.getByRole("button", { name: "変更を保存", exact: true });
+  const cancel = actions.getByRole("button", {
+    name: "未保存の変更を取り消す",
+    exact: true,
+  });
+  const current = async () =>
+    (
+      await (
+        await page.request.get(`/api/projects/${project.id}/foundation`)
+      ).json()
+    ).current;
+  await expect(actions).toContainText("Preview保存 · Preview");
+  await expect(save).toBeDisabled();
+  await radius.focus();
+  await radius.press("ArrowRight");
+  await spacing.focus();
+  await spacing.press("ArrowRight");
+  await expect(actions).toContainText("下書き・未保存");
+  await expect(actions).toContainText("仮Preview");
+  await page.reload();
+  await expect(radius).toHaveValue("7");
+  await expect(spacing).toHaveValue("15");
+  await cancel.click();
+  await expect(radius).toHaveValue("6");
+  await expect(spacing).toHaveValue("14");
+  await radius.focus();
+  await radius.press("ArrowRight");
+  await spacing.focus();
+  await spacing.press("ArrowRight");
+  await page.route(endpoint, (route) =>
+    route.fulfill({ status: 500, json: { message: "Preview保存失敗" } }),
+  );
+  await save.click();
+  await expect(actions.getByRole("alert")).toContainText("入力は保持");
+  await expect(radius).toHaveValue("7");
+  expect((await current()).revision).toBe(1);
+  await page.unroute(endpoint);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route(endpoint, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await save.click();
+  try {
+    await expect(actions.getByRole("status")).toContainText("保存中");
+    await expect(radius).toBeDisabled();
+    await expect(spacing).toBeDisabled();
+    await expect(cancel).toBeDisabled();
+  } finally {
+    release();
+  }
+  await expect(actions).toContainText("保存済み · 設計 r2");
+  await page.unroute(endpoint);
+  await page.reload();
+  await expect(radius).toHaveValue("7");
+  await expect(spacing).toHaveValue("15");
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(save).toBeVisible();
+    await expect(cancel).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `test-results/preview-actions-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await radius.focus();
+  await radius.press("ArrowRight");
+  await page
+    .locator("nav")
+    .getByRole("link", { name: "Export", exact: true })
+    .click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "JSON", exact: true }).click();
+  const exported = JSON.parse(
+    await readFile((await (await download).path())!, "utf8"),
+  );
+  expect(exported.revision).toBe(2);
+  expect(exported.design.radius).toBe(7);
+  expect(exported.design.spacing).toBe(15);
+  await page.goto(url);
+  await expect(radius).toHaveValue("8");
+  const saved = await current();
+  await page.request.post(`/api/projects/${project.id}/foundation/save`, {
+    data: {
+      baseRevision: saved.revision,
+      design: { ...saved.design, radius: 10 },
+      reason: "別タブで保存",
+      requestId: crypto.randomUUID(),
+    },
+  });
+  await save.click();
+  await expect(actions).toContainText("古い版・確認が必要");
+  await expect(radius).toHaveValue("8");
+  await expect(save).toBeDisabled();
+  await page.reload();
+  await expect(radius).toHaveValue("8");
+  await expect(actions).toContainText("古い版・確認が必要");
+  await actions
+    .getByRole("button", { name: "最新の確定版を読み込む", exact: true })
+    .click();
+  await expect(radius).toHaveValue("10");
+  expect((await current()).revision).toBe(3);
+});
+
+test("Preview compares, dismisses and explicitly adopts AI candidates", async ({
+  page,
+}) => {
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "Preview候補" }, useTaste: false },
+    })
+  ).json();
+  await page.goto(`/projects/${project.id}/preview`);
+  const actions = page.locator(".editor-actions");
+  const radius = page.getByRole("slider", { name: "角丸", exact: true });
+  const current = async () =>
+    (
+      await (
+        await page.request.get(`/api/projects/${project.id}/foundation`)
+      ).json()
+    ).current;
+  const ask = page.getByRole("button", {
+    name: "角丸をもう少し弱くしたい",
+    exact: true,
+  });
+  const sample = page.frameLocator("iframe").locator(".sample-app");
+  await ask.click();
+  await expect(
+    actions.getByRole("button", { name: "採用する", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "候補 2", exact: true }).click();
+  await expect(sample).toHaveCSS("border-radius", "2px");
+  expect((await current()).revision).toBe(1);
+  expect((await current()).design.radius).toBe(6);
+  await actions.getByRole("button", { name: "見送る", exact: true }).click();
+  await expect(sample).toHaveCSS("border-radius", "6px");
+  await expect(radius).toHaveValue("6");
+  expect((await current()).revision).toBe(1);
+  await ask.click();
+  await page.getByRole("button", { name: "候補 2", exact: true }).click();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const endpoint = `**/api/projects/${project.id}/foundation/apply`;
+  await page.route(endpoint, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await actions.getByRole("button", { name: "採用する", exact: true }).click();
+  try {
+    await expect(radius).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "候補 1", exact: true }),
+    ).toBeDisabled();
+    await expect(ask).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "提案を依頼", exact: true }),
+    ).toBeDisabled();
+  } finally {
+    release();
+  }
+  await expect(actions).toContainText("保存済み · 設計 r2");
+  await page.unroute(endpoint);
+  await page.reload();
+  await expect(radius).toHaveValue("2");
+  expect((await current()).design.radius).toBe(2);
+});
