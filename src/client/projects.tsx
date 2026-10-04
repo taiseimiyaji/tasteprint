@@ -1180,6 +1180,7 @@ function Overview({
                 反映方法
                 <select
                   aria-label={`差分 ${d.key}`}
+                  disabled={action.busy}
                   value={choices[d.key] || ""}
                   onChange={(e) =>
                     setChoices({

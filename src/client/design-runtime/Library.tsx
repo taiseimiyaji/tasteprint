@@ -24,6 +24,7 @@ export function RuntimeTheme({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1440);
+  const variables = designVariables(design);
   useEffect(() => {
     const observer = new ResizeObserver((entries) =>
       setWidth(entries[0].contentRect.width),
@@ -44,7 +45,9 @@ export function RuntimeTheme({
     componentNames
       .map((name) => {
         const c = design.components[name],
-          size = design.controlHeight + { sm: -8, md: 0, lg: 8 }[c.size];
+          baseHeight =
+            name === "Table" ? design.rowHeight : design.controlHeight,
+          size = baseHeight + { sm: -8, md: 0, lg: 8 }[c.size];
         const color =
           c.variant === "solid" ? "var(--color-surface)" : "var(--color-ink)";
         const background =
@@ -73,7 +76,13 @@ export function RuntimeTheme({
       className="sample-app runtime-root"
       style={
         {
-          ...designVariables(design),
+          ...variables,
+          "--preview-shadow": design.shadowAllowed
+            .split(/[、,\n]/)
+            .map((target) => target.trim())
+            .includes("Preview")
+            ? variables["--surface-shadow"]
+            : "none",
           "--preview-accent": design.accent,
           "--preview-radius": `${design.radius}px`,
           "--preview-space": `${design.spacing}px`,
