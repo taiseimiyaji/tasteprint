@@ -15,7 +15,12 @@ const kinds = [
   "use-taste",
 ] as const;
 type Kind = (typeof kinds)[number];
-async function fixture(page: Page, kind: Kind, active = false) {
+async function fixture(
+  page: Page,
+  kind: Kind,
+  active = false,
+  malformed = false,
+) {
   const p = await (
     await page.request.post("/api/projects", {
       data: { brief: { name: `Unread draft ${kind}` }, useTaste: false },
@@ -123,14 +128,26 @@ async function fixture(page: Page, kind: Kind, active = false) {
     path = `/projects/${p.id}/inspiration`;
     label = r.name;
   }
-  const stored = JSON.stringify(value);
+  const invalid =
+    kind === "position"
+      ? 1.5
+      : kind === "use-taste"
+        ? "false"
+        : kind === "profile" || kind === "overview"
+          ? {}
+          : kind === "workspace"
+            ? { ...(value as object), baseRevision: "one" }
+            : kind === "reference"
+              ? { ...(value as object), selections: { broken: true } }
+              : { ...(value as object), name: [] };
+  const stored = JSON.stringify(malformed ? invalid : value);
   await page.addInitScript(
-    ({ key, stored }) => {
+    ({ key, stored, malformed }) => {
       const get = Storage.prototype.getItem,
         set = Storage.prototype.setItem;
       set.call(localStorage, key, stored);
       const state = window as StorageProbe;
-      state.draftReadBlocked = true;
+      state.draftReadBlocked = !malformed;
       state.draftWriteBlocked = false;
       state.draftWrites = [];
       state.draftStored = () => get.call(localStorage, key);
@@ -148,7 +165,7 @@ async function fixture(page: Page, kind: Kind, active = false) {
         return set.call(this, candidate, content);
       };
     },
-    { key, stored },
+    { key, stored, malformed },
   );
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -202,6 +219,52 @@ async function fixture(page: Page, kind: Kind, active = false) {
   };
 }
 for (const kind of kinds) {
+  test(`${kind} malformed JSON shape keeps the original bytes and recovers after explicit reread`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, kind, false, true);
+    await expect(f.input).toBeDisabled();
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftStored()),
+    ).toBe(f.stored);
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftWrites),
+    ).toEqual([]);
+    const reread = page.getByRole("button", {
+      name: `${f.label}の下書きを再読込`,
+      exact: true,
+    });
+    await reread.click();
+    await expect(f.warning).toBeVisible();
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftStored()),
+    ).toBe(f.stored);
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftWrites),
+    ).toEqual([]);
+    expect(f.updates()).toBe(0);
+    await page.evaluate(
+      ({ key, value }) => {
+        // Simulate restoring the stored file, separately from the blocked editor.
+        localStorage.setItem(key, JSON.stringify(value));
+        (window as StorageProbe).draftWrites = [];
+      },
+      { key: f.key, value: f.value },
+    );
+    await expect(f.warning).toBeVisible();
+    await reread.click();
+    await expect(f.warning).toHaveCount(0);
+    await expect(f.input).toBeEnabled();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          JSON.parse((window as StorageProbe).draftStored()!),
+        ),
+      )
+      .toEqual(f.value);
+    expect(f.updates()).toBe(0);
+    expect(f.errors).toEqual([]);
+  });
   test(`${kind} unread draft makes no writes and recovers only after a successful explicit reread`, async ({
     page,
   }) => {
@@ -364,6 +427,58 @@ for (const kind of kinds) {
   });
 }
 
+for (const kind of ["profile", "reference"] as const)
+  test(`${kind} malformed draft is replaced only by the explicit recovery action`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, kind, false, true);
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftStored()),
+    ).toBe(f.stored);
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftWrites),
+    ).toEqual([]);
+    await page
+      .getByRole("button", {
+        name: `${f.label}の下書きを表示中の内容で置き換える`,
+        exact: true,
+      })
+      .click();
+    await expect(f.warning).toHaveCount(0);
+    await expect(f.input).toBeEnabled();
+    if (kind === "reference") {
+      await f.input.fill("Explicit restored note");
+      await page
+        .getByRole("button", { name: "観点・メモを保存", exact: true })
+        .click();
+      await expect
+        .poll(
+          async () =>
+            (await (await page.request.get(`${f.base}/references`)).json())
+              .references[0].likes,
+        )
+        .toBe("Explicit restored note");
+    } else {
+      await f.input.click();
+      await page
+        .getByLabel("原則", { exact: true })
+        .last()
+        .fill("Explicit restored principle");
+      await page
+        .getByRole("button", { name: "共通の好みを保存", exact: true })
+        .click();
+      await expect
+        .poll(
+          async () =>
+            (await (await page.request.get("/api/profile")).json()).current
+              .revision,
+        )
+        .toBe(f.profileRevision + 1);
+    }
+    expect(f.updates()).toBe(1);
+    expect(f.errors).toEqual([]);
+  });
+
 test("unread Reference draft still allows an active Mock job to be canceled before reread recovery", async ({
   page,
 }) => {
@@ -460,4 +575,68 @@ test("Workspace reads a draft design and its old base together even when any lat
     .current;
   expect(current.revision).toBe(2);
   expect(current.design.accent).toBe("#778899");
+});
+
+test("Profile incomplete principles, whitespace and snapshot metadata survive draft reload without a save", async ({
+  page,
+}) => {
+  const current = (await (await page.request.get("/api/profile")).json())
+    .current;
+  const value = {
+    baseProfileRevision: current.revision,
+    ...current.snapshot,
+    principles: [
+      {
+        id: "unfinished-profile-draft",
+        target: "",
+        text: "",
+        reason: `  ${"x".repeat(2100)}  `,
+        sources: Array.from({ length: 40 }, (_, i) => ` source ${i} `),
+        locked: false,
+      },
+    ],
+    futureMetadata: { keep: "snapshot context" },
+  };
+  await page.addInitScript((value) => {
+    localStorage.setItem("tasteprint.projects.migrated.v1", "complete");
+    localStorage.setItem("tasteprint.profile.draft", JSON.stringify(value));
+  }, value);
+  let saves = 0;
+  page.context().on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/api/profile"))
+      saves++;
+  });
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "DNA・原則", exact: true }).click();
+  await expect(page.getByLabel("原則", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("理由", { exact: true })).toHaveValue(
+    value.principles[0].reason,
+  );
+  // A new page has no page init fixture and reads the app's persisted draft.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("tasteprint.profile.draft")!),
+      ),
+    )
+    .toEqual(value);
+  const restored = await page.context().newPage();
+  await restored.goto("/profile");
+  await restored
+    .getByRole("button", { name: "DNA・原則", exact: true })
+    .click();
+  await expect(restored.getByLabel("原則", { exact: true })).toHaveValue("");
+  await expect(restored.getByLabel(/^必要な出典（1行に1件）/)).toHaveValue(
+    value.principles[0].sources.join("\n"),
+  );
+  expect(
+    await restored.evaluate(() =>
+      JSON.parse(localStorage.getItem("tasteprint.profile.draft")!),
+    ),
+  ).toEqual(value);
+  await expect(
+    restored.getByText("Something went wrong!", { exact: true }),
+  ).toHaveCount(0);
+  expect(saves).toBe(0);
+  await restored.close();
 });
