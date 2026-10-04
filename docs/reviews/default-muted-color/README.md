@@ -2,7 +2,7 @@
 
 This is a proposed initial color for **newly created Projects only**. Do not merge without human visual approval. The product change sets `muted` to `#6c7164` in the unpublished initial r1 during Project creation. It keeps the schema fallback, `defaultDesign`, existing revisions and legacy imports unchanged.
 
-The existing Review runs axe's WCAG 2 AA checks. Breadcrumbs and page descriptions render at 9px, normal weight; four list headers render at 9px on desktop and 8px at 390px. Five category labels render at 8px, normal weight. They convey information and require 4.5:1 under [W3C SC 1.4.3](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
+The existing Review runs axe's WCAG 2 AA checks. Breadcrumbs render at 9px, normal weight; page descriptions render at 9px on desktop and 8px at 390px, normal weight; four list headers render at 9px on desktop and 8px at 390px. Five category labels render at 8px, normal weight. They convey information and require 4.5:1 under [W3C SC 1.4.3](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
 
 | Foreground | White surface `#ffffff` | Canvas `#f8f8f4` |
 | --- | --- | --- |
