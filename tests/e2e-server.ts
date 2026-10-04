@@ -5,7 +5,19 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { FoundationService } from "../src/server/foundation/service";
 import { Hono } from "hono";
-const app = new Hono().get("/api/health", (c) => c.json({ ready: true }));
+import { CodexGateway } from "../src/server/codex/gateway";
+let codexCalls = 0;
+// Fail closed if a fixture accidentally reaches host authentication or real AI.
+const denyCodex = async () => {
+  codexCalls++;
+  throw new Error("E2E must use mock Codex dependencies.");
+};
+CodexGateway.prototype.checkConnection = denyCodex;
+CodexGateway.prototype.run = denyCodex;
+const app = new Hono()
+  .get("/api/health", (c) => c.json({ ready: true, codexCalls }))
+  // Keep connection status deterministic without reading host Codex credentials.
+  .get("/api/connection", (c) => c.json({ state: "ready" }));
 import { ReferenceService } from "../src/server/references/service";
 import { referenceRoutes } from "../src/server/references/routes";
 import { CaptureError } from "../src/server/capture/proxy";

@@ -3,10 +3,12 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: "**/*.e2e.ts",
   fullyParallel: false,
+  globalSetup: "./tests/e2e-setup.ts",
   use: {
     baseURL: "http://127.0.0.1:3100",
     viewport: { width: 1440, height: 1050 },
     trace: "retain-on-failure",
+    storageState: "test-results/.session.json",
   },
   webServer: {
     command:
