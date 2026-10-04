@@ -51,6 +51,7 @@ const revision = (value: number) => ({
 });
 const record = (id: string, second: number): ExportRecord => ({
   id,
+  sequence: second,
   projectId: project.id,
   revision: 1,
   sourceTasteProfileRevision: null,
@@ -59,6 +60,87 @@ const record = (id: string, second: number): ExportRecord => ({
 });
 
 describe("accepted mutation replies remain authoritative in shared queries", () => {
+  for (const reversed of [false, true]) {
+    it(`uses persisted Export order with ${reversed ? "reversed" : "equal"} clocks and an older reused reply`, async () => {
+      const client = new QueryClient();
+      const old = {
+        ...record("old", 1),
+        revision: 9,
+        createdAt: "2026-10-04T00:00:00Z",
+      };
+      const newest = {
+        ...record("new", 2),
+        revision: 2,
+        createdAt: reversed ? "2025-10-04T00:00:00Z" : old.createdAt,
+      };
+      client.setQueryData(["projects"], [project]);
+      client.setQueryData<ProjectData>(["project", project.id], {
+        project,
+        current: revision(1),
+      });
+      client.setQueryData(["exports", project.id], [newest, old]);
+      await commitExport(client, old);
+      expect(
+        client
+          .getQueryData<ExportRecord[]>(["exports", project.id])
+          ?.map((r) => r.id),
+      ).toEqual(["new", "old"]);
+      expect(
+        client.getQueryData<Project[]>(["projects"])?.[0].latestExport,
+      ).toEqual(newest);
+      expect(
+        client.getQueryData<ProjectData>(["project", project.id])?.project
+          .latestExport,
+      ).toEqual(newest);
+      await commitProject(
+        client,
+        { ...project, latestExport: old },
+        () => true,
+      );
+      expect(
+        client.getQueryData<Project[]>(["projects"])?.[0].latestExport,
+      ).toEqual(newest);
+      expect(
+        client.getQueryData<ProjectData>(["project", project.id])?.project
+          .latestExport,
+      ).toEqual(newest);
+      client.clear();
+    });
+  }
+  it("retains newer Export summaries without history cache and keeps another Project independent", async () => {
+    const client = new QueryClient();
+    const newest = {
+      ...record("newest", 3),
+      createdAt: "2025-01-01T00:00:00Z",
+    };
+    const older = { ...record("late", 2), createdAt: "2027-01-01T00:00:00Z" };
+    const own = { ...project, latestExport: newest };
+    const other = {
+      ...project,
+      id: "other",
+      latestExport: { ...record("other", 100), projectId: "other" },
+    };
+    client.setQueryData(["projects"], [own, other]);
+    client.setQueryData<ProjectData>(["project", project.id], {
+      project: own,
+      current: revision(1),
+    });
+    await commitExport(client, older);
+    await commitProject(
+      client,
+      { ...project, latestExport: older },
+      () => true,
+    );
+    expect(client.getQueryData<Project[]>(["projects"])).toEqual([own, other]);
+    expect(
+      client.getQueryData<ProjectData>(["project", project.id])?.project
+        .latestExport,
+    ).toEqual(newest);
+    expect(
+      client.getQueryData<ExportRecord[]>(["exports", project.id]),
+    ).toEqual([older]);
+    client.clear();
+  });
   it("merges late conversation replies by server order, keeps identical text under distinct IDs, and cancels only the matching read", async () => {
     const client = new QueryClient();
     const message = (id: string, sequence: number): Conversation => ({
