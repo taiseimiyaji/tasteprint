@@ -25,7 +25,7 @@ export function LibraryEditor({
     setGapInput(undefined);
     setGapError("");
     onValidityChange?.(true);
-  }, [name, design, onValidityChange]);
+  }, [kind, name, onValidityChange]);
   const config =
     kind === "components"
       ? design.components[name as ComponentName]
@@ -137,6 +137,7 @@ export function LibraryEditor({
               onChange={(e) => {
                 const n = e.target.valueAsNumber;
                 if (Number.isInteger(n) && n >= 0 && n <= 96) {
+                  setGapInput(undefined);
                   setGapError("");
                   onValidityChange?.(true);
                   edit("gap", n);

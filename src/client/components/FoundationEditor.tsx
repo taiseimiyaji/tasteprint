@@ -71,13 +71,12 @@ export function FoundationEditor({
   onValidityChange: (valid: boolean) => void;
 }) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [error, setError] = useState("");
-  const [errorKey, setErrorKey] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   useEffect(() => {
     setInputs({});
-    setError("");
+    setErrors({});
     onValidityChange(true);
-  }, [tab, design, onValidityChange]);
+  }, [tab, onValidityChange]);
   function edit(key: string, raw: string | boolean) {
     const old = design[key as keyof Design];
     const value =
@@ -95,21 +94,29 @@ export function FoundationEditor({
     const result = designSchema.safeParse({ ...design, [key]: value });
     if (!result.success) {
       setInputs((s) => ({ ...s, [key]: String(raw) }));
-      setErrorKey(key);
-      setError(
-        typeof old === "number"
-          ? "設定できる範囲の数値を入力してください。"
-          : Array.isArray(old)
-            ? "小さい順に、重複しない数値をカンマ区切りで入力してください。"
-            : /^#[0-9a-fA-F]{6}$/.test(String(old))
-              ? "#に続く6桁のカラーコードを入力してください（例: #536647）。"
-              : "入力形式を確認してください。",
-      );
+      setErrors((errors) => ({
+        ...errors,
+        [key]:
+          typeof old === "number"
+            ? "設定できる範囲の数値を入力してください。"
+            : Array.isArray(old)
+              ? "小さい順に、重複しない数値をカンマ区切りで入力してください。"
+              : /^#[0-9a-fA-F]{6}$/.test(String(old))
+                ? "#に続く6桁のカラーコードを入力してください（例: #536647）。"
+                : "入力形式を確認してください。",
+      }));
       onValidityChange(false);
       return;
     }
-    setError("");
-    onValidityChange(true);
+    const nextErrors = { ...errors };
+    delete nextErrors[key];
+    setErrors(nextErrors);
+    setInputs((previous) => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+    onValidityChange(Object.keys(nextErrors).length === 0);
     onChange({ [key]: value });
   }
   function decision(
@@ -136,6 +143,7 @@ export function FoundationEditor({
       {fieldGroups[tab as keyof typeof fieldGroups].map((key) => {
         const value = design[key];
         const rule = design.constraints[key] ?? emptyDecision;
+        const error = errors[key];
         const options =
           key === "fontFamily"
             ? ["sans-serif", "serif", "monospace"]
@@ -161,8 +169,8 @@ export function FoundationEditor({
               {typeof value === "boolean" ? (
                 <input
                   aria-label={key}
-                  aria-describedby={`field-${key}-label${error && errorKey === key ? ` field-${key}-error` : ""}`}
-                  aria-invalid={!!error && errorKey === key}
+                  aria-describedby={`field-${key}-label${error ? ` field-${key}-error` : ""}`}
+                  aria-invalid={!!error}
                   type="checkbox"
                   checked={value}
                   onChange={(e) => edit(key, e.target.checked)}
@@ -170,8 +178,8 @@ export function FoundationEditor({
               ) : options ? (
                 <select
                   aria-label={key}
-                  aria-describedby={`field-${key}-label${error && errorKey === key ? ` field-${key}-error` : ""}`}
-                  aria-invalid={!!error && errorKey === key}
+                  aria-describedby={`field-${key}-label${error ? ` field-${key}-error` : ""}`}
+                  aria-invalid={!!error}
                   value={String(value)}
                   onChange={(e) => edit(key, e.target.value)}
                 >
@@ -182,8 +190,8 @@ export function FoundationEditor({
               ) : (
                 <input
                   aria-label={key}
-                  aria-describedby={`field-${key}-label${error && errorKey === key ? ` field-${key}-error` : ""}`}
-                  aria-invalid={!!error && errorKey === key}
+                  aria-describedby={`field-${key}-label${error ? ` field-${key}-error` : ""}`}
+                  aria-invalid={!!error}
                   type={typeof value === "number" ? "number" : "text"}
                   step="any"
                   value={
@@ -194,7 +202,7 @@ export function FoundationEditor({
                 />
               )}
             </label>
-            {error && errorKey === key && (
+            {error && (
               <p id={`field-${key}-error`} role="alert" className="error-text">
                 {error}
               </p>
