@@ -39,27 +39,40 @@ export function ReviewPanel({
     requestFoundation<T>(path, body, `${scope.api}/foundation`);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState("");
+  const [readError, setReadError] = useState("");
+  const [reading, setReading] = useState(0);
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candidate, setCandidate] = useState<Candidate>();
   const [reasons, setReasons] = useState<Record<string, string>>({});
-  const refresh = (preserveSelection = false) =>
-    request<Review[]>().then((data) =>
+  async function refresh(preserveSelection = false) {
+    setReading((count) => count + 1);
+    try {
+      const data = await request<Review[]>();
       setReviews((previous) => {
         const selected =
           preserveSelection && data.find((r) => r.id === previous[0]?.id);
         return selected
           ? [selected, ...data.filter((r) => r.id !== selected.id)]
           : data;
-      }),
-    );
+      });
+      setReadError("");
+    } catch (e) {
+      setReadError(e instanceof Error ? e.message : "結果を取得できません。");
+    } finally {
+      setReading((count) => count - 1);
+    }
+  }
   useEffect(() => {
-    void refresh().catch((e) => setError(e.message));
+    void refresh();
+  }, [saved?.revision]);
+  useEffect(() => {
+    if (reading) return;
     const timer = window.setInterval(() => {
-      void refresh(true).catch((e) => setError(e.message));
+      void refresh(true);
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [saved?.revision]);
+  }, [saved?.revision, reading]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -104,6 +117,21 @@ export function ReviewPanel({
         {busy ? "処理中…" : "3画面を撮影してレビュー"}
       </button>
       {error && <p role="alert">{error}</p>}
+      {readError && (
+        <div>
+          <p role="alert">
+            レビュー結果を取得できませんでした。確定した設計と表示中の結果は保持しています。
+            {readError}
+          </p>
+          <button
+            className="button"
+            disabled={busy || reading > 0}
+            onClick={() => void refresh(true)}
+          >
+            {reading ? "結果を取得中…" : "結果を再取得"}
+          </button>
+        </div>
+      )}
       {review && (
         <>
           <h3>
