@@ -982,7 +982,36 @@ function Overview({
     }>(),
     [choices, setChoices] = useState<Record<string, "adopt" | "keep">>({}),
     [promote, setPromote] = useState<string[]>([]),
-    [confirmed, setConfirmed] = useState(false);
+    [confirmation, setConfirmation] = useState<{
+      projectId: string;
+      source: string;
+      destination: string;
+      ids: string[];
+    }>();
+  const selected = current.snapshot.policies.filter((p) =>
+    promote.includes(p.id),
+  );
+  const selectedIds = selected.map((p) => p.id);
+  const signature = (values: Principle[]) =>
+    JSON.stringify(
+      [...values]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((p) => [p.id, p.target, p.text, p.reason, p.sources, p.locked]),
+    );
+  const source = signature(selected);
+  const destination = JSON.stringify(
+    [...selectedIds].sort().map((id) => {
+      const existing = taste.snapshot.principles.find((p) => p.id === id);
+      return [id, existing ? signature([existing]) : null];
+    }),
+  );
+  const confirmed =
+    !!confirmation &&
+    confirmation.projectId === scope.id &&
+    confirmation.source === source &&
+    confirmation.destination === destination &&
+    confirmation.ids.length === selectedIds.length &&
+    confirmation.ids.every((id) => selectedIds.includes(id));
   useEffect(() => {
     if (
       draft.baseRevision !== current.revision &&
@@ -1191,39 +1220,59 @@ function Overview({
           <input
             type="checkbox"
             checked={promote.includes(p.id)}
+            disabled={action.busy}
             onChange={(e) => {
               setPromote(
                 e.target.checked
                   ? [...promote, p.id]
                   : promote.filter((id) => id !== p.id),
               );
-              setConfirmed(false);
+              setConfirmation(undefined);
             }}
           />
           {p.text} · 理由: {p.reason} · 出典: {p.sources.join(", ")}
         </label>
       ))}
+      {confirmation && !confirmed && (
+        <p role="alert">
+          追加する原則または共通側の同じ原則が更新されています。内容を確認し、追加の確認をやり直してください。
+        </p>
+      )}
       <label>
         <input
           type="checkbox"
           checked={confirmed}
-          onChange={(e) => setConfirmed(e.target.checked)}
+          disabled={action.busy || !selectedIds.length}
+          onChange={(e) =>
+            setConfirmation(
+              e.target.checked
+                ? {
+                    projectId: scope.id,
+                    source,
+                    destination,
+                    ids: selectedIds,
+                  }
+                : undefined,
+            )
+          }
         />
         選択した原則・理由・出典を共通へ追加することを確認しました
       </label>
       <button
         className="button"
-        disabled={action.busy || !confirmed || !promote.length}
+        disabled={action.busy || !confirmed || !selectedIds.length}
         onClick={() =>
           void action.run(async () => {
+            if (!confirmed || !confirmation)
+              throw new Error("内容を確認し、追加の確認をやり直してください。");
             const r = await req<TasteRevision>(`${scope.api}/promote`, {
               baseRevision: current.revision,
               baseProfileRevision: taste.revision,
-              ids: promote,
+              ids: confirmation.ids,
             });
             await commitProfile(client, r);
             setPromote([]);
-            setConfirmed(false);
+            setConfirmation(undefined);
             await client.invalidateQueries({ queryKey: ["profile"] });
           })
         }
