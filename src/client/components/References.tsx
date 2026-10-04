@@ -110,11 +110,13 @@ export function References({
   };
   const saveReference: SaveReference = async (path, method, body) => {
     const saved = await request<SavedReference>(path, method, body);
-    // An earlier poll must not overwrite this reply while the next request waits.
+    // Cancel older reads, and keep any higher version already delivered by a poll.
     await client.cancelQueries({ queryKey, exact: true });
     client.setQueryData<ReferenceData>(queryKey, (data) => ({
       references: data?.references.some((r) => r.id === saved.id)
-        ? data.references.map((r) => (r.id === saved.id ? saved : r))
+        ? data.references.map((r) =>
+            r.id === saved.id && r.version <= saved.version ? saved : r,
+          )
         : [...(data?.references ?? []), saved],
       jobs: data?.jobs ?? [],
     }));
