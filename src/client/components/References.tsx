@@ -46,6 +46,12 @@ const defaults = (name: string, url = ""): ReferenceInput => ({
   likes: "",
   dislikes: "",
 });
+type ReferenceData = { references: SavedReference[]; jobs: Job[] };
+type SaveReference = (
+  path: string,
+  method: string,
+  body: unknown,
+) => Promise<SavedReference>;
 export function References({
   onChange,
   onAdopt,
@@ -60,12 +66,33 @@ export function References({
   const request = <T,>(path = "", method = "GET", body?: unknown) =>
     referenceRequest<T>(base, path, method, body);
   const client = useQueryClient();
+  const queryKey = ["references", scope.id];
+  const saveReference: SaveReference = async (path, method, body) => {
+    const saved = await request<SavedReference>(path, method, body);
+    // An earlier poll must not overwrite this reply while the next request waits.
+    await client.cancelQueries({ queryKey, exact: true });
+    client.setQueryData<ReferenceData>(queryKey, (data) => ({
+      references: data?.references.some((r) => r.id === saved.id)
+        ? data.references.map((r) => (r.id === saved.id ? saved : r))
+        : [...(data?.references ?? []), saved],
+      jobs: data?.jobs ?? [],
+    }));
+    return saved;
+  };
+  const removeReference = async (id: string) => {
+    await client.cancelQueries({ queryKey, exact: true });
+    client.setQueryData<ReferenceData>(queryKey, (data) =>
+      data
+        ? { ...data, references: data.references.filter((r) => r.id !== id) }
+        : data,
+    );
+  };
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const query = useQuery({
-    queryKey: ["references", scope.id],
-    queryFn: () => request<{ references: SavedReference[]; jobs: Job[] }>(),
+    queryKey,
+    queryFn: () => request<ReferenceData>(),
     retry: false,
     refetchInterval: (q) =>
       q.state.error
@@ -126,7 +153,7 @@ export function References({
           e.preventDefault();
           void run(async () => {
             const parsed = new URL(url);
-            const ref = await request<SavedReference>(
+            const ref = await saveReference(
               "",
               "POST",
               defaults(parsed.hostname, parsed.href),
@@ -165,7 +192,7 @@ export function References({
                 void run(async () => {
                   if (file.size > 10 * 1024 * 1024)
                     throw new Error("画像は10MB以下にしてください。");
-                  const ref = await request<SavedReference>(
+                  const ref = await saveReference(
                     "",
                     "POST",
                     defaults(file.name),
@@ -173,16 +200,31 @@ export function References({
                   const form = new FormData();
                   form.set("version", String(ref.version));
                   form.set("image", file);
-                  await request(`/${ref.id}/image`, "POST", form);
+                  await saveReference(`/${ref.id}/image`, "POST", form);
                 });
             }}
           />
         </label>
       </form>
-      {(error || query.error) && (
+      {error && (
         <p role="alert" className="error-text">
-          {error || query.error?.message}
+          {error}
         </p>
+      )}
+      {query.error && (
+        <div role="alert" className="error-text">
+          <p>
+            参考一覧の読み込みに失敗しました。表示中の内容と入力は保持しています。
+            {query.error.message}
+          </p>
+          <button
+            className="button"
+            disabled={busy || query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            一覧を再取得
+          </button>
+        </div>
       )}
       {query.isPending && <p role="status">参考を読み込んでいます…</p>}
       <div className="reference-grid">
@@ -191,6 +233,8 @@ export function References({
             key={ref.id}
             reference={ref}
             onAdopt={onAdopt}
+            saveReference={saveReference}
+            removeReference={removeReference}
             jobs={query.data.jobs.filter((j) => j.referenceId === ref.id)}
             run={run}
             busy={busy}
@@ -206,12 +250,16 @@ export function References({
 function ReferenceCard({
   reference: r,
   onAdopt,
+  saveReference,
+  removeReference,
   jobs,
   run,
   busy,
 }: {
   reference: SavedReference;
   onAdopt?: (principle: Principle) => void;
+  saveReference: SaveReference;
+  removeReference: (id: string) => Promise<void>;
   jobs: Job[];
   run: (action: () => Promise<unknown>) => Promise<void>;
   busy: boolean;
@@ -379,7 +427,10 @@ function ReferenceCard({
             disabled={!dirty || !draft.selections.length}
             onClick={() =>
               void run(() =>
-                request(`/${r.id}`, "PATCH", { ...draft, version: r.version }),
+                saveReference(`/${r.id}`, "PATCH", {
+                  ...draft,
+                  version: r.version,
+                }),
               )
             }
           >
@@ -411,7 +462,7 @@ function ReferenceCard({
                     const form = new FormData();
                     form.set("version", String(r.version));
                     form.set("image", file);
-                    return request(`/${r.id}/image`, "POST", form);
+                    return saveReference(`/${r.id}/image`, "POST", form);
                   });
               }}
             />
@@ -420,9 +471,10 @@ function ReferenceCard({
             className="button"
             disabled={busy || active}
             onClick={() =>
-              void run(() =>
-                request(`/${r.id}`, "DELETE", { version: r.version }),
-              )
+              void run(async () => {
+                await request(`/${r.id}`, "DELETE", { version: r.version });
+                await removeReference(r.id);
+              })
             }
           >
             削除
@@ -474,7 +526,7 @@ function ReferenceCard({
               disabled={busy || active || dirty || r.accepted.includes(i)}
               onClick={() =>
                 void run(() =>
-                  request(`/${r.id}/accept`, "POST", {
+                  saveReference(`/${r.id}/accept`, "POST", {
                     version: r.version,
                     index: i,
                   }).then(() => {
