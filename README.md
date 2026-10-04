@@ -81,6 +81,8 @@ npx playwright install chromium
 
 captureと分析はスコープごとにそれぞれ同時1件です。中断後も処理の終了を待って実行枠を解放します。再起動時のqueued/runningジョブはinterruptedになり、自動再実行しません。参照内容が変更された場合は古い分析・撮影結果の反映を拒否します。
 
+ジョブの作成順と状態の更新順は保存済みイベントの順序を使います。時刻が同じ・前後した場合も、古い応答で最新結果や中断状態を戻しません。APIの `createdSequence` は最初のqueuedイベント、`transitionSequence` は最新イベントの番号で、元のジョブJSONには追加しません。queuedイベントのない旧ジョブは作成順不明（0）として、表示済みの同順位の位置を保持します。旧作成順の復元は保証しません。
+
 通信経路とテスト範囲は [URL capture architecture](./docs/url-capture.md) を参照してください。
 
 ### 同一 revision の一括出力（Issue #5）

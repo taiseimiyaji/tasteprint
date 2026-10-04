@@ -66,6 +66,9 @@ export type JobState =
   "queued" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
 export type Job = {
   id: string;
+  // Response metadata from immutable events; 0 marks unknown creation/transition order.
+  createdSequence: number;
+  transitionSequence: number;
   referenceId: string;
   type: "capture" | "analyze";
   state: JobState;

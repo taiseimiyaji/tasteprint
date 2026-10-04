@@ -49,9 +49,14 @@ export class ReferenceService {
       });
   }
   private save(table: "refs" | "jobs", value: SavedReference | Job) {
+    const stored = { ...value };
+    if (table === "jobs") {
+      delete (stored as Partial<Job>).createdSequence;
+      delete (stored as Partial<Job>).transitionSequence;
+    }
     this.db
       .prepare(`INSERT OR REPLACE INTO ${table} VALUES (?, ?)`)
-      .run(value.id, JSON.stringify(value));
+      .run(value.id, JSON.stringify(stored));
   }
   references(): SavedReference[] {
     return this.db
@@ -61,9 +66,22 @@ export class ReferenceService {
   }
   jobs(): Job[] {
     return this.db
-      .prepare("SELECT data FROM jobs ORDER BY rowid")
+      .prepare(
+        `SELECT jobs.data, events.created_sequence, events.transition_sequence
+        FROM jobs LEFT JOIN (
+          SELECT job_id,
+            MIN(CASE WHEN state='queued' THEN sequence END) AS created_sequence,
+            MAX(sequence) AS transition_sequence
+          FROM events GROUP BY job_id
+        ) events ON events.job_id=jobs.id
+        ORDER BY COALESCE(events.created_sequence, 0), jobs.rowid`,
+      )
       .all()
-      .map((r) => JSON.parse(r.data as string));
+      .map((r) => ({
+        ...JSON.parse(r.data as string),
+        createdSequence: Number(r.created_sequence ?? 0),
+        transitionSequence: Number(r.transition_sequence ?? 0),
+      }));
   }
   reference(id: string) {
     const r = this.references().find((r) => r.id === id);
@@ -212,6 +230,8 @@ export class ReferenceService {
     const now = new Date().toISOString();
     const job: Job = {
       id: key,
+      createdSequence: 0,
+      transitionSequence: 0,
       referenceId: id,
       input,
       type,
@@ -228,9 +248,11 @@ export class ReferenceService {
     job.updatedAt = new Date().toISOString();
     job.error = error;
     this.save("jobs", job);
-    this.db
+    const event = this.db
       .prepare("INSERT INTO events(job_id,state,created_at) VALUES (?,?,?)")
       .run(job.id, state, job.updatedAt);
+    if (state === "queued") job.createdSequence = Number(event.lastInsertRowid);
+    job.transitionSequence = Number(event.lastInsertRowid);
   }
   private pump() {
     if (this.stopped) return;
