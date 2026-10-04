@@ -9,6 +9,8 @@ ComponentsとPatternsはFoundationと同じプロジェクトの確定設計・S
 - 同梱の `design-runtime/Library.tsx` と `Preview.tsx` は詳細プレビュー、3画面、Review画像で共用。`reviewCapture(origin, width)` は3種の幅でPNGを撮影可能（既定1440）。確定revisionのPNG/React/ZIP一括Exportも実装済み。範囲と制約は [READMEの一括出力](../README.md#同一-revision-の一括出力issue-5) を参照。
 - サンプル操作はローカルのみ。検索・フィルタ・Tabs、Dialogによるプロジェクト追加、必須入力・メール検証、保存中状態、通常設定と分離した危険操作の確認を提供する。
 
+Inputの最小高さはFoundationの`controlHeight`を基準に、smは8px小さく、mdは同じ、lgは8px大きくなる。文字や余白に必要な高さが上回る場合は、その内容に合わせて広がる。詳細プレビューと3画面、`preview-6`以降の同梱ZIPで同じ設定を使用し、保存済みの旧ZIPは保持する。
+
 ## 検証
 
 `npm test` は保存・再起動・旧データ補完・復元、スキーマ拒否、提案の採用・競合・ロックを検証。`npm run test:e2e` は設定の保存と復元、編集UIとの分離、3画面×3幅、全適用状態、Tabsの矢印キー、Dialogの初期フォーカス・Tab循環・Escape・閉じた後の復帰を確認する。画面画像は `test-results/library-*.png` に生成する。実Codexへの接続はこの自動テストでは行わず、既存の注入可能な生成サービスを使用する。
