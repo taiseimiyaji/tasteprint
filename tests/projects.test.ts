@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,6 +45,65 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 describe("project scope and immutable snapshots", () => {
+  it("returns the persisted conversation order for old rows and new replies despite equal or reversed clocks", async () => {
+    const s = setup(),
+      a = create(s),
+      b = create(s);
+    const db = s.scope(a.id).references.db;
+    const legacy = JSON.stringify({
+      id: "legacy-conversation",
+      projectId: a.id,
+      baseRevision: 1,
+      text: "same instruction",
+      createdAt: "2026-10-04T00:00:00.000Z",
+    });
+    db.prepare("INSERT INTO conversations VALUES (?,?)").run(
+      "legacy-conversation",
+      legacy,
+    );
+    const clock = vi
+      .spyOn(Date.prototype, "toISOString")
+      .mockReturnValueOnce("2026-10-04T00:00:00.000Z")
+      .mockReturnValueOnce("2025-10-04T00:00:00.000Z");
+    let first, second;
+    try {
+      first = s.addConversation(a.id, 1, "same instruction");
+      second = s.addConversation(a.id, 1, "same instruction");
+    } finally {
+      clock.mockRestore();
+    }
+    const expected = [{ ...JSON.parse(legacy), sequence: 1 }, first, second];
+    expect(first.sequence).toBe(2);
+    expect(second.sequence).toBe(3);
+    expect(first.createdAt).toBe(JSON.parse(legacy).createdAt);
+    expect(second.createdAt < first.createdAt).toBe(true);
+    expect(s.conversations(a.id)).toEqual(expected);
+    expect(s.addConversation(b.id, 1, "another project").sequence).toBe(1);
+    const raw = db
+      .prepare("SELECT data FROM conversations ORDER BY rowid")
+      .all();
+    expect(raw[0].data).toBe(legacy);
+    expect(
+      raw.every(
+        (row) => !Object.hasOwn(JSON.parse(String(row.data)), "sequence"),
+      ),
+    ).toBe(true);
+    await s.close();
+    services.pop();
+    const restarted = new ProjectService(s.directory);
+    services.push(restarted);
+    expect(restarted.conversations(a.id)).toEqual(expected);
+    expect(
+      restarted
+        .scope(a.id)
+        .references.db.prepare("SELECT data FROM conversations ORDER BY rowid")
+        .all(),
+    ).toEqual(raw);
+    expect(
+      restarted.addConversation(a.id, 1, "next instruction").sequence,
+    ).toBe(4);
+    expect(restarted.conversations(b.id)).toHaveLength(1);
+  });
   it("persists taste without any project and creates independent project histories and exports", async () => {
     const s = setup();
     const t = taste(s);

@@ -1,6 +1,10 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { Job, SavedReference } from "../domain/reference";
-import type { ProjectSnapshot, TasteRevision } from "../domain/projects";
+import type {
+  Conversation,
+  ProjectSnapshot,
+  TasteRevision,
+} from "../domain/projects";
 import type { ExportRecord, Project } from "../server/projects/service";
 import type { Revision } from "./foundation-api";
 
@@ -29,6 +33,22 @@ export async function commitQuery<T>(
 ) {
   await client.cancelQueries({ queryKey: key, exact: true });
   client.setQueryData<T>(key, update);
+}
+
+// Use the database's project-local insertion order, not HTTP arrival or clocks.
+export async function commitConversation(
+  client: QueryClient,
+  reply: Conversation,
+) {
+  await commitQuery<Conversation[]>(
+    client,
+    ["conversations", reply.projectId],
+    (messages) =>
+      [
+        ...(messages ?? []).filter((message) => message.id !== reply.id),
+        reply,
+      ].sort((a, b) => a.sequence - b.sequence),
+  );
 }
 
 export async function commitProfile(client: QueryClient, reply: TasteRevision) {

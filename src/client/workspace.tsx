@@ -63,7 +63,8 @@ function Pill({ children }: { children: ReactNode }) {
 
 import { Link, useScope, draftKey, jsonRequest } from "./scope";
 import { ExportHistory } from "./projects";
-import { commitProjectRevision, commitQuery } from "./query-cache";
+import { commitProjectRevision, commitConversation } from "./query-cache";
+import type { Conversation } from "../domain/projects";
 export function Workspace({
   initial,
   projectName,
@@ -256,8 +257,7 @@ export function Workspace({
   }, [promptDraft, promptKey]);
   const conversation = useQuery({
     queryKey: ["conversations", scope.id],
-    queryFn: () =>
-      jsonRequest<{ id: string; text: string }[]>(`${scope.api}/conversations`),
+    queryFn: () => jsonRequest<Conversation[]>(`${scope.api}/conversations`),
   });
   const [notice, setNotice] = useState("");
   const [component, setComponent] = useState("Button");
@@ -278,21 +278,14 @@ export function Workspace({
         JSON.stringify(saved.design) !== JSON.stringify(state.design)
       )
         throw new Error("先に設計の変更を保存してください。");
-      const message = await jsonRequest<{ id: string; text: string }>(
+      const message = await jsonRequest<Conversation>(
         `${scope.api}/conversations`,
         {
           baseRevision: saved.revision,
           text,
         },
       );
-      await commitQuery<{ id: string; text: string }[]>(
-        queryClient,
-        ["conversations", scope.id],
-        (messages) => [
-          ...(messages ?? []).filter((m) => m.id !== message.id),
-          message,
-        ],
-      );
+      await commitConversation(queryClient, message);
       await conversation.refetch();
       const data = await foundationRequest<{ candidates: Candidate[] }>(
         "/proposals",
