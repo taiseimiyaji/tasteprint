@@ -226,6 +226,7 @@ export function ReviewPanel({
                     <input
                       aria-label={`見送り理由 ${f.id}`}
                       placeholder="見送り理由（任意）"
+                      disabled={busy}
                       value={reasons[f.id] || ""}
                       onChange={(e) =>
                         setReasons({ ...reasons, [f.id]: e.target.value })
