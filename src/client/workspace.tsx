@@ -973,6 +973,27 @@ export function Workspace({
                     </button>
                   </div>
                 )}
+                {(conversation.error || conversation.isFetching) && (
+                  <div>
+                    {conversation.error ? (
+                      <p role="alert" className="error-text">
+                        対話履歴を取得できませんでした。表示中の履歴と入力は保持しています。
+                        {conversation.error.message}
+                      </p>
+                    ) : (
+                      <p role="status">対話履歴を取得中…</p>
+                    )}
+                    <button
+                      className="button"
+                      disabled={
+                        busy || proposal.isPending || conversation.isFetching
+                      }
+                      onClick={() => void conversation.refetch()}
+                    >
+                      対話履歴を再取得
+                    </button>
+                  </div>
+                )}
                 {conversation.data?.map((m) => (
                   <p key={m.id}>{m.text}</p>
                 ))}

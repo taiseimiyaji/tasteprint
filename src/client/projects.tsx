@@ -1276,8 +1276,25 @@ export function ExportHistory({ revision }: { revision: number }) {
           {label}
         </button>
       ))}
-      {(action.error || query.error) && (
-        <p role="alert">{action.error || query.error?.message}</p>
+      {action.error && <p role="alert">{action.error}</p>}
+      {(query.error || query.isFetching) && (
+        <div>
+          {query.error ? (
+            <p role="alert">
+              Export履歴を取得できませんでした。表示中の履歴は保持しています。
+              {query.error.message}
+            </p>
+          ) : (
+            <p role="status">Export履歴を取得中…</p>
+          )}
+          <button
+            className="button"
+            disabled={action.busy || query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            Export履歴を再取得
+          </button>
+        </div>
       )}
       <h2>Export履歴</h2>
       {query.data?.map((r) => (
