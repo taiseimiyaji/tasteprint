@@ -2,7 +2,7 @@
 
 自分のデザイン感覚を、対話と比較を通じて形式知化するローカルWebアプリ。
 
-React + Vite + TanStack Router / Query + Hono（Node.js）で構成しています。Inspirationは公開URL取得・画像保存・Codex分析に対応しています。その他の画面にはモック機能が含まれます。
+React + Vite + TanStack Router / Query + Hono（Node.js）で構成しています。参考の公開URL取得・画像保存・Codex分析、プロジェクト別の設計編集・実画面レビュー・確定revisionの一括出力に対応しています。Components / Patterns / Previewは同梱部品と画面で設計を確認します。
 
 ## 起動
 
@@ -34,9 +34,9 @@ npm start
 - Foundationの8分類の詳細編集、項目ロック・適用範囲・例外・理由・出典、3画面Preview
 - Codex候補の比較・採用・見送り、Foundationの保存履歴と復元
 - 部品・パターンの操作例、3画面の実画像AIレビュー・アクセシビリティ検査・修正案の仮Previewと明示適用
-- 確定revisionに固定したMarkdown / JSON / CSSと、プロジェクト別のExport履歴
+- 確定revisionに固定したMarkdown / JSON / CSS、DTCG / React / 3画面PNGを含むZIPと、プロジェクト別のExport履歴
 
-共通プロフィールとプロジェクトの確定データはSQLite、未保存の入力はスコープ別のlocalStorageに保存します。初回は起動ターミナルの接続コードを入力します。共通の好みを更新しても既存設計は変わらず、差分の明示採用で新revisionを作ります。旧SQLiteとブラウザ保存はバックアップ後、一度だけ既定プロジェクトへ移行します。[移行・保存・復旧の詳細](./docs/projects.md)を参照してください。Tunnel、DTCG / React / PNG / ZIP一括出力は後続範囲です。
+共通プロフィールとプロジェクトの確定データはSQLite、未保存の入力はスコープ別のlocalStorageに保存します。初回は起動ターミナルの接続コードを入力します。共通の好みを更新しても既存設計は変わらず、差分の明示採用で新revisionを作ります。旧SQLiteとブラウザ保存はバックアップ後、一度だけ既定プロジェクトへ移行します。[移行・保存・復旧の詳細](./docs/projects.md)を参照してください。DTCG / React / PNG / ZIP一括出力は実装済みです（下記参照）。Named Tunnel + Cloudflare Accessの実環境接続は未検証です（Issue #6）。
 
 ## 検証
 
@@ -55,11 +55,11 @@ E2Eの接続状態もモックです。テストサーバーはホスト認証�
 ## ドキュメント
 
 - [Projects / migration](./docs/projects.md) — 共通の好み・プロジェクト分離・移行と復旧
-- [SPEC.md](./SPEC.md) — MVP仕様と現在のモック範囲
+- [SPEC.md](./SPEC.md) — MVP要件と実装時点ごとの記録
 - [Architecture](./docs/architecture.md) — 技術比較と採用理由
 - [AI Review](./docs/review.md) — 実画面の撮影・検査範囲・修正と履歴
 - [Foundation](./docs/foundation.md) — 詳細編集・保存・ロック・候補比較の仕様
-- [Mockup guide](./docs/mockup.md) — 操作ガイド
+- [操作ガイド](./docs/mockup.md) — 操作ガイド
 
 ## 参考URLの取得と分析
 

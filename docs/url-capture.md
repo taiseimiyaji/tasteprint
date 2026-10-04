@@ -1,6 +1,7 @@
 # URL capture / reference analysis
 
-> Issue #9以降、共通の好みとプロジェクトの保存先・ルートを分離しています。現行の操作・API・移行手順は [projects.md](projects.md) を参照してください。以下の旧グローバルAPI・localStorageの記述は移行前の説明です。
+> 本文はこの機能を導入した時点の技術記録です。旧グローバルAPI・localStorage・未実装範囲の記述は、その後のプロジェクト分離や一括出力の実装に先行します。現在の起動・機能範囲は [README](../README.md)、操作は [操作ガイド](mockup.md)、保存先・スコープ別API・移行は [projects.md](projects.md) を参照してください。
+
 Issue #1の実装。既存UIがあった `taiseimiyaji/feature-design-taste-codex` のコミット `16ba4d5` を土台にする。
 
 ## 通信境界

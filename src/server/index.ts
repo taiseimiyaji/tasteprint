@@ -28,7 +28,7 @@ if (built) {
 }
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, () =>
   console.log(
-    `Tasteprint ${built ? "app" : "mock API"}: http://127.0.0.1:${port}`,
+    `Tasteprint ${built ? "app" : "API"}: http://127.0.0.1:${port}`,
   ),
 );
 for (const signal of ["SIGTERM", "SIGINT"])
