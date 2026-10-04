@@ -85,7 +85,7 @@ captureと分析はスコープごとにそれぞれ同時1件です。中断後
 
 ### 同一 revision の一括出力（Issue #5）
 
-プロジェクトの Export で「一括 ZIP を生成・再試行」を選ぶと、保存済み revision を固定して DESIGN.md、design-system.json、DTCG 2025.10 tokens、CSS、React components / patterns、一覧・設定・フォームのコードと PNG、manifest、導入用 README を生成します。出力中の保存・未採用提案は混ざりません。PNG は Preview と同じレンダラーの初期状態（1440 × 1000）です。失敗した出力は保存されず、再試行か明示的な「画像なし ZIP」を選べます。
+プロジェクトの Export で「一括 ZIP を生成・再試行」を選ぶと、保存済み revision を固定して DESIGN.md、design-system.json、DTCG 2025.10 tokens、CSS、React components / patterns、一覧・設定・フォームのコードと PNG、manifest、導入用 README を生成します。出力中の保存・未採用提案は混ざりません。PNG は Preview と同じレンダラーを1440 × 1000の表示領域で初期表示し、全ページを撮影します。PNGの高さは内容によって伸びます。失敗した出力は保存されず、再試行か明示的な「画像なし ZIP」を選べます。
 
 現在のテンプレートは Preview と共有する Button / Input / Select と3画面のパターンです。個別の Components / Patterns 仕様・全状態・実アプリでのレビューは未確認として Draft に記録します。出力時に AI は呼び出しません。ZIP には採用した参考の出典と理由のみを含め、参考画像・会話ログ・URL の認証情報やクエリは含めません。
 

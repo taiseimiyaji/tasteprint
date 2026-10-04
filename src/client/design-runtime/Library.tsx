@@ -45,7 +45,9 @@ export function RuntimeTheme({
     componentNames
       .map((name) => {
         const c = design.components[name],
-          size = design.controlHeight + { sm: -8, md: 0, lg: 8 }[c.size];
+          baseHeight =
+            name === "Table" ? design.rowHeight : design.controlHeight,
+          size = baseHeight + { sm: -8, md: 0, lg: 8 }[c.size];
         const color =
           c.variant === "solid" ? "var(--color-surface)" : "var(--color-ink)";
         const background =
