@@ -55,6 +55,7 @@ function Pill({ children }: { children: ReactNode }) {
 
 import { Link, useScope, draftKey, jsonRequest } from "./scope";
 import { ExportHistory } from "./projects";
+import { commitProjectRevision, commitQuery } from "./query-cache";
 export function Workspace({
   initial,
   projectName,
@@ -167,8 +168,6 @@ export function Workspace({
         ),
       );
       foundationReadVersion.current++;
-      void queryClient.invalidateQueries({ queryKey: ["project", scope.id] });
-      void queryClient.invalidateQueries({ queryKey: ["projects"] });
       setSaved(result);
       setDraftBase(result.revision);
       setState((s) => ({ ...s, design: result.design }));
@@ -181,6 +180,9 @@ export function Workspace({
       proposal.reset();
       setHistory([]);
       setNotice("設計を保存しました");
+      await commitProjectRevision(queryClient, scope.id, result);
+      void queryClient.invalidateQueries({ queryKey: ["project", scope.id] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
       await refreshHistory();
     } catch (e) {
       setFoundationError(e instanceof Error ? e.message : "保存に失敗しました");
@@ -252,10 +254,21 @@ export function Workspace({
         JSON.stringify(saved.design) !== JSON.stringify(state.design)
       )
         throw new Error("先に設計の変更を保存してください。");
-      await jsonRequest(`${scope.api}/conversations`, {
-        baseRevision: saved.revision,
-        text,
-      });
+      const message = await jsonRequest<{ id: string; text: string }>(
+        `${scope.api}/conversations`,
+        {
+          baseRevision: saved.revision,
+          text,
+        },
+      );
+      await commitQuery<{ id: string; text: string }[]>(
+        queryClient,
+        ["conversations", scope.id],
+        (messages) => [
+          ...(messages ?? []).filter((m) => m.id !== message.id),
+          message,
+        ],
+      );
       await conversation.refetch();
       const data = await foundationRequest<{ candidates: Candidate[] }>(
         "/proposals",
@@ -811,18 +824,19 @@ export function Workspace({
                   foundationReadVersion.current++;
                   setReviewApplying(applying);
                 }}
-                applied={(r) => {
+                applied={async (r) => {
                   foundationReadVersion.current++;
                   setSaved(r);
                   setDraftBase(r.revision);
+                  setState((s) => ({ ...s, design: r.design }));
+                  setRevisions((v) => [...v, r]);
+                  await commitProjectRevision(queryClient, scope.id, r);
                   void queryClient.invalidateQueries({
                     queryKey: ["project", scope.id],
                   });
                   void queryClient.invalidateQueries({
                     queryKey: ["projects"],
                   });
-                  setState((s) => ({ ...s, design: r.design }));
-                  setRevisions((v) => [...v, r]);
                 }}
               />
             )}
