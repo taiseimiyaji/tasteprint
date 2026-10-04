@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   aspects,
+  referenceInputSchema,
+  selectionSchema,
   type Job,
   type SavedReference,
   type ReferenceInput,
@@ -47,6 +49,45 @@ const defaults = (name: string, url = ""): ReferenceInput => ({
   likes: "",
   dislikes: "",
 });
+type ReferenceDraft = ReferenceInput & { baseVersion: number | null };
+const referenceInput = (r: ReferenceInput): ReferenceInput => ({
+  name: r.name,
+  url: r.url,
+  selections: r.selections,
+  likes: r.likes,
+  dislikes: r.dislikes,
+});
+const sameInput = (a: ReferenceInput, b: ReferenceInput) =>
+  JSON.stringify(referenceInput(a)) === JSON.stringify(referenceInput(b));
+const savedDraft = (r: SavedReference): ReferenceDraft => ({
+  ...referenceInput(r),
+  baseVersion: r.version,
+});
+// An empty selection is a valid unsaved edit, even though it cannot be saved.
+const draftInputSchema = referenceInputSchema.extend({
+  selections: selectionSchema.array().max(12),
+});
+function readReferenceDraft(key: string, r: SavedReference): ReferenceDraft {
+  try {
+    const stored = JSON.parse(localStorage.getItem(key) || "null");
+    const input = draftInputSchema.safeParse(stored);
+    if (!input.success) return savedDraft(r);
+    const version = Object.hasOwn(stored, "baseVersion")
+      ? stored.baseVersion
+      : stored.version;
+    return {
+      ...input.data,
+      baseVersion:
+        Number.isInteger(version) && version > 0
+          ? version
+          : sameInput(input.data, r)
+            ? r.version
+            : null,
+    };
+  } catch {
+    return savedDraft(r);
+  }
+}
 type SaveJob = (path: string, body?: unknown) => Promise<Job>;
 type SaveReference = (
   path: string,
@@ -245,6 +286,10 @@ export function References({
             jobs={query.data.jobs.filter((j) => j.referenceId === ref.id)}
             run={run}
             busy={busy}
+            clearError={() => {
+              setError("");
+              onBusyChange?.(false);
+            }}
           />
         ))}
       </div>
@@ -263,6 +308,7 @@ function ReferenceCard({
   jobs,
   run,
   busy,
+  clearError,
 }: {
   reference: SavedReference;
   onAdopt?: (principle: Principle) => void;
@@ -272,27 +318,32 @@ function ReferenceCard({
   jobs: Job[];
   run: (action: () => Promise<unknown>) => Promise<void>;
   busy: boolean;
+  clearError: () => void;
 }) {
   const scope = useScope(),
     base = `${scope.api}/references`;
   const request = <T,>(path = "", method = "GET", body?: unknown) =>
     referenceRequest<T>(base, path, method, body);
   const key = `tasteprint.${scope.id}.reference.${r.id}`;
-  const [draft, setDraft] = useState<ReferenceInput>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(key) || "null") ?? r;
-    } catch {
-      return r;
-    }
-  });
+  const [draft, setDraft] = useState<ReferenceDraft>(() =>
+    readReferenceDraft(key, r),
+  );
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(draft));
     } catch {}
   }, [draft]);
   const [consent, setConsent] = useState(false);
+  const previousSaved = useRef(r);
   useEffect(() => {
-    setDraft((d) => (JSON.stringify(d) === JSON.stringify(r) ? r : d));
+    const previous = previousSaved.current;
+    setDraft((d) =>
+      sameInput(d, r) ||
+      (d.baseVersion === previous.version && sameInput(d, previous))
+        ? savedDraft(r)
+        : d,
+    );
+    previousSaved.current = r;
     setConsent(false);
   }, [r.version]);
   const job =
@@ -301,21 +352,8 @@ function ReferenceCard({
   const active = jobs.some(
     (j) => j.state === "running" || j.state === "queued",
   );
-  const dirty =
-    JSON.stringify({
-      name: draft.name,
-      url: draft.url,
-      selections: draft.selections,
-      likes: draft.likes,
-      dislikes: draft.dislikes,
-    }) !==
-    JSON.stringify({
-      name: r.name,
-      url: r.url,
-      selections: r.selections,
-      likes: r.likes,
-      dislikes: r.dislikes,
-    });
+  const dirty = !sameInput(draft, r);
+  const stale = draft.baseVersion !== r.version;
   const start = (type: Job["type"]) =>
     run(() =>
       saveJob(`/${r.id}/jobs`, {
@@ -378,6 +416,27 @@ function ReferenceCard({
             )}
           </div>
         )}
+        {stale && (
+          <div role="alert" className="error-text">
+            <p>
+              {draft.baseVersion === null
+                ? "下書きの基準版を確認できません。"
+                : "参考が別の操作で更新されています。"}
+              入力は保持しています。最新の保存内容を読み込み、必要なメモを再入力してから保存してください。
+            </p>
+            <button
+              className="button"
+              disabled={busy || active}
+              onClick={() => {
+                setDraft(savedDraft(r));
+                setConsent(false);
+                clearError();
+              }}
+            >
+              最新の保存内容を読み込む
+            </button>
+          </div>
+        )}
         <fieldset disabled={busy || active}>
           <legend>参考にする観点</legend>
           {aspects.map((aspect) => (
@@ -435,12 +494,12 @@ function ReferenceCard({
           </label>
           <button
             className="button"
-            disabled={!dirty || !draft.selections.length}
+            disabled={stale || !dirty || !draft.selections.length}
             onClick={() =>
               void run(() =>
                 saveReference(`/${r.id}`, "PATCH", {
-                  ...draft,
-                  version: r.version,
+                  ...referenceInput(draft),
+                  version: draft.baseVersion,
                 }),
               )
             }
@@ -452,7 +511,7 @@ function ReferenceCard({
           {r.url && (
             <button
               className="button"
-              disabled={busy || active || dirty}
+              disabled={busy || active || dirty || stale}
               onClick={() => void start("capture")}
             >
               {job ? "URLを再取得" : "URLを取得"}
@@ -464,7 +523,7 @@ function ReferenceCard({
               aria-label={`${r.name}の画像をアップロード`}
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              disabled={busy || active || dirty}
+              disabled={busy || active || dirty || stale}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = "";
@@ -500,14 +559,14 @@ function ReferenceCard({
               <input
                 type="checkbox"
                 checked={consent}
-                disabled={active || dirty}
+                disabled={active || dirty || stale}
                 onChange={(e) => setConsent(e.target.checked)}
               />
               送信対象を確認しました
             </label>
             <button
               className="button primary"
-              disabled={busy || active || dirty || !consent}
+              disabled={busy || active || dirty || stale || !consent}
               onClick={() => void start("analyze")}
             >
               Codexで分析する
@@ -534,7 +593,9 @@ function ReferenceCard({
             </dl>
             <button
               className="button"
-              disabled={busy || active || dirty || r.accepted.includes(i)}
+              disabled={
+                busy || active || dirty || stale || r.accepted.includes(i)
+              }
               onClick={() =>
                 void run(() =>
                   saveReference(`/${r.id}/accept`, "POST", {
