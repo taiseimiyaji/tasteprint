@@ -59,7 +59,9 @@ export function reviewCapture(
           image,
           findings: [],
           verifiedRules: [],
-          scope: [`${screen}: 1440×1000、初期表示`],
+          scope: [
+            `${screen}: viewport ${width}×1000、初期表示、全ページPNG（高さは内容によって伸びます）`,
+          ],
         };
       await page.addScriptTag({ content: axe.source });
       const audit = await page.evaluate(async () =>
@@ -240,7 +242,7 @@ export function reviewCapture(
           "states",
         ],
         scope: [
-          `${screen}: ${width}×1000、初期表示、入力とボタンのfocus状態`,
+          `${screen}: viewport ${width}×1000、初期表示、全ページPNG（高さは内容によって伸びます）、入力とボタンのfocus状態`,
           ...audit.incomplete.map((r) => `${screen}: ${r.id} は手動確認が必要`),
         ],
       };

@@ -12,7 +12,7 @@ import {
 } from "../../domain/projects";
 import { z } from "zod";
 
-export const templateVersion = "preview-4";
+export const templateVersion = "preview-5";
 export const openQuestions = [
   "Components / Patterns の個別仕様・全状態は未確認（Preview テンプレートの動作例）",
   "実アプリでの設計・アクセシビリティレビューが必要",
@@ -268,7 +268,7 @@ export function finishBundle(
     ),
   });
   files["README.md"] =
-    `# Tasteprint r${metadata.revision} — Draft\n\nこの ZIP は保存済みの同一 revision から生成しました。\n\n## 導入\n\nNode.js 22.13 以上で npm install、npm run typecheck を実行してください。React アプリへ ui と examples をコピーし、examples/ListPage（SettingsPage / FormPage）を表示します。CSS import に対応した Vite 等の bundler が必要です。テンプレート CSS は workspace のスタイルも含むため、専用 iframe または独立ページで利用してください。\n\nPNG: ${Object.keys(images).length ? "Preview と同じレンダラー、1440 × 1000、初期状態" : "ユーザーが画像なし出力を明示的に選択"}。\n\n## 未確認事項\n\n${openQuestions.map((q) => `- ${q}`).join("\n")}\n\n依存バージョンは package.json、出力内容の SHA-256 は manifest.json を参照してください。確認環境: Node.js 22 以上、TypeScript、React、Chromium（リポジトリの自動検証）。\n`;
+    `# Tasteprint r${metadata.revision} — Draft\n\nこの ZIP は保存済みの同一 revision から生成しました。\n\n## 導入\n\nNode.js 22.13 以上で npm install、npm run typecheck を実行してください。React アプリへ ui と examples をコピーし、examples/ListPage（SettingsPage / FormPage）を表示します。CSS import に対応した Vite 等の bundler が必要です。テンプレート CSS は workspace のスタイルも含むため、専用 iframe または独立ページで利用してください。\n\nPNG: ${Object.keys(images).length ? "Preview と同じレンダラー、1440 × 1000の表示領域、初期状態の全ページPNG（高さは内容によって伸びます）" : "ユーザーが画像なし出力を明示的に選択"}。\n\n## 未確認事項\n\n${openQuestions.map((q) => `- ${q}`).join("\n")}\n\n依存バージョンは package.json、出力内容の SHA-256 は manifest.json を参照してください。確認環境: Node.js 22 以上、TypeScript、React、Chromium（リポジトリの自動検証）。\n`;
   const bytes = Object.fromEntries([
     ...Object.entries(files).map(([n, v]) => [n, Buffer.from(v)] as const),
     ...Object.entries(images),
