@@ -118,6 +118,20 @@ export function Workspace({
   const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
   useEffect(() => {
+    // Let a pending local update finish before accepting a newer external read.
+    // Keep its draft and base so the existing stale guard protects the input.
+    if (saving || reviewApplying || initial.revision <= (saved?.revision ?? 0))
+      return;
+    const current = parseRevision(initial);
+    foundationReadVersion.current++;
+    setSaved(current);
+    setRevisions((history) =>
+      history.some((r) => r.revision === current.revision)
+        ? history
+        : [...history, current].sort((a, b) => a.revision - b.revision),
+    );
+  }, [initial, saved?.revision, saving, reviewApplying]);
+  useEffect(() => {
     let active = true;
     const readVersion = foundationReadVersion.current;
     foundationRequest<{ current: Revision | null; history: Revision[] }>("/")

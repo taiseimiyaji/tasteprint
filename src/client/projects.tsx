@@ -178,6 +178,21 @@ export function ProjectsApp() {
   return (
     <ScopeContext.Provider value={scope}>
       <AppShell path={path} projects={projects.data}>
+        {taste.error && (
+          <div className="project-summary">
+            <p role="alert">
+              共通の好みを取得できませんでした。表示中の確定版と入力は保持しています。
+              {taste.error.message}
+            </p>
+            <button
+              className="button"
+              disabled={taste.isFetching}
+              onClick={() => void taste.refetch()}
+            >
+              共通の好みを再取得
+            </button>
+          </div>
+        )}
         {id ? (
           <ProjectArea
             key={id}
@@ -892,6 +907,21 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
   const data = q.data;
   return (
     <>
+      {q.error && (
+        <div className="project-summary">
+          <p role="alert">
+            プロジェクトを取得できませんでした。表示中の確定版と入力は保持しています。
+            {q.error.message}
+          </p>
+          <button
+            className="button"
+            disabled={q.isFetching}
+            onClick={() => void q.refetch()}
+          >
+            プロジェクトを再取得
+          </button>
+        </div>
+      )}
       {(data.project.archivedAt ||
         taste.revision !==
           data.current.snapshot.sourceTasteProfileRevision) && (
