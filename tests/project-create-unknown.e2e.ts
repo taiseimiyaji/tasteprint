@@ -362,12 +362,17 @@ for (const [status, width] of [
       const saved = await page.request.post("/api/profile", {
         data: {
           baseProfileRevision: current.revision,
-          answers: {},
-          reasons: {},
-          principles: [],
+          answers: current.snapshot.answers,
+          reasons: current.snapshot.reasons,
+          principles: current.snapshot.principles,
         },
       });
       expect(saved.ok()).toBe(true);
+      expect((await saved.json()).snapshot).toMatchObject({
+        answers: current.snapshot.answers,
+        reasons: current.snapshot.reasons,
+        principles: current.snapshot.principles,
+      });
     }
     await f.submit.click();
     await expect(f.dialog.getByRole("alert")).toBeVisible();
