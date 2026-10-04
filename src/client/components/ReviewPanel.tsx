@@ -344,6 +344,7 @@ export function ReviewPanel({
             <button
               className="button"
               key={r.id}
+              disabled={busy}
               onClick={() => {
                 setReviews([r, ...reviews.filter((v) => v.id !== r.id)]);
                 setCandidates([]);
