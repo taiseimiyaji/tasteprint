@@ -1234,3 +1234,100 @@ for (const mode of ["manual save", "AI adoption"]) {
     await expect(actions).toContainText("保存済み · 設計 r2");
   });
 }
+
+test("older project drafts gain library defaults without losing edits or base revision", async ({
+  page,
+}) => {
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "旧下書き互換" }, useTaste: false },
+    })
+  ).json();
+  await page.addInitScript(
+    ({ state, id }) => {
+      const key = `tasteprint.scope.${id}.draft.v1`;
+      if (localStorage.getItem(key)) return;
+      const design = {
+        ...state.design,
+        accent: "#224466",
+        radius: 9,
+        constraints: {
+          radius: {
+            locked: true,
+            scope: "全画面",
+            exceptions: "",
+            rationale: "旧下書きの決定理由",
+            source: "ユーザー指定",
+            author: "user",
+          },
+        },
+      };
+      delete (design as Partial<typeof design>).components;
+      delete (design as Partial<typeof design>).patterns;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          ...state,
+          design,
+          answers: { "density-0": "a" },
+          baseRevision: 1,
+        }),
+      );
+    },
+    { state: initialState, id: project.id },
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(`/projects/${project.id}/components`);
+  await expect(
+    page.getByRole("heading", { name: "Components.", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("利用ルール", { exact: true })).toBeVisible();
+  await expect(page.locator(".editor-actions")).toContainText("下書き・未保存");
+  await page.goto(`/projects/${project.id}/patterns`);
+  await expect(
+    page.getByRole("heading", { name: "Patterns.", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("余白 (px)", { exact: true })).toBeVisible();
+  await page.goto(`/projects/${project.id}/preview`);
+  await expect(
+    page.getByRole("slider", { name: "角丸", exact: true }),
+  ).toHaveValue("9");
+  await page.reload();
+  await expect(
+    page.getByRole("slider", { name: "角丸", exact: true }),
+  ).toHaveValue("9");
+  const draft = await page.evaluate(
+    (id) =>
+      JSON.parse(localStorage.getItem(`tasteprint.scope.${id}.draft.v1`)!),
+    project.id,
+  );
+  expect(draft.baseRevision).toBe(1);
+  expect(draft.design.accent).toBe("#224466");
+  expect(draft.design.constraints.radius.locked).toBe(true);
+  expect(draft.design.constraints.radius.rationale).toBe("旧下書きの決定理由");
+  expect(draft.answers).toEqual({ "density-0": "a" });
+  expect(draft.references).toEqual(initialState.references);
+  expect(draft.design.components.Button).toBeDefined();
+  expect(draft.design.patterns.ListPage).toBeDefined();
+  const original = (
+    await (
+      await page.request.get(`/api/projects/${project.id}/foundation`)
+    ).json()
+  ).current;
+  expect(original.revision).toBe(1);
+  expect(original.design.radius).toBe(6);
+  await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(page.locator(".editor-actions")).toContainText(
+    "保存済み · 設計 r2",
+  );
+  const saved = (
+    await (
+      await page.request.get(`/api/projects/${project.id}/foundation`)
+    ).json()
+  ).current;
+  expect(saved.design.radius).toBe(9);
+  expect(saved.design.accent).toBe("#224466");
+  expect(saved.design.constraints.radius.locked).toBe(true);
+  expect(errors).toEqual([]);
+});
