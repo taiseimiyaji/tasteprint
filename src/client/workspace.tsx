@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -38,6 +44,7 @@ import { initialState, stateSchema, type WorkspaceState } from "./state";
 import { profile, type Design } from "../domain/design";
 
 import { steps } from "./navigation";
+import { useStoredDraft, DraftReadRecovery } from "./draft-storage";
 const tabs = [
   "Colors",
   "Typography",
@@ -67,32 +74,38 @@ export function Workspace({
   const queryClient = useQueryClient();
   const foundationRequest = <T,>(path: string, body?: unknown) =>
     requestFoundation<T>(path, body, `${scope.api}/foundation`);
-  const loadProject = (): WorkspaceState => {
-    try {
-      const draft = localStorage.getItem(draftKey(scope.id));
-      if (draft) return stateSchema.parse(JSON.parse(draft));
-    } catch {}
-    return {
-      ...initialState,
-      references: [],
-      design: initial.design,
-      answers: initial.snapshot?.taste.answers ?? {},
-    };
-  };
   const path = useRouterState({ select: (s) => s.location.pathname });
   const current =
     steps.find((s) => s.id === path.split("/").at(-1)) || steps[2];
-  const [state, setState] = useState<WorkspaceState>(loadProject);
-  const [draftBase, setDraftBase] = useState<number>(() => {
-    try {
-      return (
-        JSON.parse(localStorage.getItem(draftKey(scope.id)) || "null")
-          ?.baseRevision ?? initial.revision
-      );
-    } catch {
-      return initial.revision;
-    }
-  });
+  const [workspaceDraft, setWorkspaceDraft, draftError, draftRecovery] =
+    useStoredDraft(
+      draftKey(scope.id),
+      {
+        state: {
+          ...initialState,
+          references: [],
+          design: initial.design,
+          answers: initial.snapshot?.taste.answers ?? {},
+        },
+        baseRevision: initial.revision,
+      },
+      (stored) => ({
+        state: stateSchema.parse(stored),
+        baseRevision:
+          (stored as { baseRevision?: number }).baseRevision ??
+          initial.revision,
+      }),
+      (draft) => ({ ...draft.state, baseRevision: draft.baseRevision }),
+    );
+  const state = workspaceDraft.state,
+    draftBase = workspaceDraft.baseRevision;
+  const setState = (update: SetStateAction<WorkspaceState>) =>
+    setWorkspaceDraft((d) => ({
+      ...d,
+      state: typeof update === "function" ? update(d.state) : update,
+    }));
+  const setDraftBase = (baseRevision: number) =>
+    setWorkspaceDraft((d) => ({ ...d, baseRevision }));
   const [history, setHistory] = useState<Design[]>([]);
   const [saved, setSaved] = useState<Revision | null>(initial);
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -102,7 +115,8 @@ export function Workspace({
   const [saving, setBusy] = useState(false);
   const [reviewApplying, setReviewApplying] = useState(false);
   const foundationReadVersion = useRef(0);
-  const busy = saving || historyLoading || reviewApplying;
+  const busy =
+    saving || historyLoading || reviewApplying || draftRecovery.blocked;
   const [validInput, setValidInput] = useState(true);
   const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -250,7 +264,6 @@ export function Workspace({
       jsonRequest<{ id: string; text: string }[]>(`${scope.api}/conversations`),
   });
   const [notice, setNotice] = useState("");
-  const [saveError, setSaveError] = useState(false);
   const [component, setComponent] = useState("Button");
   const [pattern, setPattern] = useState("ListPage");
   const connection = useQuery({
@@ -297,17 +310,6 @@ export function Workspace({
       };
     },
   });
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        draftKey(scope.id),
-        JSON.stringify({ ...state, baseRevision: draftBase }),
-      );
-      setSaveError(false);
-    } catch {
-      setSaveError(true);
-    }
-  }, [state, draftBase]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 3500);
@@ -412,6 +414,18 @@ export function Workspace({
                 <span className="local-dot" /> プロジェクトの設計
               </Pill>
             </div>
+            <DraftReadRecovery
+              label="設計"
+              recovery={{
+                ...draftRecovery,
+                replace: () =>
+                  draftRecovery.replace({
+                    state: { ...state, design: saved!.design },
+                    baseRevision: saved!.revision,
+                  }),
+              }}
+              disabled={saving || historyLoading || reviewApplying || !saved}
+            />
             {editable && (
               <EditorActions
                 scope={projectName}
@@ -421,12 +435,7 @@ export function Workspace({
                 busy={saving || reviewApplying}
                 stale={stale}
                 invalid={!validInput}
-                error={
-                  foundationError ||
-                  (saveError
-                    ? "下書きを保存できません。ブラウザーの空き容量を確認してください。"
-                    : "")
-                }
+                error={foundationError || draftError}
                 preview={dirty || staged}
                 disabledReason={saveDisabledReason}
               >
@@ -835,7 +844,7 @@ export function Workspace({
             {current.id === "review" && (
               <ReviewPanel
                 saved={saved}
-                hasUnsavedDesign={dirty}
+                hasUnsavedDesign={dirty || draftRecovery.blocked}
                 onApplyingChange={(applying) => {
                   foundationReadVersion.current++;
                   setReviewApplying(applying);

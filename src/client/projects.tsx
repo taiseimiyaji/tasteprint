@@ -29,6 +29,7 @@ import {
   commitProjectRevision,
   type ProjectData,
 } from "./query-cache";
+import { useStoredDraft as useDraft, DraftReadRecovery } from "./draft-storage";
 const req = jsonRequest;
 function useAction() {
   const [error, setError] = useState(""),
@@ -49,25 +50,6 @@ function useAction() {
       }
     },
   };
-}
-function useDraft<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(key) || "null") ?? initial;
-    } catch {
-      return initial;
-    }
-  });
-  const [error, setError] = useState("");
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      setError("");
-    } catch {
-      setError("下書きを保存できません。空き容量を確認してください。");
-    }
-  }, [key, value]);
-  return [value, setValue, error] as const;
 }
 export function ProjectsApp() {
   const path = useRouterState({ select: (s) => s.location.pathname }),
@@ -253,11 +235,11 @@ function ProjectList({
   loading: boolean;
   onRetry: () => void;
 }) {
-  const [brief, setBrief, draftError] = useDraft<Brief>(
+  const [brief, setBrief, draftError, briefRecovery] = useDraft<Brief>(
     "tasteprint.new-project",
     { name: "", purpose: "", audience: "", desired: "", avoid: "" },
   );
-  const [useTaste, setUseTaste] = useDraft(
+  const [useTaste, setUseTaste, tasteDraftError, tasteRecovery] = useDraft(
     "tasteprint.new-project.use-taste",
     true,
   );
@@ -470,7 +452,21 @@ function ProjectList({
         >
           <h2 id="create-project-title">新規プロジェクト</h2>
           <p>名前だけで作成できます。閉じても入力は下書きとして残ります。</p>
-          <fieldset disabled={action.busy}>
+          <DraftReadRecovery
+            label="新規プロジェクト"
+            recovery={briefRecovery}
+            disabled={action.busy}
+          />
+          <DraftReadRecovery
+            label="共通の好みの使用"
+            recovery={tasteRecovery}
+            disabled={action.busy}
+          />
+          <fieldset
+            disabled={
+              action.busy || briefRecovery.blocked || tasteRecovery.blocked
+            }
+          >
             <label>
               プロジェクト名
               <input
@@ -520,11 +516,13 @@ function ProjectList({
                 : "未確認（あとから入力できます）"}
             </p>
           </fieldset>
-          {[action.error, draftError].filter(Boolean).map((e) => (
-            <p role="alert" key={e}>
-              {e}。入力は保持しています。
-            </p>
-          ))}
+          {[action.error, draftError, tasteDraftError]
+            .filter(Boolean)
+            .map((e) => (
+              <p role="alert" key={e}>
+                {e}。入力は保持しています。
+              </p>
+            ))}
           <div className="project-create-actions">
             <button
               type="button"
@@ -536,7 +534,12 @@ function ProjectList({
             </button>
             <button
               className="button primary"
-              disabled={action.busy || !brief.name.trim()}
+              disabled={
+                action.busy ||
+                briefRecovery.blocked ||
+                tasteRecovery.blocked ||
+                !brief.name.trim()
+              }
             >
               {action.busy ? "作成中…" : "プロジェクトを作成"}
             </button>
@@ -645,11 +648,17 @@ function Principles({
   );
 }
 function ProfileEditor({ current }: { current: TasteRevision }) {
-  const [draft, setDraft, draftError] = useDraft("tasteprint.profile.draft", {
-    baseProfileRevision: current.revision,
-    ...current.snapshot,
-  });
-  const [position, setPosition] = useDraft("tasteprint.profile.position", 0);
+  const [draft, setDraft, draftError, draftRecovery] = useDraft(
+    "tasteprint.profile.draft",
+    {
+      baseProfileRevision: current.revision,
+      ...current.snapshot,
+    },
+  );
+  const [position, setPosition, positionError, positionRecovery] = useDraft(
+    "tasteprint.profile.position",
+    0,
+  );
   const [section, setSection] = useState("taste");
   const [referencesBusy, setReferencesBusy] = useState(false);
   const [referenceError, setReferenceError] = useState("");
@@ -681,7 +690,9 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   const [notice, setNotice] = useState("");
   const [navigationNotice, setNavigationNotice] = useState("");
   const pending = action.busy || referencesBusy;
-  const updateError = action.error || referenceError || draftError;
+  const unread = draftRecovery.blocked || positionRecovery.blocked;
+  const updateError =
+    action.error || referenceError || draftError || positionError;
   const shouldWaitForUpdate = useCallback(() => pending, [pending]);
   const navigation = useBlocker({
     shouldBlockFn: shouldWaitForUpdate,
@@ -719,13 +730,13 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
         dirty={dirty}
         stale={stale}
         busy={action.busy}
-        error={action.error || draftError}
+        error={action.error || draftError || positionError}
         notice={notice}
       >
         <button
           className="button"
           type="button"
-          disabled={action.busy || (!dirty && !stale)}
+          disabled={action.busy || unread || (!dirty && !stale)}
           onClick={reset}
         >
           {stale ? "最新の確定版を読み込む" : "未保存の変更を取り消す"}
@@ -733,7 +744,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
         <button
           className="button primary"
           form="profile-form"
-          disabled={action.busy || referencesBusy || stale}
+          disabled={action.busy || referencesBusy || unread || stale}
         >
           共通の好みを保存
         </button>
@@ -753,6 +764,16 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
           共通の好みが更新されています。下書きは保持しています。最新の確定版を読み込むと、この下書きを置き換えます。
         </p>
       )}
+      <DraftReadRecovery
+        label="共通の好み"
+        recovery={draftRecovery}
+        disabled={pending}
+      />
+      <DraftReadRecovery
+        label="比較位置"
+        recovery={positionRecovery}
+        disabled={pending}
+      />
       <nav className="section-navigation" aria-label="好みの編集項目">
         {[
           ["taste", "見比べる"],
@@ -790,7 +811,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
           });
         }}
       >
-        <fieldset className="editor-fieldset" disabled={action.busy}>
+        <fieldset className="editor-fieldset" disabled={action.busy || unread}>
           <div hidden={section !== "taste"}>
             <TasteComparison
               value={draft}
@@ -815,7 +836,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
           保存先:
           自分の好み。分析は明示的に採用した項目だけが原則候補になります。登録・削除後に「共通の好みを保存」で参考の版を確定してください。
         </p>
-        <fieldset className="editor-fieldset" disabled={action.busy}>
+        <fieldset className="editor-fieldset" disabled={action.busy || unread}>
           <References
             onChange={setReferences}
             onBusyChange={(busy, error) => {
@@ -901,11 +922,14 @@ function Overview({
   const scope = useScope(),
     client = useQueryClient(),
     action = useAction();
-  const [draft, setDraft, error] = useDraft(`tasteprint.${scope.id}.overview`, {
-    baseRevision: current.revision,
-    brief: current.snapshot.brief,
-    policies: current.snapshot.policies,
-  });
+  const [draft, setDraft, error, draftRecovery] = useDraft(
+    `tasteprint.${scope.id}.overview`,
+    {
+      baseRevision: current.revision,
+      brief: current.snapshot.brief,
+      policies: current.snapshot.policies,
+    },
+  );
   const [diff, setDiff] = useState<{
       baseRevision: number;
       baseProfileRevision: number;
@@ -958,7 +982,7 @@ function Overview({
       >
         <button
           className="button"
-          disabled={action.busy || (!dirty && !stale)}
+          disabled={action.busy || draftRecovery.blocked || (!dirty && !stale)}
           onClick={() => {
             action.clear();
             setDraft({
@@ -973,11 +997,22 @@ function Overview({
         <button
           form="overview-form"
           className="button primary"
-          disabled={action.busy || stale || !dirty || !draft.brief.name.trim()}
+          disabled={
+            action.busy ||
+            draftRecovery.blocked ||
+            stale ||
+            !dirty ||
+            !draft.brief.name.trim()
+          }
         >
           概要・方針を保存
         </button>
       </EditorActions>
+      <DraftReadRecovery
+        label="概要・方針"
+        recovery={draftRecovery}
+        disabled={action.busy}
+      />
       <form
         id="overview-form"
         onSubmit={(e) => {
@@ -997,7 +1032,10 @@ function Overview({
           });
         }}
       >
-        <fieldset disabled={action.busy} className="overview-fields">
+        <fieldset
+          disabled={action.busy || draftRecovery.blocked}
+          className="overview-fields"
+        >
           <BriefFields
             value={draft.brief}
             onChange={(brief) => setDraft({ ...draft, brief })}
