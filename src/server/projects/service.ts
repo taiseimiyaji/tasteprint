@@ -18,6 +18,7 @@ import { projectMarkdown } from "../../domain/project-export";
 import { designCss } from "../../domain/tokens";
 import {
   briefSchema,
+  principlesSchema,
   emptyTaste,
   tasteSchema,
   tasteDiff,
@@ -421,6 +422,7 @@ export class ProjectService {
     }
   }
   saveProject(id: string, base: number, brief: Brief, policies: Principle[]) {
+    policies = principlesSchema.parse(policies);
     const r = this.base(id, base);
     const duplicate = policies.find((p, i) =>
       policies.some(

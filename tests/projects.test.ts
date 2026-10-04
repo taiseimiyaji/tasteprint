@@ -45,6 +45,121 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 describe("project scope and immutable snapshots", () => {
+  it("rejects duplicate new policy IDs in the service and HTTP route without changing revision rows", async () => {
+    const s = setup(),
+      p = create(s),
+      db = s.scope(p.id).references.db;
+    const before = db
+      .prepare(
+        "SELECT revision,data FROM foundation_revisions ORDER BY revision",
+      )
+      .all();
+    const policies = [
+      principle(),
+      { ...principle("フォームの原則"), target: "form" },
+    ];
+    expect(() => s.saveProject(p.id, 1, p.brief, policies)).toThrow(
+      "原則IDが重複しています",
+    );
+    const app = new Hono().route("/api", projectRoutes(s, "pair", [3000]));
+    const origin = "http://localhost:3000";
+    const paired = await app.request(`${origin}/api/pair`, {
+      method: "POST",
+      headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "pair" }),
+    });
+    const cookie = paired.headers.get("set-cookie")!.split(";")[0];
+    const response = await app.request(`${origin}/api/projects/${p.id}`, {
+      method: "POST",
+      headers: {
+        Origin: origin,
+        Cookie: cookie,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ baseRevision: 1, brief: p.brief, policies }),
+    });
+    expect(response.status).toBe(400);
+    expect((await response.json()).details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ["policies"],
+          message: "原則IDが重複しています",
+        }),
+      ]),
+    );
+    expect(
+      db
+        .prepare(
+          "SELECT revision,data FROM foundation_revisions ORDER BY revision",
+        )
+        .all(),
+    ).toEqual(before);
+    expect(s.revision(p.id).revision).toBe(1);
+    expect(s.taste().revision).toBe(1);
+  });
+  it("keeps unique IDs, empty policies, the 100-item limit and the existing target conflict rule", () => {
+    const s = setup(),
+      p = create(s);
+    const a = principle(),
+      b = { ...a, id: "another-id" };
+    const saved = s.saveProject(p.id, 1, p.brief, [a, b]);
+    expect(saved.snapshot!.policies).toEqual([a, b]);
+    expect(() =>
+      s.saveProject(p.id, 2, p.brief, [a, { ...b, text: "別の競合原則" }]),
+    ).toThrow("明示指定が矛盾");
+    expect(s.revision(p.id).revision).toBe(2);
+    expect(s.saveProject(p.id, 2, p.brief, []).snapshot!.policies).toEqual([]);
+    const hundred = Array.from({ length: 100 }, (_, i) => ({
+      ...a,
+      id: `limit-${i}`,
+    }));
+    expect(
+      s.saveProject(p.id, 3, p.brief, hundred).snapshot!.policies,
+    ).toHaveLength(100);
+    const before = JSON.stringify(s.revision(p.id));
+    expect(() =>
+      s.saveProject(p.id, 4, p.brief, [...hundred, { ...a, id: "over-limit" }]),
+    ).toThrow();
+    expect(JSON.stringify(s.revision(p.id))).toBe(before);
+  });
+  it("shares the same principle identity validation with Profile and leaves historical copies unchanged", () => {
+    const s = setup(),
+      p = create(s),
+      db = s.scope(p.id).references.db;
+    const duplicate = [
+      principle(),
+      { ...principle("フォームの原則"), target: "form" },
+    ];
+    expect(() =>
+      s.saveTaste(1, { answers: {}, reasons: {}, principles: duplicate }),
+    ).toThrow("原則IDが重複しています");
+    expect(s.taste().revision).toBe(1);
+    const original = s.revision(p.id),
+      legacy = {
+        ...original,
+        snapshot: { ...original.snapshot, policies: duplicate },
+      };
+    const raw = JSON.stringify(legacy);
+    db.prepare("UPDATE foundation_revisions SET data=? WHERE revision=1").run(
+      raw,
+    );
+    expect(s.revision(p.id).snapshot.policies).toEqual(duplicate);
+    const f = s.scope(p.id).foundation;
+    f.save(
+      1,
+      { ...original.design, radius: 3 },
+      "既存snapshotのコピー",
+      randomUUID(),
+    );
+    expect(s.revision(p.id).snapshot.policies).toEqual(duplicate);
+    f.restore(2, 1, randomUUID());
+    expect(s.revision(p.id).snapshot.policies).toEqual(duplicate);
+    expect(
+      db
+        .prepare("SELECT data FROM foundation_revisions WHERE revision=1")
+        .get()!.data,
+    ).toBe(raw);
+  });
   it("returns the persisted conversation order for old rows and new replies despite equal or reversed clocks", async () => {
     const s = setup(),
       a = create(s),
