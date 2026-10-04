@@ -607,12 +607,14 @@ export class ProjectService {
   ) {
     this.writable(id);
     const snapshot = structuredClone(this.revision(id, base));
-    const existing = this.exports(id).find(
-      (e) =>
-        e.revision === base &&
-        e.templateVersion === templateVersion &&
-        e.imageMode === imageMode,
-    );
+    const savedBundle = () =>
+      this.exports(id).find(
+        (e) =>
+          e.revision === base &&
+          e.templateVersion === templateVersion &&
+          e.imageMode === imageMode,
+      );
+    const existing = savedBundle();
     if (existing) return existing;
     const { files, metadata } = bundleFiles(snapshot);
     const images: Record<string, Buffer> = {};
@@ -646,6 +648,10 @@ export class ProjectService {
         );
       }
     }
+    // Capture awaits permit another request to save this bundle first.
+    // No await separates this check and INSERT in this server process.
+    const concurrent = savedBundle();
+    if (concurrent) return concurrent;
     const root = `tasteprint-${this.row(id).slug}-r${base}`;
     const bundle = finishBundle(
       files,
