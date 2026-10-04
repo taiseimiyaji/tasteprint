@@ -497,12 +497,13 @@ function ReferenceCard({
             className="button"
             disabled={stale || !dirty || !draft.selections.length}
             onClick={() =>
-              void run(() =>
-                saveReference(`/${r.id}`, "PATCH", {
+              void run(async () => {
+                const saved = await saveReference(`/${r.id}`, "PATCH", {
                   ...referenceInput(draft),
                   version: draft.baseVersion,
-                }),
-              )
+                });
+                setDraft(savedDraft(saved));
+              })
             }
           >
             観点・メモを保存
