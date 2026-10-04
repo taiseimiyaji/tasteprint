@@ -1155,3 +1155,100 @@ test("Preview compares, dismisses and explicitly adopts AI candidates", async ({
   await expect(radius).toHaveValue("2");
   expect((await current()).design.radius).toBe(2);
 });
+
+for (const mode of ["manual save", "AI adoption"]) {
+  test(`${mode} stays committed when the following history refresh fails`, async ({
+    page,
+  }) => {
+    const project = await (
+      await page.request.post("/api/projects", {
+        data: { brief: { name: "履歴通信失敗" }, useTaste: false },
+      })
+    ).json();
+    await page.goto(`/projects/${project.id}/preview`);
+    const actions = page.locator(".editor-actions");
+    await expect(actions).toContainText("保存済み · 設計 r1");
+    const radius = page.getByRole("slider", { name: "角丸", exact: true });
+    if (mode === "manual save") {
+      await radius.focus();
+      await radius.press("ArrowRight");
+    } else {
+      await page
+        .getByRole("button", { name: "角丸をもう少し弱くしたい", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "採用する", exact: true }),
+      ).toBeVisible();
+    }
+    const historyEndpoint = `**/api/projects/${project.id}/foundation`;
+    await page.route(historyEndpoint, (route) =>
+      route.fulfill({ status: 500, json: { message: "履歴取得だけ失敗" } }),
+    );
+    await actions
+      .getByRole("button", {
+        name: mode === "manual save" ? "変更を保存" : "採用する",
+        exact: true,
+      })
+      .click();
+    await expect(actions).toContainText("設計 r2");
+    await expect(actions).not.toContainText("保存中");
+    const current = (
+      await (
+        await page.request.get(`/api/projects/${project.id}/foundation`)
+      ).json()
+    ).current;
+    expect(current.revision).toBe(2);
+    expect(current.design.radius).toBe(mode === "manual save" ? 7 : 4);
+    await page.screenshot({
+      path: `test-results/history-refresh-${mode.replaceAll(" ", "-")}.png`,
+      fullPage: true,
+    });
+    await expect(actions.getByRole("alert")).toHaveCount(0);
+    await expect(actions).toContainText("保存済み · 設計 r2");
+    await expect(
+      actions.getByRole("button", { name: "採用する", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "元に戻す", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByText("設計は保存済みですが、履歴を更新できませんでした。", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.unroute(historyEndpoint);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route(historyEndpoint, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await page
+      .getByRole("button", { name: "履歴を再取得", exact: true })
+      .click();
+    try {
+      await expect(radius).toBeDisabled();
+      await expect(actions).toContainText("保存済み · 設計 r2");
+      await expect(
+        page.getByRole("button", { name: "履歴を取得中…", exact: true }),
+      ).toBeDisabled();
+    } finally {
+      release();
+    }
+    await expect(
+      page.getByRole("button", { name: "履歴を再取得", exact: true }),
+    ).toHaveCount(0);
+    await expect(radius).toBeEnabled();
+    await page.unroute(historyEndpoint);
+    expect(
+      (
+        await (
+          await page.request.get(`/api/projects/${project.id}/foundation`)
+        ).json()
+      ).current.revision,
+    ).toBe(2);
+    await page.reload();
+    await expect(radius).toHaveValue(mode === "manual save" ? "7" : "4");
+    await expect(actions).toContainText("保存済み · 設計 r2");
+  });
+}
