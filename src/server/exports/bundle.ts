@@ -138,7 +138,7 @@ export function bundleFiles(input: {
         .parse(raw);
       return {
         name: ref.name,
-        url: cleanUrl(ref.url),
+        url: ref.accepted.length ? cleanUrl(ref.url) : "",
         principles: ref.accepted.map((i) => {
           const finding = ref.analysis?.findings[i];
           if (!finding) throw new Error("採用した参考分析の構造が不正です。");
