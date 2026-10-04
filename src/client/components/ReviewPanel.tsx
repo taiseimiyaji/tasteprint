@@ -28,7 +28,7 @@ export function ReviewPanel({
   onApplyingChange,
 }: {
   saved: Revision | null;
-  applied: (r: Revision) => void;
+  applied: (r: Revision) => void | Promise<void>;
   hasUnsavedDesign: boolean;
   onApplyingChange: (applying: boolean) => void;
 }) {
@@ -321,7 +321,7 @@ export function ReviewPanel({
                         "/apply",
                         { id: candidate.id },
                       );
-                      applied(revision);
+                      await applied(revision);
                       setCandidate(undefined);
                       setCandidates([]);
                       await refresh();

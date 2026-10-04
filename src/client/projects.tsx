@@ -21,10 +21,14 @@ import {
 import { profile, questions, type Choice } from "../domain/design";
 import type { Project, ExportRecord } from "../server/projects/service";
 import type { Revision } from "./foundation-api";
-type ProjectData = {
-  project: Project;
-  current: Revision & { snapshot: ProjectSnapshot };
-};
+import {
+  beginProjectStatusWrite,
+  commitExport,
+  commitProfile,
+  commitProject,
+  commitProjectRevision,
+  type ProjectData,
+} from "./query-cache";
 const req = jsonRequest;
 function useAction() {
   const [error, setError] = useState(""),
@@ -407,9 +411,18 @@ function ProjectList({
                 disabled={action.busy}
                 onClick={() =>
                   void action.run(async () => {
-                    await req(`/api/projects/${p.id}/archive`, {
-                      baseRevision: p.activeRevision,
-                      archived: !p.archivedAt,
+                    const isCurrent = beginProjectStatusWrite(client, p.id);
+                    const saved = await req<Project>(
+                      `/api/projects/${p.id}/archive`,
+                      {
+                        baseRevision: p.activeRevision,
+                        archived: !p.archivedAt,
+                      },
+                    );
+                    await commitProject(client, saved, isCurrent);
+                    await client.invalidateQueries({
+                      queryKey: ["project", p.id],
+                      exact: true,
                     });
                     await client.invalidateQueries({ queryKey: ["projects"] });
                     setNotice(
@@ -763,18 +776,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
               },
             );
             setDraft({ baseProfileRevision: r.revision, ...r.snapshot });
-            client.setQueryData<{
-              current: TasteRevision;
-              history: TasteRevision[];
-            }>(["profile"], (data) => ({
-              current: r,
-              history: [
-                ...(data?.history ?? []).filter(
-                  (item) => item.revision !== r.revision,
-                ),
-                r,
-              ],
-            }));
+            await commitProfile(client, r);
             await client.invalidateQueries({ queryKey: ["profile"] });
             setNotice("共通の好みを保存しました");
           });
@@ -981,22 +983,7 @@ function Overview({
               throw e;
             }
             setDraft({ ...draft, baseRevision: r.revision });
-            const updateProject = (project: Project): Project => ({
-              ...project,
-              brief: r.snapshot.brief,
-              activeRevision: r.revision,
-              updatedAt: r.createdAt,
-            });
-            client.setQueryData<ProjectData>(["project", scope.id], (data) =>
-              data
-                ? { current: r, project: updateProject(data.project) }
-                : data,
-            );
-            client.setQueryData<Project[]>(["projects"], (projects) =>
-              projects?.map((project) =>
-                project.id === scope.id ? updateProject(project) : project,
-              ),
-            );
+            await commitProjectRevision(client, scope.id, r);
             await sync();
             setNotice("概要・方針を保存しました");
           });
@@ -1096,6 +1083,7 @@ function Overview({
                   baseProfileRevision: diff.baseProfileRevision,
                   choices,
                 });
+                await commitProjectRevision(client, scope.id, r);
                 setDiff(undefined);
                 await sync();
               })
@@ -1137,11 +1125,12 @@ function Overview({
         disabled={action.busy || !confirmed || !promote.length}
         onClick={() =>
           void action.run(async () => {
-            await req(`${scope.api}/promote`, {
+            const r = await req<TasteRevision>(`${scope.api}/promote`, {
               baseRevision: current.revision,
               baseProfileRevision: taste.revision,
               ids: promote,
             });
+            await commitProfile(client, r);
             setPromote([]);
             setConfirmed(false);
             await client.invalidateQueries({ queryKey: ["profile"] });
@@ -1155,7 +1144,8 @@ function Overview({
 }
 export function ExportHistory({ revision }: { revision: number }) {
   const scope = useScope(),
-    action = useAction();
+    action = useAction(),
+    client = useQueryClient();
   const query = useQuery({
     queryKey: ["exports", scope.id],
     queryFn: () => req<ExportRecord[]>(`${scope.api}/exports`),
@@ -1190,6 +1180,7 @@ export function ExportHistory({ revision }: { revision: number }) {
                 imageMode,
               });
               download(r, ".zip");
+              await commitExport(client, r);
               await query.refetch();
             })
           }
@@ -1216,6 +1207,7 @@ export function ExportHistory({ revision }: { revision: number }) {
                 baseRevision: revision,
               });
               download(r, ext);
+              await commitExport(client, r);
               await query.refetch();
             })
           }
