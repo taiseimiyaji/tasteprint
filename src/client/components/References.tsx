@@ -110,16 +110,25 @@ export function References({
   };
   const saveReference: SaveReference = async (path, method, body) => {
     const saved = await request<SavedReference>(path, method, body);
-    // Cancel older reads, and keep any higher version already delivered by a poll.
+    // Cancel older reads, and retain newer versions or an already known absence.
     await client.cancelQueries({ queryKey, exact: true });
-    client.setQueryData<ReferenceData>(queryKey, (data) => ({
-      references: data?.references.some((r) => r.id === saved.id)
-        ? data.references.map((r) =>
-            r.id === saved.id && r.version <= saved.version ? saved : r,
-          )
-        : [...(data?.references ?? []), saved],
-      jobs: data?.jobs ?? [],
-    }));
+    client.setQueryData<ReferenceData>(queryKey, (data) => {
+      const createsReference = path === "" && method === "POST";
+      if (
+        data &&
+        !createsReference &&
+        !data.references.some((r) => r.id === saved.id)
+      )
+        return data;
+      return {
+        references: data?.references.some((r) => r.id === saved.id)
+          ? data.references.map((r) =>
+              r.id === saved.id && r.version <= saved.version ? saved : r,
+            )
+          : [...(data?.references ?? []), saved],
+        jobs: data?.jobs ?? [],
+      };
+    });
     return saved;
   };
   const removeReference = async (id: string) => {
