@@ -78,7 +78,7 @@ export async function commitProject(
     latestExport:
       previous.latestExport &&
       (!reply.latestExport ||
-        previous.latestExport.createdAt > reply.latestExport.createdAt)
+        previous.latestExport.sequence > reply.latestExport.sequence)
         ? previous.latestExport
         : reply.latestExport,
   });
@@ -135,19 +135,18 @@ export async function commitProjectRevision(
 }
 
 export async function commitExport(client: QueryClient, reply: ExportRecord) {
-  const update = (project: Project): Project =>
-    project.latestExport && project.latestExport.createdAt > reply.createdAt
-      ? project
-      : { ...project, latestExport: reply };
-  await Promise.all([
-    commitQuery<ExportRecord[]>(
-      client,
-      ["exports", reply.projectId],
-      (records) =>
-        [reply, ...(records ?? []).filter((r) => r.id !== reply.id)].sort(
-          (a, b) => b.createdAt.localeCompare(a.createdAt),
-        ),
+  const key = ["exports", reply.projectId];
+  await commitQuery<ExportRecord[]>(client, key, (records) =>
+    [reply, ...(records ?? []).filter((r) => r.id !== reply.id)].sort(
+      (a, b) => b.sequence - a.sequence,
     ),
+  );
+  const latest = client.getQueryData<ExportRecord[]>(key)?.[0] ?? reply;
+  const update = (project: Project): Project =>
+    project.latestExport && project.latestExport.sequence > latest.sequence
+      ? project
+      : { ...project, latestExport: latest };
+  await Promise.all([
     commitQuery<Project[]>(client, ["projects"], (projects) =>
       projects?.map((project) =>
         project.id === reply.projectId ? update(project) : project,

@@ -49,6 +49,7 @@ export type Project = {
 };
 export type ExportRecord = {
   id: string;
+  sequence: number;
   projectId: string;
   revision: number;
   sourceTasteProfileRevision: number | null;
@@ -568,9 +569,14 @@ export class ProjectService {
   }
   exports(id: string): ExportRecord[] {
     return this.scope(id)
-      .references.db.prepare("SELECT data FROM exports ORDER BY rowid DESC")
+      .references.db.prepare(
+        "SELECT rowid AS sequence, data FROM exports ORDER BY rowid DESC",
+      )
       .all()
-      .map((r) => JSON.parse(String(r.data)));
+      .map((r) => ({
+        ...JSON.parse(String(r.data)),
+        sequence: Number(r.sequence),
+      }));
   }
   export(id: string, base: number) {
     const r = this.revision(id, base),
@@ -596,16 +602,16 @@ export class ProjectService {
       ),
       [`${prefix}-variables.css`]: `/* ${JSON.stringify(metadata)} */\n${designCss(r.design)}`,
     };
-    const record: ExportRecord = {
+    const record: Omit<ExportRecord, "sequence"> = {
       ...metadata,
       id: randomUUID(),
       createdAt: new Date().toISOString(),
       files,
     };
-    this.scope(id)
+    const inserted = this.scope(id)
       .references.db.prepare("INSERT INTO exports VALUES (?,?)")
       .run(record.id, JSON.stringify(record));
-    return record;
+    return { ...record, sequence: Number(inserted.lastInsertRowid) };
   }
   async exportBundle(
     id: string,
@@ -679,7 +685,7 @@ export class ProjectService {
     for (const [name, image] of Object.entries(images))
       downloads[name] = image.toString("base64");
     downloads[`${root}.zip`] = bundle.zip.toString("base64");
-    const record: ExportRecord = {
+    const record: Omit<ExportRecord, "sequence"> = {
       id: randomUUID(),
       projectId: id,
       revision: base,
@@ -690,10 +696,10 @@ export class ProjectService {
       templateVersion,
       imageMode,
     };
-    this.scope(id)
+    const inserted = this.scope(id)
       .references.db.prepare("INSERT INTO exports VALUES (?,?)")
       .run(record.id, JSON.stringify(record));
-    return record;
+    return { ...record, sequence: Number(inserted.lastInsertRowid) };
   }
   async importBrowser(raw: unknown) {
     const serialized = JSON.stringify(raw),
