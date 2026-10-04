@@ -1801,3 +1801,305 @@ for (const outcome of ["success", "failure"] as const) {
     await saveAdoptedProfile(page, principleId);
   });
 }
+
+for (const outcome of ["success", "failure"] as const) {
+  test(`Profile keeps its draft and explains navigation while reference adoption ends in ${outcome}`, async ({
+    page,
+  }) => {
+    const { card, id, principleId } = await analyzedProfileReference(
+      page,
+      `navigation-reference-${outcome}.png`,
+    );
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const endpoint = `**/api/profile/references/${id}/accept`;
+    await page.route(endpoint, async (route) => {
+      const response = outcome === "success" ? await route.fetch() : undefined;
+      await gate;
+      if (response) await route.fulfill({ response });
+      else
+        await route.fulfill({
+          status: 500,
+          json: { message: "移動前の参考採用失敗" },
+        });
+    });
+    await card
+      .getByRole("button", { name: "設計方針として採用", exact: true })
+      .click();
+    try {
+      // Only the conflicting save waits; other answers remain editable and survive adoption.
+      await page.getByRole("button", { name: "見比べる", exact: true }).click();
+      await page.getByLabel("質問を選ぶ").selectOption("0");
+      await page
+        .getByLabel("density-0 理由", { exact: true })
+        .fill(`採用待ちの編集 ${outcome}`);
+      await page
+        .getByRole("link", { name: "プロジェクト", exact: true })
+        .click();
+      await expect(
+        page.getByText("更新の完了を待ってから移動します。", { exact: false }),
+      ).toBeVisible();
+      expect(new URL(page.url()).pathname).toBe("/profile");
+      await expect(
+        page.getByText("更新の完了を待ってから移動します。", { exact: false }),
+      ).toBeInViewport();
+      if (outcome === "success")
+        await page.screenshot({
+          path: "test-results/profile-navigation-wait.png",
+        });
+    } finally {
+      release();
+    }
+    if (outcome === "success") {
+      await page.waitForURL("**/projects");
+      await page.getByRole("link", { name: "自分の好み", exact: true }).click();
+    } else {
+      await expect(
+        page.getByText(
+          "更新または下書きの保存に失敗したため、移動を中止しました。",
+          { exact: false },
+        ),
+      ).toBeVisible();
+      expect(new URL(page.url()).pathname).toBe("/profile");
+      await page
+        .getByRole("button", { name: "参考を集める", exact: true })
+        .click();
+      await expect(
+        page.getByRole("alert").filter({ hasText: "移動前の参考採用失敗" }),
+      ).toBeVisible();
+      await page.unroute(endpoint);
+      await card
+        .getByRole("button", { name: "設計方針として採用", exact: true })
+        .click();
+    }
+    await page.unroute(endpoint);
+    await page.getByRole("button", { name: "見比べる", exact: true }).click();
+    await page.getByLabel("質問を選ぶ").selectOption("0");
+    await expect(
+      page.getByLabel("density-0 理由", { exact: true }),
+    ).toHaveValue(`採用待ちの編集 ${outcome}`);
+    await saveAdoptedProfile(page, principleId);
+    await page.getByRole("link", { name: "プロジェクト", exact: true }).click();
+    await page.waitForURL("**/projects");
+  });
+  test(`Profile keeps its draft and explains navigation while saving ends in ${outcome}`, async ({
+    page,
+  }) => {
+    await page.goto("/profile");
+    await page.getByLabel("質問を選ぶ").selectOption("0");
+    await page
+      .getByLabel("density-0 理由", { exact: true })
+      .fill(`保存待ちの編集 ${outcome}`);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route("**/api/profile", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      const response = outcome === "success" ? await route.fetch() : undefined;
+      await gate;
+      if (response) await route.fulfill({ response });
+      else
+        await route.fulfill({
+          status: 500,
+          json: { message: "移動前のProfile保存失敗" },
+        });
+    });
+    await page
+      .getByRole("button", { name: "共通の好みを保存", exact: true })
+      .click();
+    try {
+      await page
+        .getByRole("link", { name: "プロジェクト", exact: true })
+        .click();
+      await expect(
+        page.getByText("更新の完了を待ってから移動します。", { exact: false }),
+      ).toBeVisible();
+      expect(new URL(page.url()).pathname).toBe("/profile");
+      await expect(
+        page.getByLabel("density-0 理由", { exact: true }),
+      ).toBeDisabled();
+    } finally {
+      release();
+    }
+    if (outcome === "success") {
+      await page.waitForURL("**/projects");
+      await page.getByRole("link", { name: "自分の好み", exact: true }).click();
+    } else {
+      await expect(
+        page.getByText(
+          "更新または下書きの保存に失敗したため、移動を中止しました。",
+          { exact: false },
+        ),
+      ).toBeVisible();
+      await expect(
+        page
+          .locator(".editor-actions")
+          .getByRole("alert")
+          .filter({ hasText: "移動前のProfile保存失敗" }),
+      ).toContainText("移動前のProfile保存失敗");
+      expect(new URL(page.url()).pathname).toBe("/profile");
+    }
+    await page.unroute("**/api/profile");
+    await page.getByLabel("質問を選ぶ").selectOption("0");
+    await expect(
+      page.getByLabel("density-0 理由", { exact: true }),
+    ).toHaveValue(`保存待ちの編集 ${outcome}`);
+    await expect(page.locator(".editor-actions")).not.toContainText(
+      "古い版・確認が必要",
+    );
+    if (outcome === "failure") {
+      await page
+        .getByRole("button", { name: "共通の好みを保存", exact: true })
+        .click();
+      await expect(page.getByText("共通の好みを保存しました")).toBeVisible();
+    }
+    await page.reload();
+    await page.getByLabel("質問を選ぶ").selectOption("0");
+    await expect(
+      page.getByLabel("density-0 理由", { exact: true }),
+    ).toHaveValue(`保存待ちの編集 ${outcome}`);
+    // Dirty alone is local draft state, so it does not delay a route change.
+    await page
+      .getByLabel("density-0 理由", { exact: true })
+      .fill(`残す未保存入力 ${outcome}`);
+    await page.getByRole("link", { name: "プロジェクト", exact: true }).click();
+    await page.waitForURL("**/projects");
+    await page.getByRole("link", { name: "自分の好み", exact: true }).click();
+    await expect(
+      page.getByLabel("density-0 理由", { exact: true }),
+    ).toHaveValue(`残す未保存入力 ${outcome}`);
+  });
+}
+
+test("Profile reload warns during adoption and dismissing the warning keeps the pending draft", async ({
+  page,
+}) => {
+  const { card, id, principleId } = await analyzedProfileReference(
+    page,
+    "reload-reference.png",
+  );
+  let release!: () => void;
+  let responseReady!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const ready = new Promise<void>((resolve) => (responseReady = resolve));
+  const endpoint = `**/api/profile/references/${id}/accept`;
+  await page.route(endpoint, async (route) => {
+    const response = await route.fetch();
+    responseReady();
+    await gate;
+    await route.fulfill({ response });
+  });
+  await card
+    .getByRole("button", { name: "設計方針として採用", exact: true })
+    .click();
+  try {
+    await ready;
+    await page.getByRole("button", { name: "見比べる", exact: true }).click();
+    await page.getByLabel("質問を選ぶ").selectOption("0");
+    await page
+      .getByLabel("density-0 理由", { exact: true })
+      .fill("reloadを中止して保持");
+    const dialogEvent = page.waitForEvent("dialog");
+    // A dismissed reload does not finish navigation; bound the automation wait.
+    const reload = page.reload({ timeout: 2000 }).catch(() => undefined);
+    const dialog = await dialogEvent;
+    expect(dialog.type()).toBe("beforeunload");
+    await dialog.dismiss();
+    await reload;
+    expect(new URL(page.url()).pathname).toBe("/profile");
+    await expect(
+      page.getByRole("button", { name: "共通の好みを保存", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByLabel("density-0 理由", { exact: true }),
+    ).toHaveValue("reloadを中止して保持");
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByRole("button", { name: "共通の好みを保存", exact: true }),
+  ).toBeEnabled();
+  await page.unroute(endpoint);
+  await saveAdoptedProfile(page, principleId);
+  await page.getByLabel("質問を選ぶ").selectOption("0");
+  await expect(page.getByLabel("density-0 理由", { exact: true })).toHaveValue(
+    "reloadを中止して保持",
+  );
+});
+
+test("Profile cancels queued navigation if the adopted draft cannot be stored", async ({
+  page,
+}) => {
+  const { card, id, principleId } = await analyzedProfileReference(
+    page,
+    "storage-reference.png",
+  );
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const endpoint = `**/api/profile/references/${id}/accept`;
+  await page.route(endpoint, async (route) => {
+    const response = await route.fetch();
+    await gate;
+    await route.fulfill({ response });
+  });
+  await page.evaluate(() => {
+    const nativeSetItem = Storage.prototype.setItem;
+    (
+      window as Window & { restoreProfileStorage?: () => void }
+    ).restoreProfileStorage = () => {
+      Storage.prototype.setItem = nativeSetItem;
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "tasteprint.profile.draft")
+        throw new DOMException("Fixture storage full", "QuotaExceededError");
+      return nativeSetItem.call(this, key, value);
+    };
+  });
+  await card
+    .getByRole("button", { name: "設計方針として採用", exact: true })
+    .click();
+  try {
+    await page.getByRole("link", { name: "プロジェクト", exact: true }).click();
+    await expect(
+      page.getByText("更新の完了を待ってから移動します。", { exact: false }),
+    ).toBeVisible();
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByText(
+      "更新または下書きの保存に失敗したため、移動を中止しました。",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/profile");
+  await expect(
+    page
+      .locator(".editor-actions")
+      .getByRole("alert")
+      .filter({ hasText: "下書きを保存できません" }),
+  ).toContainText("下書きを保存できません");
+  await expect(
+    page
+      .locator(".principle-fields")
+      .getByLabel("原則", { exact: true })
+      .last(),
+  ).toHaveValue("見出しと本文の強弱を付ける");
+  await page.evaluate(() =>
+    (
+      window as Window & { restoreProfileStorage?: () => void }
+    ).restoreProfileStorage?.(),
+  );
+  await page.unroute(endpoint);
+  await page.getByRole("button", { name: "見比べる", exact: true }).click();
+  await page.getByLabel("質問を選ぶ").selectOption("0");
+  await page
+    .getByLabel("density-0 理由", { exact: true })
+    .fill("下書き保存を回復");
+  await expect(
+    page
+      .locator(".editor-actions")
+      .getByRole("alert")
+      .filter({ hasText: "下書きを保存できません" }),
+  ).toHaveCount(0);
+  await saveAdoptedProfile(page, principleId);
+});

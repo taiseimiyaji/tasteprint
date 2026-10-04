@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { useRouterState, Link as RouterLink } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useBlocker,
+  useRouterState,
+  Link as RouterLink,
+} from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Workspace } from "./workspace";
 import { AppShell } from "./navigation";
@@ -627,6 +631,7 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   const [position, setPosition] = useDraft("tasteprint.profile.position", 0);
   const [section, setSection] = useState("taste");
   const [referencesBusy, setReferencesBusy] = useState(false);
+  const [referenceError, setReferenceError] = useState("");
   const [references, setReferences] = useState<
     { id: string; version: number; accepted: number[] }[] | null
   >(null);
@@ -653,6 +658,26 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   const action = useAction(),
     client = useQueryClient();
   const [notice, setNotice] = useState("");
+  const [navigationNotice, setNavigationNotice] = useState("");
+  const pending = action.busy || referencesBusy;
+  const updateError = action.error || referenceError || draftError;
+  const shouldWaitForUpdate = useCallback(() => pending, [pending]);
+  const navigation = useBlocker({
+    shouldBlockFn: shouldWaitForUpdate,
+    withResolver: true,
+    enableBeforeUnload: pending,
+  });
+  useEffect(() => {
+    if (pending) setNavigationNotice("");
+    else if (navigation.status === "blocked") {
+      if (updateError) {
+        setNavigationNotice(
+          "更新または下書きの保存に失敗したため、移動を中止しました。入力はこの画面に保持しています。",
+        );
+        navigation.reset();
+      } else navigation.proceed();
+    }
+  }, [pending, navigation, updateError]);
   const reset = () => {
     action.clear();
     setDraft({ baseProfileRevision: current.revision, ...current.snapshot });
@@ -691,6 +716,16 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
         >
           共通の好みを保存
         </button>
+        {navigation.status === "blocked" && (
+          <p className="editor-error" role="status">
+            更新の完了を待ってから移動します。採用した原則と編集中の内容を下書きに残しています。
+          </p>
+        )}
+        {navigationNotice && (
+          <p className="editor-error" role="alert">
+            {navigationNotice}
+          </p>
+        )}
       </EditorActions>
       {stale && (
         <p role="alert">
@@ -773,7 +808,10 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
         <fieldset className="editor-fieldset" disabled={action.busy}>
           <References
             onChange={setReferences}
-            onBusyChange={setReferencesBusy}
+            onBusyChange={(busy, error) => {
+              setReferencesBusy(busy);
+              setReferenceError(error ?? "");
+            }}
             onAdopt={(p) => {
               setDraft((d) => ({
                 ...d,

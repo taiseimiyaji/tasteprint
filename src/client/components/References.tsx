@@ -53,7 +53,7 @@ export function References({
 }: {
   onChange: (references: SavedReference[]) => void;
   onAdopt?: (principle: Principle) => void;
-  onBusyChange?: (busy: boolean) => void;
+  onBusyChange?: (busy: boolean, error?: string) => void;
 }) {
   const scope = useScope(),
     base = `${scope.api}/references`;
@@ -85,14 +85,16 @@ export function References({
     setError("");
     setBusy(true);
     onBusyChange?.(true);
+    let failure: string | undefined;
     try {
       await action();
       await client.invalidateQueries({ queryKey: ["references", scope.id] });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "処理に失敗しました。");
+      failure = e instanceof Error ? e.message : "処理に失敗しました。";
+      setError(failure);
     } finally {
       setBusy(false);
-      onBusyChange?.(false);
+      onBusyChange?.(false, failure);
     }
   }
   const needsPair =
