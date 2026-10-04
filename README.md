@@ -45,7 +45,10 @@ npm run typecheck
 npm test
 npx playwright install chromium
 npm run test:e2e
+npm run test:built
 ```
+
+PRとmain更新ではGitHub ActionsがNode.js 24.13.0で上記の検証を実行します。PRではhead commitをチェックアウトし、`test:built`に含まれるビルドと一時SQLiteでの起動・PNG/ZIP出力も確認します。E2EはモックAIと一時データを使用し、Codex認証や実AI送信は不要です。失敗時のPlaywrightレポート・traceは7日間保持します。
 
 ## ドキュメント
 
