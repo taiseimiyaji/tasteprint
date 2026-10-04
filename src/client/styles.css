@@ -1871,7 +1871,7 @@ svg {
 }
 .sample-app td:first-child small {
   font-size: 6px;
-  color: #a9b39b;
+  color: var(--color-muted);
   display: block;
   font-weight: 400;
   margin-top: 2px;
