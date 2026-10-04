@@ -8,6 +8,7 @@ import {
   type SavedReference,
   type ReferenceInput,
 } from "../../domain/reference";
+import { useStoredDraft, DraftReadRecovery } from "../draft-storage";
 import { useScope } from "../scope";
 import type { Principle } from "../../domain/projects";
 import { commitReferenceJob, type ReferenceData } from "../query-cache";
@@ -67,18 +68,20 @@ const savedDraft = (r: SavedReference): ReferenceDraft => ({
 const draftInputSchema = referenceInputSchema.extend({
   selections: selectionSchema.array().max(12),
 });
-function readReferenceDraft(key: string, r: SavedReference): ReferenceDraft {
+function parseReferenceDraft(
+  stored: unknown,
+  r: SavedReference,
+): ReferenceDraft {
   try {
-    const stored = JSON.parse(localStorage.getItem(key) || "null");
     const input = draftInputSchema.safeParse(stored);
     if (!input.success) return savedDraft(r);
-    const version = Object.hasOwn(stored, "baseVersion")
-      ? stored.baseVersion
-      : stored.version;
+    const version = Object.hasOwn(stored as object, "baseVersion")
+      ? (stored as Record<string, unknown>).baseVersion
+      : (stored as Record<string, unknown>).version;
     return {
       ...input.data,
       baseVersion:
-        Number.isInteger(version) && version > 0
+        typeof version === "number" && Number.isInteger(version) && version > 0
           ? version
           : sameInput(input.data, r)
             ? r.version
@@ -325,14 +328,10 @@ function ReferenceCard({
   const request = <T,>(path = "", method = "GET", body?: unknown) =>
     referenceRequest<T>(base, path, method, body);
   const key = `tasteprint.${scope.id}.reference.${r.id}`;
-  const [draft, setDraft] = useState<ReferenceDraft>(() =>
-    readReferenceDraft(key, r),
-  );
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(draft));
-    } catch {}
-  }, [draft]);
+  const [draft, setDraft, draftError, draftRecovery] =
+    useStoredDraft<ReferenceDraft>(key, savedDraft(r), (stored) =>
+      parseReferenceDraft(stored, r),
+    );
   const [consent, setConsent] = useState(false);
   const previousSaved = useRef(r);
   useEffect(() => {
@@ -352,6 +351,7 @@ function ReferenceCard({
   const active = jobs.some(
     (j) => j.state === "running" || j.state === "queued",
   );
+  const updateBlocked = busy || draftRecovery.blocked;
   const dirty = !sameInput(draft, r);
   const stale = draft.baseVersion !== r.version;
   const start = (type: Job["type"]) =>
@@ -381,6 +381,16 @@ function ReferenceCard({
         />
       )}
       <div className="reference-details">
+        <DraftReadRecovery
+          label={r.name}
+          recovery={draftRecovery}
+          disabled={busy || active}
+        />
+        {draftError && (
+          <p role="alert" className="error-text">
+            {draftError}
+          </p>
+        )}
         <h3>{r.name}</h3>
         <p>{r.url || "Uploaded image"}</p>
         {r.capture && (
@@ -426,7 +436,7 @@ function ReferenceCard({
             </p>
             <button
               className="button"
-              disabled={busy || active}
+              disabled={updateBlocked || active}
               onClick={() => {
                 setDraft(savedDraft(r));
                 setConsent(false);
@@ -437,7 +447,7 @@ function ReferenceCard({
             </button>
           </div>
         )}
-        <fieldset disabled={busy || active}>
+        <fieldset disabled={updateBlocked || active}>
           <legend>参考にする観点</legend>
           {aspects.map((aspect) => (
             <label className="reference-selection" key={aspect}>
@@ -511,7 +521,7 @@ function ReferenceCard({
           {r.url && (
             <button
               className="button"
-              disabled={busy || active || dirty || stale}
+              disabled={updateBlocked || active || dirty || stale}
               onClick={() => void start("capture")}
             >
               {job ? "URLを再取得" : "URLを取得"}
@@ -523,7 +533,7 @@ function ReferenceCard({
               aria-label={`${r.name}の画像をアップロード`}
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              disabled={busy || active || dirty || stale}
+              disabled={updateBlocked || active || dirty || stale}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = "";
@@ -539,7 +549,7 @@ function ReferenceCard({
           </label>
           <button
             className="button"
-            disabled={busy || active}
+            disabled={updateBlocked || active}
             onClick={() =>
               void run(async () => {
                 await request(`/${r.id}`, "DELETE", { version: r.version });
@@ -566,7 +576,7 @@ function ReferenceCard({
             </label>
             <button
               className="button primary"
-              disabled={busy || active || dirty || stale || !consent}
+              disabled={updateBlocked || active || dirty || stale || !consent}
               onClick={() => void start("analyze")}
             >
               Codexで分析する
@@ -594,7 +604,11 @@ function ReferenceCard({
             <button
               className="button"
               disabled={
-                busy || active || dirty || stale || r.accepted.includes(i)
+                updateBlocked ||
+                active ||
+                dirty ||
+                stale ||
+                r.accepted.includes(i)
               }
               onClick={() =>
                 void run(() =>
