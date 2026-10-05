@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { unzipSync } from "fflate";
+import { templateVersion } from "../src/server/exports/bundle";
 for (const width of [1440, 390] as const)
   test(`saved Input size follows component height across specimens and screens at ${width}px`, async ({
     page,
@@ -160,7 +161,7 @@ for (const width of [1440, 390] as const)
     expect(Buffer.from(entries[cssName]).toString()).toContain(
       '.sample-app.runtime-root input[data-component="Input"]',
     );
-    expect(record.templateVersion).toBe("preview-6");
+    expect(record.templateVersion).toBe(templateVersion);
     writeFileSync(
       `${directory}/${width}.json`,
       JSON.stringify(
