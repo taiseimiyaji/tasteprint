@@ -2613,6 +2613,9 @@ svg {
     background-color var(--motion-duration) var(--motion-easing),
     filter var(--motion-duration) var(--motion-easing);
 }
+.sample-app.runtime-root input[data-component="Input"] {
+  min-height: var(--component-height);
+}
 .sample-app input:not([type="checkbox"]),
 .sample-app select {
   color: var(--color-ink);

@@ -706,6 +706,33 @@ test("project list supports resume, search, archive, creation drafts and recover
     .click();
   await expect(dialog.getByRole("alert")).toContainText("入力は保持");
   await page.unroute("**/api/projects");
+  const submit = dialog.getByRole("button", {
+    name: "プロジェクトを作成",
+    exact: true,
+  });
+  const recovery = dialog.getByRole("region", { name: "作成結果の確認" });
+  await expect(submit).toBeDisabled();
+  let recoveryPosts = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/projects"
+    )
+      recoveryPosts++;
+  });
+  await recovery
+    .getByRole("button", { name: "一覧で候補を確認", exact: true })
+    .click();
+  await expect(recovery).toContainText("作成時と同じ名前の候補: 0件");
+  await expect(submit).toBeDisabled();
+  await recovery
+    .getByLabel("重複する可能性を確認し、別の作成を準備する", { exact: true })
+    .check();
+  await recovery
+    .getByRole("button", { name: "現在の入力で別の作成を準備", exact: true })
+    .click();
+  await expect(submit).toBeEnabled();
+  expect(recoveryPosts).toBe(0);
   await dialog
     .getByRole("button", { name: "プロジェクトを作成", exact: true })
     .click();
@@ -715,6 +742,7 @@ test("project list supports resume, search, archive, creation drafts and recover
       exact: true,
     }),
   ).toBeVisible();
+  expect(recoveryPosts).toBe(1);
   await page.goto("/projects");
   await page
     .getByLabel("プロジェクトを検索", { exact: true })

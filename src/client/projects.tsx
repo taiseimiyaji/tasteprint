@@ -271,6 +271,16 @@ function ProjectList({
   const [archived, setArchived] = useState(false),
     [search, setSearch] = useState(""),
     [notice, setNotice] = useState("");
+  const [unknownCreation, setUnknownCreation] = useState<{
+    brief: Brief;
+    useTaste: boolean;
+    sourceTasteProfileRevision: number;
+    error: string;
+  }>();
+  const [creationCandidates, setCreationCandidates] = useState<Project[]>();
+  const [checkingCreation, setCheckingCreation] = useState(false),
+    [creationReadError, setCreationReadError] = useState(""),
+    [allowSeparateCreation, setAllowSeparateCreation] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const action = useAction(),
     client = useQueryClient();
@@ -455,12 +465,41 @@ function ProjectList({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (unknownCreation) return;
             void action.run(async () => {
-              const p = await req<Project>("/api/projects", {
-                brief,
+              const attempted = {
+                brief: structuredClone(brief),
                 useTaste,
                 sourceTasteProfileRevision: taste.revision,
-              });
+              };
+              let p: Project;
+              try {
+                p = await req<Project>("/api/projects", attempted);
+                if (
+                  !p ||
+                  typeof p.id !== "string" ||
+                  !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(p.id)
+                )
+                  throw new Error("作成応答のプロジェクトを確認できません。");
+              } catch (e) {
+                const status = (e as { status?: number })?.status;
+                // These are rejected before creation in the current endpoint:
+                // validation/taste conflict, pairing/Origin and body limit.
+                // All other errors leave the accepted outcome unknown.
+                if (
+                  status === undefined ||
+                  ![400, 401, 403, 409, 413].includes(status)
+                ) {
+                  setUnknownCreation({
+                    ...attempted,
+                    error:
+                      e instanceof Error ? e.message : "応答を取得できません。",
+                  });
+                  setCreationCandidates(undefined);
+                  setAllowSeparateCreation(false);
+                }
+                throw e;
+              }
               // The project is committed. Optional browser cleanup must not
               // report creation as failed or offer another creation attempt.
               for (const key of [
@@ -541,7 +580,111 @@ function ProjectList({
                 : "未確認（あとから入力できます）"}
             </p>
           </fieldset>
-          {[action.error, draftError, tasteDraftError]
+          {unknownCreation && (
+            <section className="editor-error" aria-label="作成結果の確認">
+              <div role="alert">
+                <p>
+                  作成結果を確認できません。サーバーで作成済みの可能性があるため、通常の再送を停止しています。入力は保持しています。
+                </p>
+                <p>{unknownCreation.error}</p>
+              </div>
+              <p>
+                確認対象: {unknownCreation.brief.name.trim()} ·{" "}
+                {unknownCreation.useTaste
+                  ? `共通の好み r${unknownCreation.sourceTasteProfileRevision}を使用`
+                  : "共通の好みを使用しない"}
+              </p>
+              <p>
+                現在の入力は編集できます。ページ移動・再読み込み・別タブでは、この確認状態は引き継がれません。
+              </p>
+              <button
+                type="button"
+                className="button"
+                disabled={checkingCreation}
+                onClick={async () => {
+                  setCheckingCreation(true);
+                  setCreationReadError("");
+                  setCreationCandidates(undefined);
+                  setAllowSeparateCreation(false);
+                  try {
+                    const all = await req<Project[]>("/api/projects");
+                    setCreationCandidates(
+                      all.filter(
+                        (p) =>
+                          p.brief.name === unknownCreation.brief.name.trim(),
+                      ),
+                    );
+                  } catch (e) {
+                    setCreationReadError(
+                      e instanceof Error ? e.message : "一覧を取得できません。",
+                    );
+                  } finally {
+                    setCheckingCreation(false);
+                  }
+                }}
+              >
+                {checkingCreation ? "候補を確認中…" : "一覧で候補を確認"}
+              </button>
+              {creationReadError && (
+                <p role="alert">
+                  候補を確認できませんでした。{creationReadError}{" "}
+                  入力は保持しています。
+                </p>
+              )}
+              {creationCandidates !== undefined && (
+                <>
+                  <p>
+                    作成時と同じ名前の候補: {creationCandidates.length}
+                    件。同名でも今回の作成結果とは限りません。候補がなくても、作成されなかったことを保証しません。
+                  </p>
+                  <ul>
+                    {creationCandidates.map((p) => (
+                      <li key={p.id}>
+                        <RouterLink
+                          to={`/projects/${p.id}/overview` as "/"}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {p.brief.name}を確認
+                        </RouterLink>{" "}
+                        · 作成 {new Date(p.createdAt).toLocaleString("ja-JP")} ·
+                        設計 r{p.activeRevision}
+                        {p.archivedAt ? " · アーカイブ中" : ""}
+                        {p.brief.purpose ? ` · ${p.brief.purpose}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                  <p>
+                    候補は別タブで開きます。この作成画面の再送停止は維持します。
+                  </p>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={allowSeparateCreation}
+                      onChange={(e) =>
+                        setAllowSeparateCreation(e.target.checked)
+                      }
+                    />
+                    重複する可能性を確認し、別の作成を準備する
+                  </label>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={!allowSeparateCreation || checkingCreation}
+                    onClick={() => {
+                      setUnknownCreation(undefined);
+                      setCreationCandidates(undefined);
+                      setAllowSeparateCreation(false);
+                      action.clear();
+                    }}
+                  >
+                    現在の入力で別の作成を準備
+                  </button>
+                </>
+              )}
+            </section>
+          )}
+          {[unknownCreation ? "" : action.error, draftError, tasteDraftError]
             .filter(Boolean)
             .map((e) => (
               <p role="alert" key={e}>
@@ -561,6 +704,7 @@ function ProjectList({
               className="button primary"
               disabled={
                 action.busy ||
+                !!unknownCreation ||
                 briefRecovery.blocked ||
                 tasteRecovery.blocked ||
                 !brief.name.trim()

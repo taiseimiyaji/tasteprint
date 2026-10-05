@@ -17,6 +17,8 @@ const reference: SavedReference = {
 };
 const job = (id: string, state: Job["state"], second = 1): Job => ({
   id,
+  createdSequence: second,
+  transitionSequence: second,
   state,
   referenceId: reference.id,
   type: "capture",
@@ -66,6 +68,7 @@ describe("accepted Reference job replies", () => {
     expect(data?.jobs).toEqual([job("one", "canceled")]);
     await commitReferenceJob(client, "profile", {
       ...job("one", "failed"),
+      transitionSequence: 0,
       updatedAt: "2026-10-04T00:00:00Z",
     });
     expect(
@@ -92,4 +95,72 @@ describe("accepted Reference job replies", () => {
     expect(client.getQueryData(["references", "profile"])).toBeUndefined();
     client.clear();
   });
+});
+
+for (const clock of ["equal", "reversed"]) {
+  it(`keeps job creation order for missing and delayed replies with ${clock} timestamps`, async () => {
+    const client = new QueryClient();
+    const a = {
+      ...job("older", "canceled", 1),
+      createdAt: "2026-10-04T00:00:02Z",
+    };
+    const b = {
+      ...job("newer", "failed", 2),
+      createdAt: clock === "equal" ? a.createdAt : "2026-10-04T00:00:01Z",
+    };
+    await commitReferenceJob(client, "profile", b);
+    await commitReferenceJob(client, "profile", a);
+    await commitReferenceJob(client, "profile", a);
+    expect(
+      client.getQueryData<ReferenceData>(["references", "profile"])?.jobs,
+    ).toEqual([a, b]);
+    expect(client.getQueryData(["references", "project"])).toBeUndefined();
+    client.clear();
+  });
+}
+it("accepts a newer cancellation despite backwards time and rejects an older transition despite later time", async () => {
+  const client = new QueryClient();
+  const running = job("one", "running");
+  const canceled = {
+    ...running,
+    state: "canceled" as const,
+    transitionSequence: 2,
+    updatedAt: "1970-01-01T00:00:00Z",
+  };
+  await commitReferenceJob(client, "profile", running);
+  await commitReferenceJob(client, "profile", canceled);
+  await commitReferenceJob(client, "profile", {
+    ...job("one", "failed"),
+    updatedAt: "2099-01-01T00:00:00Z",
+  });
+  await commitReferenceJob(client, "profile", {
+    ...running,
+    transitionSequence: 3,
+  });
+  expect(
+    client.getQueryData<ReferenceData>(["references", "profile"])?.jobs,
+  ).toEqual([canceled]);
+  client.clear();
+});
+it("replaces legacy unknown-order replies in place and preserves reference snapshots", async () => {
+  const client = new QueryClient();
+  const a = {
+    ...job("legacy-a", "failed"),
+    createdSequence: 0,
+    transitionSequence: 0,
+  };
+  const b = {
+    ...job("legacy-b", "canceled"),
+    createdSequence: 0,
+    transitionSequence: 0,
+  };
+  client.setQueryData(["references", "profile"], {
+    references: [reference],
+    jobs: [a, b],
+  });
+  await commitReferenceJob(client, "profile", a);
+  expect(client.getQueryData<ReferenceData>(["references", "profile"])).toEqual(
+    { references: [reference], jobs: [a, b] },
+  );
+  client.clear();
 });

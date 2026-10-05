@@ -173,15 +173,17 @@ export async function commitReferenceJob(
     if (
       previous &&
       ((!active(previous) && active(reply)) ||
-        previous.updatedAt > reply.updatedAt)
+        previous.transitionSequence > reply.transitionSequence)
     )
       return data;
     return {
       references: data?.references ?? [],
-      jobs: [
-        ...(data?.jobs ?? []).filter((job) => job.id !== reply.id),
-        reply,
-      ].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+      // Replace known IDs in place so unknown legacy creation order (0) stays
+      // in its existing position. New jobs use the persisted queued event.
+      jobs: (previous
+        ? data!.jobs.map((job) => (job.id === reply.id ? reply : job))
+        : [...(data?.jobs ?? []), reply]
+      ).sort((a, b) => a.createdSequence - b.createdSequence),
     };
   });
 }
