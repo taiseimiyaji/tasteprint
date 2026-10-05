@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  validation:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -34,15 +34,66 @@ jobs:
         run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm test
-      - run: npm run test:e2e -- --workers=1 --reporter=line,html
       - run: npm run test:built
       - name: Retain browser failure evidence
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: browser-failures-${{ github.event.pull_request.head.sha || github.sha }}
+          name: validation-failures-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [1, 2]
+    env:
+      CI: true
+    steps:
+      - name: Check out the exact PR head or pushed commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24.13.0
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --workers=1 --shard=${{ matrix.shard }}/2 --reporter=line,html
+      - name: Retain browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: browser-failures-shard-${{ matrix.shard }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  verify:
+    if: ${{ always() }}
+    needs: [validation, browser]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require all validation and browser shards to succeed
+        env:
+          VALIDATION_RESULT: ${{ needs.validation.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          if [ "$VALIDATION_RESULT" != "success" ] || [ "$BROWSER_RESULT" != "success" ]; then
+            echo "All validation and browser shards must succeed."
+            exit 1
+          fi
