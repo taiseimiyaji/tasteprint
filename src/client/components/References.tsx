@@ -626,7 +626,36 @@ function ReferenceCard({
           </div>
         )}
         <fieldset disabled={updateBlocked || active}>
-          <legend>参考にする観点</legend>
+          <legend>参考内容</legend>
+          <div className="foundation-field">
+            <label>
+              参考の名前
+              <input
+                type="text"
+                value={draft.name}
+                maxLength={200}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, name: e.target.value }));
+                  setConsent(false);
+                }}
+              />
+            </label>
+            <label>
+              参考URL
+              <input
+                type="url"
+                value={draft.url}
+                maxLength={2048}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, url: e.target.value }));
+                  setConsent(false);
+                }}
+              />
+            </label>
+          </div>
+          <p style={{ color: "inherit", fontSize: 12 }}>
+            名前・URLも「観点・メモを保存」で確定します。保存すると、この参考の分析・採用状態を解除します。URLを変更すると画像・取得情報も外します。過去の設計履歴と確定済みの共通原則は保持します。
+          </p>
           {aspects.map((aspect) => (
             <label className="reference-selection" key={aspect}>
               {aspect}
