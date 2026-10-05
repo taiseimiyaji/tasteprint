@@ -86,12 +86,12 @@ for (const width of [1440, 390]) {
     const saved = (await (await page.request.get(`${base}/foundation`)).json())
       .current;
     expect(saved.design).toEqual({
-      ...defaultDesign,
+      ...original.design,
       rowHeight: 120,
       controlHeight: 100,
       components: {
-        ...defaultDesign.components,
-        Table: { ...defaultDesign.components.Table, size: "lg" },
+        ...original.design.components,
+        Table: { ...original.design.components.Table, size: "lg" },
       },
     });
     const history = (
