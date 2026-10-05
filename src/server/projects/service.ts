@@ -745,6 +745,13 @@ export class ProjectService {
         !this.migration("sqlite-v1");
       scope.references.db.exec("BEGIN IMMEDIATE");
       try {
+        // Match prior SQLite URLs, not distinct records from this payload.
+        const existingUrls = new Set(
+          scope.references
+            .references()
+            .map((r) => r.url)
+            .filter(Boolean),
+        );
         for (const old of state.references.filter(
           (r) => !["linear", "stripe", "vercel"].includes(r.id),
         )) {
@@ -756,12 +763,8 @@ export class ProjectService {
           if (
             scope.references
               .references()
-              .some(
-                (r) =>
-                  r.id === old.id ||
-                  r.id === importedId ||
-                  (r.url && r.url === old.url),
-              )
+              .some((r) => r.id === old.id || r.id === importedId) ||
+            existingUrls.has(old.url)
           )
             continue;
           const image = old.image?.match(

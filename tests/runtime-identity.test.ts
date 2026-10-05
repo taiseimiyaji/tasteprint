@@ -1,0 +1,124 @@
+import { it, expect } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { unzipSync } from "fflate";
+import { ProjectService } from "../src/server/projects/service";
+import { briefSchema } from "../src/domain/projects";
+import {
+  bundleFiles,
+  finishBundle,
+  templateVersion,
+} from "../src/server/exports/bundle";
+
+it("new portable widget source is exported without replacing a frozen preview-6 ZIP or revision", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "widget-identity-export-"));
+  const service = new ProjectService(directory);
+  try {
+    const project = service.create(
+      briefSchema.parse({ name: "Reused widgets" }),
+      false,
+    );
+    const revision = service.revision(project.id);
+    const db = service.scope(project.id).references.db;
+    const rows = db
+      .prepare(
+        "SELECT revision,data FROM foundation_revisions ORDER BY revision",
+      )
+      .all();
+    const old = bundleFiles(revision);
+    for (const name of Object.keys(old.files))
+      old.files[name] = old.files[name].replaceAll(
+        templateVersion,
+        "preview-6",
+      );
+    // A frozen renderer fixture reproducing the old fixed ARIA IDs. The raw
+    // archive is the preservation contract, independent of runtime internals.
+    const path = "ui/design-runtime/Library.tsx";
+    old.files[path] = old.files[path]
+      .replace("aria-labelledby={titleId}", 'aria-labelledby="dialog-title"')
+      .replace("id={titleId}", 'id="dialog-title"')
+      .replace("id={`${id}-tab-${i}`}", "id={`tab-${i}`}")
+      .replace("aria-controls={`${id}-panel`}", 'aria-controls="project-panel"')
+      .replace("id={`${id}-panel`}", 'id="project-panel"')
+      .replace(
+        "aria-labelledby={`${id}-tab-${active}`}",
+        "aria-labelledby={`tab-${active}`}",
+      );
+    expect(old.files[path]).toContain('aria-controls="project-panel"');
+    const root = `tasteprint-${project.slug}-r${revision.revision}`;
+    const frozen = finishBundle(
+      old.files,
+      { ...old.metadata, templateVersion: "preview-6" },
+      {},
+      root,
+    );
+    const zipName = `${root}.zip`;
+    const legacy = {
+      id: randomUUID(),
+      projectId: project.id,
+      revision: revision.revision,
+      createdAt: "2026-01-01T00:00:00Z",
+      templateVersion: "preview-6",
+      imageMode: "omit",
+      files: {
+        ...Object.fromEntries(
+          Object.entries(frozen.files).map(([name, value]) => [
+            name.replaceAll("/", "--"),
+            value,
+          ]),
+        ),
+        [zipName]: frozen.zip.toString("base64"),
+      },
+      binaryFiles: [zipName],
+    };
+    const raw = JSON.stringify(legacy);
+    db.prepare("INSERT INTO exports VALUES (?,?)").run(legacy.id, raw);
+    const current = await service.exportBundle(
+      project.id,
+      revision.revision,
+      "omit",
+    );
+    expect(current.id).not.toBe(legacy.id);
+    expect(current.templateVersion).toBe(templateVersion);
+    expect(current.templateVersion).not.toBe("preview-6");
+    const entries = unzipSync(Buffer.from(current.files[zipName], "base64"));
+    expect(Buffer.from(entries[`${root}/${path}`]).toString()).toBe(
+      readFileSync(
+        resolve("src/client/design-runtime/Library.tsx"),
+        "utf8",
+      ).replaceAll('"../../domain/', '"../domain/'),
+    );
+    expect(
+      JSON.parse(Buffer.from(entries[`${root}/design-system.json`]).toString())
+        .design,
+    ).toEqual(revision.design);
+    expect(
+      JSON.parse(Buffer.from(entries[`${root}/manifest.json`]).toString())
+        .templateVersion,
+    ).toBe(templateVersion);
+    expect(
+      (await service.exportBundle(project.id, revision.revision, "omit")).id,
+    ).toBe(current.id);
+    expect(service.exports(project.id)).toHaveLength(2);
+    expect(
+      db.prepare("SELECT data FROM exports WHERE id=?").get(legacy.id)!.data,
+    ).toBe(raw);
+    expect(
+      service.exports(project.id).find((record) => record.id === legacy.id)!
+        .files[zipName],
+    ).toBe(legacy.files[zipName]);
+    expect(
+      db
+        .prepare(
+          "SELECT revision,data FROM foundation_revisions ORDER BY revision",
+        )
+        .all(),
+    ).toEqual(rows);
+    expect(service.revision(project.id)).toEqual(revision);
+  } finally {
+    await service.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
