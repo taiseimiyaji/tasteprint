@@ -28,6 +28,7 @@ export async function capturePage(
   }, timeoutMs);
   signal.addEventListener("abort", stop, { once: true });
   try {
+    signal.throwIfAborted();
     browser = await chromium.launch({
       timeout: timeoutMs,
       proxy: { server: proxy.url, bypass: "<-loopback>" },
