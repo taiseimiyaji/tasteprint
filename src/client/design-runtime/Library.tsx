@@ -4,6 +4,7 @@ import {
   isValidElement,
   createElement,
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
@@ -107,7 +108,8 @@ export function RuntimeDialog({
   close: () => void;
   children?: ReactNode;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId(),
+    ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current!;
     if (open && !dialog.open) dialog.showModal();
@@ -117,7 +119,7 @@ export function RuntimeDialog({
     <dialog
       ref={ref}
       data-component="Dialog"
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
       onClose={close}
       onCancel={close}
       onKeyDown={(e) => {
@@ -138,7 +140,7 @@ export function RuntimeDialog({
         }
       }}
     >
-      <h2 id="dialog-title">Confirm changes</h2>
+      <h2 id={titleId}>Confirm changes</h2>
       {children}
       <button data-component="Button" autoFocus onClick={close}>
         Cancel
@@ -156,7 +158,8 @@ export function RuntimeTabs({
   disabled?: boolean;
   onChange?: (value: string) => void;
 }) {
-  const tabs = ["All projects", "Archived"],
+  const id = useId(),
+    tabs = ["All projects", "Archived"],
     [active, setActive] = useState(0);
   const select = (index: number) => {
     setActive(index);
@@ -168,11 +171,11 @@ export function RuntimeTabs({
         {tabs.map((name, i) => (
           <button
             key={name}
-            id={`tab-${i}`}
+            id={`${id}-tab-${i}`}
             data-component="Tabs"
             role="tab"
             aria-selected={i === active}
-            aria-controls="project-panel"
+            aria-controls={`${id}-panel`}
             tabIndex={i === active ? 0 : -1}
             disabled={disabled}
             onClick={() => select(i)}
@@ -192,9 +195,9 @@ export function RuntimeTabs({
         ))}
       </div>
       <div
-        id="project-panel"
+        id={`${id}-panel`}
         role="tabpanel"
-        aria-labelledby={`tab-${active}`}
+        aria-labelledby={`${id}-tab-${active}`}
         tabIndex={0}
       >
         {tabs[active]}
