@@ -55,7 +55,9 @@ export class ReferenceService {
       delete (stored as Partial<Job>).transitionSequence;
     }
     this.db
-      .prepare(`INSERT OR REPLACE INTO ${table} VALUES (?, ?)`)
+      .prepare(
+        `INSERT INTO ${table} VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data`,
+      )
       .run(value.id, JSON.stringify(stored));
   }
   references(): SavedReference[] {
