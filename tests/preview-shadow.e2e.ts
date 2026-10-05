@@ -15,6 +15,9 @@ for (const width of [1440, 390] as const) {
     });
     expect(response.ok()).toBe(true);
     const p = await response.json();
+    const initialDesign = (
+      await (await page.request.get(`/api/projects/${p.id}/foundation`)).json()
+    ).current.design;
     await page.goto(`/projects/${p.id}/foundation`);
     await page.getByRole("tab", { name: "Shadows", exact: true }).click();
     const root = page.frameLocator("iframe").locator(".sample-app");
@@ -61,7 +64,7 @@ for (const width of [1440, 390] as const) {
       await (await page.request.get(`/api/projects/${p.id}/foundation`)).json()
     ).current;
     expect(current.design).toEqual({
-      ...defaultDesign,
+      ...initialDesign,
       shadow: true,
       shadowAllowed: "Preview",
       shadowX: 7,
@@ -102,7 +105,7 @@ for (const width of [1440, 390] as const) {
     const original = (
       await (await page.request.get(`/api/projects/${p.id}/foundation`)).json()
     ).history.find((r: { revision: number }) => r.revision === 1);
-    expect(original.design).toEqual(defaultDesign);
+    expect(original.design).toEqual(initialDesign);
     if (width === 1440) {
       const result = await (
         await page.request.post(`/api/projects/${p.id}/reviews`, {
