@@ -6,6 +6,7 @@ import { mkdirSync, existsSync, cpSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { ReferenceService, ServiceError } from "../references/service";
+import { referenceImageMediaType } from "../references/media-type";
 import {
   FoundationService,
   type Revision,
@@ -165,21 +166,24 @@ export class ProjectService {
     return this.profileHistory().at(-1)!;
   }
   freezeReferences(service: ReferenceService) {
-    return service.references().map((r) => ({
-      ...r,
-      analysis: r.analysis
-        ? {
-            ...r.analysis,
-            findings: r.accepted.map((i) => r.analysis!.findings[i]),
-          }
-        : undefined,
-      accepted: r.accepted.map((_, i) => i),
-      ...(r.assetId
-        ? {
-            image: `data:image/png;base64,${service.asset(r.id).toString("base64")}`,
-          }
-        : {}),
-    }));
+    return service.references().map((r) => {
+      const image = r.assetId ? service.asset(r.id) : undefined;
+      return {
+        ...r,
+        analysis: r.analysis
+          ? {
+              ...r.analysis,
+              findings: r.accepted.map((i) => r.analysis!.findings[i]),
+            }
+          : undefined,
+        accepted: r.accepted.map((_, i) => i),
+        ...(image
+          ? {
+              image: `data:${referenceImageMediaType(image)};base64,${image.toString("base64")}`,
+            }
+          : {}),
+      };
+    });
   }
   saveTaste(base: number, input: z.infer<typeof tasteSchema>) {
     const parsed = tasteSchema.parse(input);

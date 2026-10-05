@@ -6,6 +6,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { referenceInputSchema } from "../../domain/reference";
 import { ReferenceService, ServiceError } from "./service";
+import { referenceImageMediaType } from "./media-type";
 import { CaptureError } from "../capture/proxy";
 import { CodexGateway } from "../codex/gateway";
 import { FoundationService } from "../foundation/service";
@@ -138,11 +139,12 @@ export function referenceRoutes(
         ),
       );
     })
-    .get("/:id/image", (c) =>
-      c.body(new Uint8Array(service.asset(c.req.param("id"))), 200, {
-        "Content-Type": "image/png",
-      }),
-    )
+    .get("/:id/image", (c) => {
+      const image = service.asset(c.req.param("id"));
+      return c.body(new Uint8Array(image), 200, {
+        "Content-Type": referenceImageMediaType(image),
+      });
+    })
     .post(
       "/:id/jobs",
       zValidator(
