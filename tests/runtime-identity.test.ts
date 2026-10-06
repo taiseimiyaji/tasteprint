@@ -12,7 +12,7 @@ import {
   templateVersion,
 } from "../src/server/exports/bundle";
 
-it("new portable widget source is exported without replacing a frozen preview-6 ZIP or revision", async () => {
+async function verifyFrozen(frozenVersion: string) {
   const directory = mkdtempSync(join(tmpdir(), "widget-identity-export-"));
   const service = new ProjectService(directory);
   try {
@@ -31,26 +31,34 @@ it("new portable widget source is exported without replacing a frozen preview-6 
     for (const name of Object.keys(old.files))
       old.files[name] = old.files[name].replaceAll(
         templateVersion,
-        "preview-6",
+        frozenVersion,
       );
     // A frozen renderer fixture reproducing the old fixed ARIA IDs. The raw
     // archive is the preservation contract, independent of runtime internals.
     const path = "ui/design-runtime/Library.tsx";
-    old.files[path] = old.files[path]
-      .replace("aria-labelledby={titleId}", 'aria-labelledby="dialog-title"')
-      .replace("id={titleId}", 'id="dialog-title"')
-      .replace("id={`${id}-tab-${i}`}", "id={`tab-${i}`}")
-      .replace("aria-controls={`${id}-panel`}", 'aria-controls="project-panel"')
-      .replace("id={`${id}-panel`}", 'id="project-panel"')
-      .replace(
-        "aria-labelledby={`${id}-tab-${active}`}",
-        "aria-labelledby={`tab-${active}`}",
-      );
-    expect(old.files[path]).toContain('aria-controls="project-panel"');
+    if (frozenVersion === "preview-6") {
+      old.files[path] = old.files[path]
+        .replace("aria-labelledby={titleId}", 'aria-labelledby="dialog-title"')
+        .replace("id={titleId}", 'id="dialog-title"')
+        .replace("id={`${id}-tab-${i}`}", "id={`tab-${i}`}")
+        .replace(
+          "aria-controls={`${id}-panel`}",
+          'aria-controls="project-panel"',
+        )
+        .replace("id={`${id}-panel`}", 'id="project-panel"')
+        .replace(
+          "aria-labelledby={`${id}-tab-${active}`}",
+          "aria-labelledby={`tab-${active}`}",
+        );
+      expect(old.files[path]).toContain('aria-controls="project-panel"');
+    } else {
+      old.files[path] = old.files[path].replaceAll('type="button"', "");
+      expect(old.files[path]).not.toContain('type="button"');
+    }
     const root = `tasteprint-${project.slug}-r${revision.revision}`;
     const frozen = finishBundle(
       old.files,
-      { ...old.metadata, templateVersion: "preview-6" },
+      { ...old.metadata, templateVersion: frozenVersion },
       {},
       root,
     );
@@ -60,7 +68,7 @@ it("new portable widget source is exported without replacing a frozen preview-6 
       projectId: project.id,
       revision: revision.revision,
       createdAt: "2026-01-01T00:00:00Z",
-      templateVersion: "preview-6",
+      templateVersion: frozenVersion,
       imageMode: "omit",
       files: {
         ...Object.fromEntries(
@@ -82,7 +90,7 @@ it("new portable widget source is exported without replacing a frozen preview-6 
     );
     expect(current.id).not.toBe(legacy.id);
     expect(current.templateVersion).toBe(templateVersion);
-    expect(current.templateVersion).not.toBe("preview-6");
+    expect(current.templateVersion).not.toBe(frozenVersion);
     const entries = unzipSync(Buffer.from(current.files[zipName], "base64"));
     expect(Buffer.from(entries[`${root}/${path}`]).toString()).toBe(
       readFileSync(
@@ -121,4 +129,8 @@ it("new portable widget source is exported without replacing a frozen preview-6 
     await service.close();
     rmSync(directory, { recursive: true, force: true });
   }
-});
+}
+
+for (const frozenVersion of ["preview-6", "preview-7"])
+  it(`new portable widget source preserves frozen ${frozenVersion} ZIP and revision`, () =>
+    verifyFrozen(frozenVersion));
