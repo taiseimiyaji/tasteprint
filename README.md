@@ -95,6 +95,8 @@ captureと分析はスコープごとにそれぞれ同時1件です。中断後
 
 [Export配布物の限定統合レビュー](./docs/reviews/export-consumer.md)では、生成ZIPを独立Reactフォームと3画面に組み込み、1440px / 390pxで状態・キーボード操作を確認しています。Tabs切り替え・Dialogの開閉だけでは親フォームを送信しません。全部品・全状態の確認は引き続き未完了です。
 
+[ネストDialogと導入手順の追加確認](./docs/reviews/export-nested-dialog.md)では、内側の取消後も外側の入力・操作・フォーカスを保持することを確認しています。ZIPのREADMEに利用先Reactアプリでの最小表示コードと起動手順を記載しています。
+
 API は `POST /api/projects/:id/exports` に `{ "baseRevision": 1, "bundle": true, "imageMode": "include" }` を指定します。画像なしは `"omit"`。応答には凍結ファイル名を返し、既存の所有関係を検証するダウンロード API で取得します。`bundle` 省略時は従来の個別出力です。ZIP のディレクトリ構造と各ファイルの SHA-256 は manifest に記録します。
 
 `npm test` で snapshot 整合性、DTCG 参照、ZIP 内容、展開後の React 型検査を実行します。`npm run test:built` はビルド済みサーバーから3画面を実撮影し、ZIP を取得・PNG を検証します。
