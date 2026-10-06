@@ -154,56 +154,75 @@ export function References({
     const createsReference = path === "" && method === "POST";
     if (createsReference && unknownCreation)
       throw new Error("追加結果を確認してから別の追加を準備してください。");
-    let saved: SavedReference;
+    // A create may be observed and deleted while its receipt is still pending.
+    const observedIds = new Set<string>();
+    const stopObserving = createsReference
+      ? client.getQueryCache().subscribe((event) => {
+          if (
+            event.type === "updated" &&
+            event.query.queryKey.length === 2 &&
+            event.query.queryKey[0] === "references" &&
+            event.query.queryKey[1] === scope.id
+          ) {
+            const data = event.query.state.data as ReferenceData | undefined;
+            data?.references.forEach((r) => observedIds.add(r.id));
+          }
+        })
+      : undefined;
     try {
-      saved = await request<SavedReference>(path, method, body);
-      // This endpoint creates a version-one input receipt, without derived metadata.
-      if (
-        createsReference &&
-        (!usableReference(saved) ||
-          saved.version !== 1 ||
-          saved.accepted.length !== 0 ||
-          ["assetId", "capture", "analysis", "analysisJobId"].some((key) =>
-            Object.hasOwn(saved, key),
-          ))
-      )
-        throw new Error("追加応答の参考を確認できません。");
-    } catch (e) {
-      // Current creation endpoint rejects validation, pairing/Origin and limits before writing.
-      if (
-        createsReference &&
-        (!(e instanceof ApiError) ||
-          ![400, 401, 403, 409, 413].includes(e.status))
-      ) {
-        setUnknownCreation({
-          input: structuredClone(body as ReferenceInput),
-          error: e instanceof Error ? e.message : "応答を取得できません。",
-        });
-        setCreationCandidates(undefined);
-        setCreationReadError("");
-        setAllowSeparateCreation(false);
+      let saved: SavedReference;
+      try {
+        saved = await request<SavedReference>(path, method, body);
+        // This endpoint creates a version-one input receipt, without derived metadata.
+        if (
+          createsReference &&
+          (!usableReference(saved) ||
+            saved.version !== 1 ||
+            saved.accepted.length !== 0 ||
+            ["assetId", "capture", "analysis", "analysisJobId"].some((key) =>
+              Object.hasOwn(saved, key),
+            ))
+        )
+          throw new Error("追加応答の参考を確認できません。");
+      } catch (e) {
+        // Current creation endpoint rejects validation, pairing/Origin and limits before writing.
+        if (
+          createsReference &&
+          (!(e instanceof ApiError) ||
+            ![400, 401, 403, 409, 413].includes(e.status))
+        ) {
+          setUnknownCreation({
+            input: structuredClone(body as ReferenceInput),
+            error: e instanceof Error ? e.message : "応答を取得できません。",
+          });
+          setCreationCandidates(undefined);
+          setCreationReadError("");
+          setAllowSeparateCreation(false);
+        }
+        throw e;
       }
-      throw e;
+      // Cancel older reads, and retain newer versions or an already known absence.
+      await client.cancelQueries({ queryKey, exact: true });
+      client.setQueryData<ReferenceData>(queryKey, (data) => {
+        if (
+          data &&
+          (!createsReference || observedIds.has(saved.id)) &&
+          !data.references.some((r) => r.id === saved.id)
+        )
+          return data;
+        return {
+          references: data?.references.some((r) => r.id === saved.id)
+            ? data.references.map((r) =>
+                r.id === saved.id && r.version <= saved.version ? saved : r,
+              )
+            : [...(data?.references ?? []), saved],
+          jobs: data?.jobs ?? [],
+        };
+      });
+      return saved;
+    } finally {
+      stopObserving?.();
     }
-    // Cancel older reads, and retain newer versions or an already known absence.
-    await client.cancelQueries({ queryKey, exact: true });
-    client.setQueryData<ReferenceData>(queryKey, (data) => {
-      if (
-        data &&
-        !createsReference &&
-        !data.references.some((r) => r.id === saved.id)
-      )
-        return data;
-      return {
-        references: data?.references.some((r) => r.id === saved.id)
-          ? data.references.map((r) =>
-              r.id === saved.id && r.version <= saved.version ? saved : r,
-            )
-          : [...(data?.references ?? []), saved],
-        jobs: data?.jobs ?? [],
-      };
-    });
-    return saved;
   };
   const removeReference = async (id: string) => {
     await client.cancelQueries({ queryKey, exact: true });
