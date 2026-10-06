@@ -59,8 +59,23 @@ function Consumer() {
     </form>
   </main></RuntimeTheme>;
 }
+function NestedConsumer() {
+  const [outer,setOuter]=useState(false), [inner,setInner]=useState(false), [submits,setSubmits]=useState(0);
+  return <RuntimeTheme design={design}><main style={{padding:16,minWidth:0,width:'100%'}}><form aria-label="Nested consumer" onSubmit={e=>{e.preventDefault();setSubmits(n=>n+1)}}>
+    <Button type="button" onClick={()=>setOuter(true)}>Open outer</Button>
+    <output aria-label="Submit count">{submits}</output>
+    <RuntimeDialog open={outer} close={()=>setOuter(false)}>
+      <label>Outer draft<Input defaultValue="outer draft"/></label>
+      <Button type="button" onClick={()=>setInner(true)}>Open inner</Button>
+      <RuntimeDialog open={inner} close={()=>setInner(false)}>
+        <Button type="button" disabled>Disabled inner action</Button>
+        <label>Inner draft<Input defaultValue="inner draft"/></label>
+      </RuntimeDialog>
+    </RuntimeDialog>
+  </form></main></RuntimeTheme>;
+}
 const screen=new URL(import.meta.url).searchParams.get('screen');
-const Page=screen==='list'?ListPage:screen==='settings'?SettingsPage:screen==='form'?FormPage:Consumer;
+const Page=screen==='list'?ListPage:screen==='settings'?SettingsPage:screen==='form'?FormPage:screen==='nested'?NestedConsumer:Consumer;
 createRoot(document.getElementById('consumer-root')!).render(<Page/>);
 document.documentElement.dataset.consumerReady='true';
 `,

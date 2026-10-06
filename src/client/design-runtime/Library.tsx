@@ -120,10 +120,18 @@ export function RuntimeDialog({
       ref={ref}
       data-component="Dialog"
       aria-labelledby={titleId}
-      onClose={close}
-      onCancel={close}
+      onClose={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+      onCancel={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
       onKeyDown={(e) => {
-        if (e.key !== "Tab") return;
+        if (
+          e.key !== "Tab" ||
+          (e.target as Element).closest("dialog") !== e.currentTarget
+        )
+          return;
         const controls = [
           ...e.currentTarget.querySelectorAll<HTMLElement>(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
