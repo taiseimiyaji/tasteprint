@@ -142,10 +142,10 @@ export function RuntimeDialog({
     >
       <h2 id={titleId}>Confirm changes</h2>
       {children}
-      <button data-component="Button" autoFocus onClick={close}>
+      <button type="button" data-component="Button" autoFocus onClick={close}>
         Cancel
       </button>
-      <button data-component="Button" onClick={close}>
+      <button type="button" data-component="Button" onClick={close}>
         Confirm
       </button>
     </dialog>
@@ -170,6 +170,7 @@ export function RuntimeTabs({
       <div role="tablist" aria-label="Project views">
         {tabs.map((name, i) => (
           <button
+            type="button"
             key={name}
             id={`${id}-tab-${i}`}
             data-component="Tabs"
@@ -269,7 +270,11 @@ export function ComponentSpecimen({
             <RuntimeTabs disabled={state === "disabled"} />
           ) : name === "Dialog" ? (
             <>
-              <button data-component="Button" onClick={() => setOpen(true)}>
+              <button
+                type="button"
+                data-component="Button"
+                onClick={() => setOpen(true)}
+              >
                 Open dialog
               </button>
               <RuntimeDialog open={open} close={() => setOpen(false)} />
