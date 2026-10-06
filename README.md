@@ -93,6 +93,8 @@ captureと分析はスコープごとにそれぞれ同時1件です。中断後
 
 現在のテンプレートは Preview と共有する Button / Input / Select と3画面のパターンです。個別の Components / Patterns 仕様・全状態・実アプリでのレビューは未確認として Draft に記録します。出力時に AI は呼び出しません。ZIP には採用した参考の出典と理由のみを含め、参考画像・会話ログ・URL の認証情報やクエリは含めません。
 
+[Export配布物の限定統合レビュー](./docs/reviews/export-consumer.md)では、生成ZIPを独立Reactフォームと3画面に組み込み、1440px / 390pxで状態・キーボード操作を確認しています。Tabs切り替え・Dialogの開閉だけでは親フォームを送信しません。全部品・全状態の確認は引き続き未完了です。
+
 API は `POST /api/projects/:id/exports` に `{ "baseRevision": 1, "bundle": true, "imageMode": "include" }` を指定します。画像なしは `"omit"`。応答には凍結ファイル名を返し、既存の所有関係を検証するダウンロード API で取得します。`bundle` 省略時は従来の個別出力です。ZIP のディレクトリ構造と各ファイルの SHA-256 は manifest に記録します。
 
 `npm test` で snapshot 整合性、DTCG 参照、ZIP 内容、展開後の React 型検査を実行します。`npm run test:built` はビルド済みサーバーから3画面を実撮影し、ZIP を取得・PNG を検証します。
