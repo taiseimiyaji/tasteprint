@@ -90,7 +90,7 @@ for (const width of [1440, 390])
           .getByRole("button", { name: "参考を追加", exact: true })
           .click();
       } else {
-        await page.getByLabel("画像を追加", { exact: true }).setInputFiles({
+        await page.getByLabel("画像を選ぶ", { exact: true }).setInputFiles({
           name,
           mimeType: "image/png",
           buffer: await sharp({
@@ -99,6 +99,9 @@ for (const width of [1440, 390])
             .png()
             .toBuffer(),
         });
+        await page
+          .getByRole("button", { name: "画像を登録", exact: true })
+          .click();
       }
       await started;
       const card = page

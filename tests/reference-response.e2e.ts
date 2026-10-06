@@ -185,8 +185,9 @@ for (const profile of [true, false]) {
       await route.fulfill({ response });
     });
     await page
-      .getByLabel("画像を追加", { exact: true })
+      .getByLabel("画像を選ぶ", { exact: true })
       .setInputFiles(await image());
+    await page.getByRole("button", { name: "画像を登録", exact: true }).click();
     const card = page.getByRole("article").filter({
       has: page.getByRole("heading", { name: "response.png", exact: true }),
     });
@@ -219,10 +220,11 @@ for (const profile of [true, false]) {
   }) => {
     const scope = await openScope(page, profile);
     await visit(page, scope);
-    await page.getByLabel("画像を追加", { exact: true }).setInputFiles({
+    await page.getByLabel("画像を選ぶ", { exact: true }).setInputFiles({
       ...(await image()),
       name: `${label}-adopt.png`,
     });
+    await page.getByRole("button", { name: "画像を登録", exact: true }).click();
     const card = page.getByRole("article").filter({
       has: page.getByRole("heading", {
         name: `${label}-adopt.png`,

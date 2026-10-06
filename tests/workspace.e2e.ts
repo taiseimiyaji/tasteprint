@@ -1689,8 +1689,9 @@ async function analyzedProfileReference(
     .png()
     .toBuffer();
   await page
-    .getByLabel("画像を追加", { exact: true })
+    .getByLabel("画像を選ぶ", { exact: true })
     .setInputFiles({ name, mimeType: "image/png", buffer: png });
+  await page.getByRole("button", { name: "画像を登録", exact: true }).click();
   const card = page
     .getByRole("article")
     .filter({ has: page.getByRole("heading", { name, exact: true }) });
