@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 
-for (const width of [1440, 390]) {
-  test(`late successful project creation preserves a newer draft after Back and reentry at ${width}`, async ({
+for (const [width, readFails] of [
+  [1440, false],
+  [390, false],
+  [1440, true],
+  [390, true],
+] as const) {
+  test(`late successful project creation preserves a newer draft and refreshes its list${readFails ? " after a failed GET" : ""} at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -27,8 +32,18 @@ for (const width of [1440, 390]) {
     const held = new Promise<void>((resolve) => (release = resolve));
     let accepted: { id: string; brief: { name: string } } | undefined;
     let posts = 0;
+    let failListRead = false,
+      listReads = 0;
     await page.route("**/api/projects", async (route) => {
-      if (route.request().method() !== "POST") return route.continue();
+      if (route.request().method() !== "POST") {
+        listReads++;
+        if (failListRead)
+          return route.fulfill({
+            status: 503,
+            json: { message: "LATE_CREATE_LIST_READ_FAILED" },
+          });
+        return route.continue();
+      }
       posts++;
       if (posts !== 1) return route.continue();
       const response = await route.fetch();
@@ -82,6 +97,8 @@ for (const width of [1440, 390]) {
           new URL(response.url()).pathname === "/api/projects" &&
           response.request().method() === "POST",
       );
+      const readsBeforeReply = listReads;
+      failListRead = readFails;
       release();
       await (await reply).finished();
       // Observe the old receipt long enough to catch its synchronous redirect.
@@ -112,12 +129,46 @@ for (const width of [1440, 390]) {
         ),
       ).toBe(false);
       await page.keyboard.press("Escape");
-      // The list is cached across routes; an ordinary reload reads the committed project.
-      await page.reload();
+      if (readFails) {
+        await expect(
+          page
+            .getByRole("alert")
+            .filter({ hasText: "LATE_CREATE_LIST_READ_FAILED" }),
+        ).toBeVisible();
+        expect(posts).toBe(1);
+        expect(await storage()).toEqual(newerStorage);
+        failListRead = false;
+        await page
+          .getByRole("button", { name: "一覧を再読み込み", exact: true })
+          .click();
+      }
+      await page
+        .getByLabel("プロジェクトを検索", { exact: true })
+        .fill(firstName);
       await expect(
         page
           .locator(".project-list")
           .getByRole("heading", { name: firstName, exact: true }),
+      ).toBeVisible();
+      expect(listReads).toBeGreaterThan(readsBeforeReply);
+      const row = page
+        .locator(".project-list article")
+        .filter({
+          has: page.getByRole("heading", { name: firstName, exact: true }),
+        });
+      await expect(row).toHaveCount(1);
+      await row.getByRole("link", { name: "再開", exact: true }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`/projects/${accepted!.id}/overview$`),
+      );
+      await expect(
+        page.getByRole("heading", { name: firstName, exact: true }),
+      ).toBeVisible();
+      expect(await storage()).toEqual(newerStorage);
+      await page.goBack();
+      await page.waitForURL("**/projects");
+      await expect(
+        page.getByRole("button", { name: "新規プロジェクト", exact: true }),
       ).toBeVisible();
       const reopened = await openDialog();
       await expect(
