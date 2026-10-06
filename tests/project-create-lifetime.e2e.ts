@@ -6,6 +6,9 @@ for (const width of [1440, 390]) {
   }) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/profile");
+    await expect(
+      page.getByRole("button", { name: "共通の好みを保存", exact: true }),
+    ).toBeVisible();
     const openProjects = async () => {
       if (width === 390)
         await page
