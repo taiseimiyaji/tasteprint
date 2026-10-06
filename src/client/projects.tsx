@@ -508,7 +508,17 @@ function ProjectList({
                 throw e;
               }
               // A late committed reply cannot clear a new screen's draft or navigate it.
-              if (!mounted.current) return;
+              if (!mounted.current) {
+                await client.cancelQueries({
+                  queryKey: ["projects"],
+                  exact: true,
+                });
+                await client.invalidateQueries({
+                  queryKey: ["projects"],
+                  exact: true,
+                });
+                return;
+              }
               // The project is committed. Optional browser cleanup must not
               // report creation as failed or offer another creation attempt.
               for (const key of [
