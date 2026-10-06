@@ -282,6 +282,13 @@ function ProjectList({
     [creationReadError, setCreationReadError] = useState(""),
     [allowSeparateCreation, setAllowSeparateCreation] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const action = useAction(),
     client = useQueryClient();
   const visible = projects
@@ -500,6 +507,8 @@ function ProjectList({
                 }
                 throw e;
               }
+              // A late committed reply cannot clear a new screen's draft or navigate it.
+              if (!mounted.current) return;
               // The project is committed. Optional browser cleanup must not
               // report creation as failed or offer another creation attempt.
               for (const key of [
