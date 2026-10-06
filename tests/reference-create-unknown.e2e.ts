@@ -68,13 +68,14 @@ async function setup(
       .click();
   const url = page.getByRole("textbox", { name: "Reference URL", exact: true }),
     add = page.getByRole("button", { name: "参考を追加", exact: true }),
-    file = page.getByLabel("画像を追加", { exact: true }),
+    file = page.getByLabel("画像を選ぶ", { exact: true }),
+    register = page.getByRole("button", { name: "画像を登録", exact: true }),
     recovery = page.getByRole("region", {
       name: "参考の追加結果を確認",
       exact: true,
     });
   await expect(url).toBeEnabled();
-  return { base, path, label, profile, url, add, file, recovery };
+  return { base, path, label, profile, url, add, file, register, recovery };
 }
 function posts(page: Page, base: string) {
   let count = 0;
@@ -95,7 +96,10 @@ async function ordinaryAdd(
   if (kind === "URL") {
     await f.url.fill(value);
     await f.add.click();
-  } else await f.file.setInputFiles(await png(value));
+  } else {
+    await f.file.setInputFiles(await png(value));
+    await f.register.click();
+  }
 }
 async function prepare(f: Awaited<ReturnType<typeof setup>>) {
   await f.recovery
@@ -241,7 +245,7 @@ for (const profile of [true, false])
         release();
       }
       holdRead = false;
-      await expect(f.recovery).toContainText("同じURLまたは画像名の候補: 2件");
+      await expect(f.recovery).toContainText("同じURLまたは参考名の候補: 2件");
       await expect(f.recovery).toContainText(
         "一致しても今回の追加結果とは限りません",
       );
@@ -426,7 +430,7 @@ test("unknown network, malformed and invalid create receipts require a GET check
       .getByRole("button", { name: "追加候補を確認", exact: true })
       .click();
     await expect(f.recovery).toContainText(
-      `同じURLまたは画像名の候補: ${["uncommitted503", "network"].includes(kind) ? 0 : 1}件`,
+      `同じURLまたは参考名の候補: ${["uncommitted503", "network"].includes(kind) ? 0 : 1}件`,
     );
     await expect(f.recovery).toContainText(
       "候補がなくても、追加されなかったことを保証しません",
@@ -528,7 +532,7 @@ test("unknown creation recovery accepts legal legacy References without rewritin
   await f.recovery
     .getByRole("button", { name: "追加候補を確認", exact: true })
     .click();
-  await expect(f.recovery).toContainText("同じURLまたは画像名の候補: 1件");
+  await expect(f.recovery).toContainText("同じURLまたは参考名の候補: 1件");
   await expect(f.recovery.getByRole("checkbox")).toBeVisible();
   await prepare(f);
   expect(count()).toBe(1);

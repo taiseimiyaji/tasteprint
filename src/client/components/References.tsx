@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   aspects,
@@ -233,6 +233,19 @@ export function References({
     );
   };
   const [url, setUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File>();
+  const [imageName, setImageName] = useState("");
+  const [imageNameEdited, setImageNameEdited] = useState(false);
+  const imageFileInput = useRef<HTMLInputElement>(null);
+  const imageFormId = useId();
+  const imageNameResult = referenceInputSchema.shape.name.safeParse(imageName);
+  const imageTooLarge = !!imageFile && imageFile.size > 10 * 1024 * 1024;
+  const clearImagePreparation = () => {
+    setImageFile(undefined);
+    setImageName("");
+    setImageNameEdited(false);
+    if (imageFileInput.current) imageFileInput.current.value = "";
+  };
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const query = useQuery({
@@ -325,34 +338,101 @@ export function References({
         <button className="button primary" disabled={busy || !!unknownCreation}>
           参考を追加
         </button>
-        <label className="button">
-          画像を追加
+      </form>
+      <form
+        className="reference-form reference-image-form"
+        aria-label="画像から参考を追加"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (
+            busy ||
+            unknownCreation ||
+            !imageFile ||
+            !imageNameResult.success ||
+            imageTooLarge
+          )
+            return;
+          const file = imageFile;
+          const name = imageNameResult.data;
+          void run(async () => {
+            const ref = await saveReference("", "POST", defaults(name));
+            // Once creation is known, retries belong to this card, not a new POST.
+            clearImagePreparation();
+            const form = new FormData();
+            form.set("version", String(ref.version));
+            form.set("image", file);
+            await saveReference(`/${ref.id}/image`, "POST", form);
+          });
+        }}
+      >
+        <label className="reference-image-name">
+          画像の参考名
           <input
-            aria-label="画像を追加"
+            value={imageName}
+            disabled={busy || !!unknownCreation}
+            aria-describedby={`${imageFormId}-help`}
+            aria-invalid={
+              !!(imageFile || imageNameEdited) && !imageNameResult.success
+            }
+            onChange={(e) => {
+              setImageName(e.target.value);
+              setImageNameEdited(true);
+            }}
+          />
+        </label>
+        <label className="button">
+          画像を選ぶ
+          <input
+            aria-label="画像を選ぶ"
+            ref={imageFileInput}
             type="file"
             accept="image/png,image/jpeg,image/webp"
             disabled={busy || !!unknownCreation}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              e.target.value = "";
               if (busy || unknownCreation) return;
-              if (file)
-                void run(async () => {
-                  if (file.size > 10 * 1024 * 1024)
-                    throw new Error("画像は10MB以下にしてください。");
-                  const ref = await saveReference(
-                    "",
-                    "POST",
-                    defaults(file.name),
-                  );
-                  const form = new FormData();
-                  form.set("version", String(ref.version));
-                  form.set("image", file);
-                  await saveReference(`/${ref.id}/image`, "POST", form);
-                });
+              setImageFile(file);
+              if (file && !imageNameEdited) setImageName(file.name);
             }}
           />
         </label>
+        <button
+          className="button primary"
+          disabled={
+            busy ||
+            !!unknownCreation ||
+            !imageFile ||
+            !imageNameResult.success ||
+            imageTooLarge
+          }
+        >
+          画像を登録
+        </button>
+        <button
+          type="button"
+          className="button"
+          disabled={
+            busy ||
+            !!unknownCreation ||
+            (!imageFile && !imageName && !imageNameEdited)
+          }
+          onClick={clearImagePreparation}
+        >
+          画像の準備を取り消す
+        </button>
+        <div className="reference-image-help" id={`${imageFormId}-help`}>
+          <p>
+            画像名を初期値に使います。参考名を確認・編集してから登録してください。
+          </p>
+          {imageFile && (
+            <p>選択中: {imageFile.name}（まだ登録されていません）</p>
+          )}
+          <p>画面移動・再読み込みで画像の準備は解除されます。</p>
+          {(imageFile || imageNameEdited) && !imageNameResult.success && (
+            <p role="alert">参考名は1〜200文字で入力してください。</p>
+          )}
+          {imageTooLarge && <p role="alert">画像は10MB以下にしてください。</p>}
+        </div>
       </form>
       {unknownCreation && (
         <section
@@ -416,7 +496,7 @@ export function References({
           {creationCandidates !== undefined && (
             <>
               <p>
-                同じURLまたは画像名の候補: {creationCandidates.length}
+                同じURLまたは参考名の候補: {creationCandidates.length}
                 件。一致しても今回の追加結果とは限りません。候補がなくても、追加されなかったことを保証しません。
               </p>
               <ul>
@@ -444,6 +524,11 @@ export function References({
                   setUnknownCreation(undefined);
                   setCreationCandidates(undefined);
                   setAllowSeparateCreation(false);
+                  if (!unknownCreation.input.url) {
+                    setImageFile(undefined);
+                    if (imageFileInput.current)
+                      imageFileInput.current.value = "";
+                  }
                   setError("");
                 }}
               >

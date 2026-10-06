@@ -948,7 +948,8 @@ svg {
   gap: 10px;
   margin: 22px 0;
 }
-.reference-form > input:not([hidden]) {
+.reference-form > input:not([hidden]),
+.reference-image-name input {
   min-width: 0;
   flex: 1;
   border: 1px solid #dfe5d5;
@@ -956,6 +957,24 @@ svg {
   padding: 9px;
   font-size: 13px;
   background: white;
+}
+.reference-image-form {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.reference-image-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 240px;
+  font-size: 12px;
+}
+.reference-image-help {
+  flex-basis: 100%;
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 .reference-grid {
   display: grid;
