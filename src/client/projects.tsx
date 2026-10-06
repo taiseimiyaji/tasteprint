@@ -509,6 +509,10 @@ function ProjectList({
               }
               // A late committed reply cannot clear a new screen's draft or navigate it.
               if (!mounted.current) {
+                await client.cancelQueries({
+                  queryKey: ["projects"],
+                  exact: true,
+                });
                 await client.invalidateQueries({
                   queryKey: ["projects"],
                   exact: true,
