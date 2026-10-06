@@ -51,9 +51,15 @@ async function verifyFrozen(frozenVersion: string) {
           "aria-labelledby={`tab-${active}`}",
         );
       expect(old.files[path]).toContain('aria-controls="project-panel"');
-    } else {
+    } else if (frozenVersion === "preview-7") {
       old.files[path] = old.files[path].replaceAll('type="button"', "");
       expect(old.files[path]).not.toContain('type="button"');
+    } else {
+      old.files[path] = old.files[path]
+        .replace(/onClose=\{\(e\) => \{[\s\S]*?\}\}/, "onClose={close}")
+        .replace(/onCancel=\{\(e\) => \{[\s\S]*?\}\}/, "onCancel={close}");
+      expect(old.files[path]).toContain("onClose={close}");
+      expect(old.files[path]).toContain("onCancel={close}");
     }
     const root = `tasteprint-${project.slug}-r${revision.revision}`;
     const frozen = finishBundle(
@@ -131,6 +137,6 @@ async function verifyFrozen(frozenVersion: string) {
   }
 }
 
-for (const frozenVersion of ["preview-6", "preview-7"])
+for (const frozenVersion of ["preview-6", "preview-7", "preview-8"])
   it(`new portable widget source preserves frozen ${frozenVersion} ZIP and revision`, () =>
     verifyFrozen(frozenVersion));
