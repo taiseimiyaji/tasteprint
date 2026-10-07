@@ -99,6 +99,8 @@ captureと分析はスコープごとにそれぞれ同時1件です。中断後
 
 [Export CSSの局所化レビュー](./docs/reviews/export-css-scope.md)では、`preview-10`のCSSをRuntimeTheme内へ限定し、既存React画面への直接読み込みとSPA遷移でホストの色・幅・入力を保持することを確認しています。生の部品にはRuntimeThemeが必要です。ホスト側CSSの内向き適用とフォント登録は残るため、厳密な分離にはiframeを使います。
 
+[編集した設計のExportレビュー](./docs/reviews/export-edited-consumer.md)では、隔離fixtureで好み・色・字体・文字サイズ・部品サイズを保存し、2版のPreviewと実ZIPを確認しています。`preview-11`はSettings / FormのInput文字サイズも保存値に合わせ、旧ZIPは保持します。
+
 API は `POST /api/projects/:id/exports` に `{ "baseRevision": 1, "bundle": true, "imageMode": "include" }` を指定します。画像なしは `"omit"`。応答には凍結ファイル名を返し、既存の所有関係を検証するダウンロード API で取得します。`bundle` 省略時は従来の個別出力です。ZIP のディレクトリ構造と各ファイルの SHA-256 は manifest に記録します。
 
 `npm test` で snapshot 整合性、DTCG 参照、ZIP 内容、展開後の React 型検査を実行します。`npm run test:built` はビルド済みサーバーから3画面を実撮影し、ZIP を取得・PNG を検証します。

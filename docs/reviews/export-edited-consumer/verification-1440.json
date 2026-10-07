@@ -1,0 +1,1402 @@
+{
+  "base": "07fcb5ba64c8e7046e7eda942ce55bbafe31c765",
+  "width": 1440,
+  "sourceTasteProfileRevision": 2,
+  "templateVersion": "preview-11",
+  "revisions": [
+    5,
+    6
+  ],
+  "zipSha256": {
+    "serif": "d0ab645dc494155873c5ded6ace8de7eb162d748f978c1a62ede8eb9ef4e65ba",
+    "monospace": "bc83d8459dd47f4099c84d8045bf01525f6091f5595d77519090bf8df58daee4"
+  },
+  "oldZipPreserved": true,
+  "unsavedExcluded": true,
+  "regeneratedZipReused": true,
+  "realAiCalls": 0,
+  "pageErrors": [],
+  "visual": [
+    {
+      "screen": "list",
+      "width": 1440,
+      "pngEqual": true,
+      "normalSha256": "5b1e7b37f22d70c5221cb5e551e9c98c37adf502c273f12e93ba77403902317a",
+      "metrics": {
+        "fontFamily": "serif",
+        "fontSize": "16px",
+        "fontWeight": "500",
+        "lineHeight": "28.8px",
+        "color": "rgb(24, 44, 60)",
+        "background": "rgb(255, 253, 247)",
+        "heading": {
+          "fontFamily": "serif",
+          "fontSize": "34px",
+          "fontWeight": "700",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgba(0, 0, 0, 0)",
+          "minHeight": "0px",
+          "height": 61.1875
+        },
+        "input": {
+          "fontFamily": "serif",
+          "fontSize": "18px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(255, 253, 247)",
+          "minHeight": "60px",
+          "height": 60
+        },
+        "button": {
+          "fontFamily": "serif",
+          "fontSize": "14px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(230, 237, 243)",
+          "minHeight": "44px",
+          "height": 44
+        },
+        "select": {
+          "fontFamily": "serif",
+          "fontSize": "16px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(255, 253, 247)",
+          "minHeight": "52px",
+          "height": 52
+        }
+      }
+    },
+    {
+      "screen": "settings",
+      "width": 1440,
+      "pngEqual": true,
+      "normalSha256": "25b5ed322367de3b36cceb8241afb36dec409d310047716d75dd5f32c39a758a",
+      "metrics": {
+        "fontFamily": "serif",
+        "fontSize": "16px",
+        "fontWeight": "500",
+        "lineHeight": "28.8px",
+        "color": "rgb(24, 44, 60)",
+        "background": "rgb(255, 253, 247)",
+        "heading": {
+          "fontFamily": "serif",
+          "fontSize": "34px",
+          "fontWeight": "700",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgba(0, 0, 0, 0)",
+          "minHeight": "0px",
+          "height": 61.1875
+        },
+        "input": {
+          "fontFamily": "serif",
+          "fontSize": "18px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(255, 253, 247)",
+          "minHeight": "60px",
+          "height": 60
+        },
+        "button": {
+          "fontFamily": "serif",
+          "fontSize": "14px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(230, 237, 243)",
+          "minHeight": "44px",
+          "height": 44
+        },
+        "select": {
+          "fontFamily": "serif",
+          "fontSize": "16px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(255, 253, 247)",
+          "minHeight": "52px",
+          "height": 52
+        }
+      }
+    },
+    {
+      "screen": "form",
+      "width": 1440,
+      "pngEqual": true,
+      "normalSha256": "eee755729371e14813b18e2820f7828edba4babe947fd871643db9873ffdf22c",
+      "metrics": {
+        "fontFamily": "serif",
+        "fontSize": "16px",
+        "fontWeight": "500",
+        "lineHeight": "28.8px",
+        "color": "rgb(24, 44, 60)",
+        "background": "rgb(255, 253, 247)",
+        "heading": {
+          "fontFamily": "serif",
+          "fontSize": "34px",
+          "fontWeight": "700",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgba(0, 0, 0, 0)",
+          "minHeight": "0px",
+          "height": 61.1875
+        },
+        "input": {
+          "fontFamily": "serif",
+          "fontSize": "18px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(255, 253, 247)",
+          "minHeight": "60px",
+          "height": 60
+        },
+        "button": {
+          "fontFamily": "serif",
+          "fontSize": "14px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(230, 237, 243)",
+          "minHeight": "44px",
+          "height": 44
+        },
+        "select": {
+          "fontFamily": "serif",
+          "fontSize": "16px",
+          "fontWeight": "500",
+          "color": "rgb(24, 44, 60)",
+          "background": "rgb(255, 253, 247)",
+          "minHeight": "52px",
+          "height": 52
+        }
+      }
+    },
+    {
+      "screen": "list",
+      "width": 1440,
+      "pngEqual": true,
+      "normalSha256": "331f0ac1f664697f5e86ebcd53c04cae49457800fee52bd2efbd4f9115d847b5",
+      "metrics": {
+        "fontFamily": "monospace",
+        "fontSize": "18px",
+        "fontWeight": "400",
+        "lineHeight": "25.2px",
+        "color": "rgb(64, 36, 25)",
+        "background": "rgb(255, 250, 245)",
+        "heading": {
+          "fontFamily": "monospace",
+          "fontSize": "38px",
+          "fontWeight": "600",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgba(0, 0, 0, 0)",
+          "minHeight": "0px",
+          "height": 53.1875
+        },
+        "input": {
+          "fontFamily": "monospace",
+          "fontSize": "20px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(255, 250, 245)",
+          "minHeight": "48px",
+          "height": 48
+        },
+        "button": {
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(246, 236, 229)",
+          "minHeight": "32px",
+          "height": 32
+        },
+        "select": {
+          "fontFamily": "monospace",
+          "fontSize": "18px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(255, 250, 245)",
+          "minHeight": "40px",
+          "height": 40
+        }
+      }
+    },
+    {
+      "screen": "settings",
+      "width": 1440,
+      "pngEqual": true,
+      "normalSha256": "28c9200529d8f7b932cc790d6fef44a88b9a3586f799363c781779421a9aa2e1",
+      "metrics": {
+        "fontFamily": "monospace",
+        "fontSize": "18px",
+        "fontWeight": "400",
+        "lineHeight": "25.2px",
+        "color": "rgb(64, 36, 25)",
+        "background": "rgb(255, 250, 245)",
+        "heading": {
+          "fontFamily": "monospace",
+          "fontSize": "38px",
+          "fontWeight": "600",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgba(0, 0, 0, 0)",
+          "minHeight": "0px",
+          "height": 53.1875
+        },
+        "input": {
+          "fontFamily": "monospace",
+          "fontSize": "20px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(255, 250, 245)",
+          "minHeight": "48px",
+          "height": 48
+        },
+        "button": {
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(246, 236, 229)",
+          "minHeight": "32px",
+          "height": 32
+        },
+        "select": {
+          "fontFamily": "monospace",
+          "fontSize": "18px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(255, 250, 245)",
+          "minHeight": "40px",
+          "height": 40
+        }
+      }
+    },
+    {
+      "screen": "form",
+      "width": 1440,
+      "pngEqual": true,
+      "normalSha256": "44155f8b3a769fd4379e73c6565cf5449ec1f07340f1edfc4a5e0451cf3cac03",
+      "metrics": {
+        "fontFamily": "monospace",
+        "fontSize": "18px",
+        "fontWeight": "400",
+        "lineHeight": "25.2px",
+        "color": "rgb(64, 36, 25)",
+        "background": "rgb(255, 250, 245)",
+        "heading": {
+          "fontFamily": "monospace",
+          "fontSize": "38px",
+          "fontWeight": "600",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgba(0, 0, 0, 0)",
+          "minHeight": "0px",
+          "height": 53.1875
+        },
+        "input": {
+          "fontFamily": "monospace",
+          "fontSize": "20px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(255, 250, 245)",
+          "minHeight": "48px",
+          "height": 48
+        },
+        "button": {
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(246, 236, 229)",
+          "minHeight": "32px",
+          "height": 32
+        },
+        "select": {
+          "fontFamily": "monospace",
+          "fontSize": "18px",
+          "fontWeight": "400",
+          "color": "rgb(64, 36, 25)",
+          "background": "rgb(255, 250, 245)",
+          "minHeight": "40px",
+          "height": 40
+        }
+      }
+    }
+  ],
+  "savedA": {
+    "snapshot": {
+      "projectId": "6588a724-e181-4761-bafd-35f87c4f7f79",
+      "brief": {
+        "name": "Edited export fixture 1440",
+        "purpose": "",
+        "audience": "",
+        "desired": "",
+        "avoid": ""
+      },
+      "sourceTasteProfileRevision": 2,
+      "taste": {
+        "answers": {
+          "density-0": "b",
+          "roundness-0": "a"
+        },
+        "dna": {
+          "density": 0.8,
+          "roundness": 0.2,
+          "decoration": null,
+          "contrast": null,
+          "borderEmphasis": null,
+          "shadowEmphasis": null,
+          "cardUsage": null
+        },
+        "reasons": {
+          "density-0": "隔離fixture：日本語入力と一覧の情報量を優先"
+        },
+        "principles": [
+          {
+            "id": "89ceaef0-2ae1-4eb3-a446-6cd733c9695c",
+            "target": "list",
+            "text": "本文・操作・一覧の読みやすさを保存値で比較する",
+            "reason": "隔離fixtureの明示選択",
+            "sources": [],
+            "locked": false
+          }
+        ],
+        "questionVersion": "taste-v1",
+        "comparisons": [
+          {
+            "id": "density-0",
+            "axis": "density",
+            "title": "どちらの情報量が、心地よいですか？",
+            "labels": [
+              "余白で呼吸をつくる",
+              "一覧性を高める"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "density-1",
+            "axis": "density",
+            "title": "どちらの情報量が、心地よいですか？",
+            "labels": [
+              "余白で呼吸をつくる",
+              "一覧性を高める"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "roundness-0",
+            "axis": "roundness",
+            "title": "角の仕上げは、どちらが好みですか？",
+            "labels": [
+              "直線的でシャープ",
+              "丸くやわらかい"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "roundness-1",
+            "axis": "roundness",
+            "title": "角の仕上げは、どちらが好みですか？",
+            "labels": [
+              "直線的でシャープ",
+              "丸くやわらかい"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "decoration-0",
+            "axis": "decoration",
+            "title": "どちらの表情が、しっくりきますか？",
+            "labels": [
+              "静かで控えめ",
+              "装飾で表情をつくる"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "decoration-1",
+            "axis": "decoration",
+            "title": "どちらの表情が、しっくりきますか？",
+            "labels": [
+              "静かで控えめ",
+              "装飾で表情をつくる"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "contrast-0",
+            "axis": "contrast",
+            "title": "情報の強弱は、どちらが好みですか？",
+            "labels": [
+              "穏やかな強弱",
+              "はっきりした強弱"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "contrast-1",
+            "axis": "contrast",
+            "title": "情報の強弱は、どちらが好みですか？",
+            "labels": [
+              "穏やかな強弱",
+              "はっきりした強弱"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "borderEmphasis-0",
+            "axis": "borderEmphasis",
+            "title": "境界は、どちらが見やすいですか？",
+            "labels": [
+              "余白で区切る",
+              "罫線で区切る"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "borderEmphasis-1",
+            "axis": "borderEmphasis",
+            "title": "境界は、どちらが見やすいですか？",
+            "labels": [
+              "余白で区切る",
+              "罫線で区切る"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "shadowEmphasis-0",
+            "axis": "shadowEmphasis",
+            "title": "奥行きは、どちらが自然ですか？",
+            "labels": [
+              "フラットに整える",
+              "影で奥行きをつくる"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "shadowEmphasis-1",
+            "axis": "shadowEmphasis",
+            "title": "奥行きは、どちらが自然ですか？",
+            "labels": [
+              "フラットに整える",
+              "影で奥行きをつくる"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "cardUsage-0",
+            "axis": "cardUsage",
+            "title": "情報のまとまりは、どちらが好みですか？",
+            "labels": [
+              "連続したリスト",
+              "独立したカード"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "cardUsage-1",
+            "axis": "cardUsage",
+            "title": "情報のまとまりは、どちらが好みですか？",
+            "labels": [
+              "連続したリスト",
+              "独立したカード"
+            ],
+            "context": "最近のアクティビティ"
+          }
+        ],
+        "references": [],
+        "confirmed": true
+      },
+      "policies": [],
+      "references": [],
+      "maintained": []
+    },
+    "dna": {
+      "density": 0.8,
+      "roundness": 0.2,
+      "decoration": null,
+      "contrast": null,
+      "borderEmphasis": null,
+      "shadowEmphasis": null,
+      "cardUsage": null
+    },
+    "schemaVersion": 2,
+    "decisions": [
+      {
+        "targetPath": "patterns",
+        "rationale": "手動でPatternsを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      }
+    ],
+    "design": {
+      "canvas": "#e6edf3",
+      "surface": "#fffdf7",
+      "ink": "#182c3c",
+      "muted": "#52657a",
+      "borderColor": "#e9e9e3",
+      "success": "#327554",
+      "warning": "#946500",
+      "danger": "#b34040",
+      "focus": "#526f99",
+      "fontFamily": "serif",
+      "heading1": 34,
+      "heading2": 26,
+      "heading3": 20,
+      "lineHeight": 1.8,
+      "bodyWeight": 500,
+      "headingWeight": 700,
+      "spacingScale": [
+        0,
+        4,
+        8,
+        12,
+        16,
+        24,
+        32,
+        48
+      ],
+      "pagePadding": 28,
+      "sectionGap": 32,
+      "controlHeight": 52,
+      "rowHeight": 64,
+      "radiusNone": 0,
+      "radiusXs": 2,
+      "radiusSm": 4,
+      "radiusLg": 12,
+      "radiusPill": 9999,
+      "radiusUsage": "md: 面、sm: コントロール、pill: バッジ",
+      "borderWidth": 1,
+      "borderPolicy": "一覧の行を区切る",
+      "shadowX": 0,
+      "shadowY": 5,
+      "shadowBlur": 18,
+      "shadowSpread": 0,
+      "shadowColor": "#222222",
+      "shadowOpacity": 0.08,
+      "shadowAllowed": "Dialog、Popover",
+      "duration": 160,
+      "easing": "ease-out",
+      "reducedMotion": "none",
+      "compactBreakpoint": 480,
+      "mediumBreakpoint": 768,
+      "wideBreakpoint": 1200,
+      "compactPolicy": "ナビゲーションを畳み、テーブルを横スクロール",
+      "mediumPolicy": "ナビゲーションを畳む",
+      "widePolicy": "サイドバーと本文を横並び",
+      "components": {
+        "Button": {
+          "variant": "subtle",
+          "size": "sm",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "loading"
+          ],
+          "usage": "Buttonの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Input": {
+          "variant": "outline",
+          "size": "lg",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "error"
+          ],
+          "usage": "Inputの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Select": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "error"
+          ],
+          "usage": "Selectの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Checkbox": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "error"
+          ],
+          "usage": "Checkboxの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Tabs": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled"
+          ],
+          "usage": "Tabsの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Dialog": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "focus"
+          ],
+          "usage": "Dialogの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Table": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "loading"
+          ],
+          "usage": "Tableの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Badge": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default"
+          ],
+          "usage": "Badgeの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        }
+      },
+      "patterns": {
+        "PageHeader": {
+          "structure": [
+            "title",
+            "action"
+          ],
+          "gap": 16,
+          "components": [
+            "Button"
+          ],
+          "responsive": "stack",
+          "usage": "PageHeaderで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "FilterBar": {
+          "structure": [
+            "tabs",
+            "search",
+            "filter"
+          ],
+          "gap": 16,
+          "components": [
+            "Tabs",
+            "Input",
+            "Select"
+          ],
+          "responsive": "stack",
+          "usage": "FilterBarで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "ListPage": {
+          "structure": [
+            "PageHeader",
+            "FilterBar",
+            "Table",
+            "EmptyState"
+          ],
+          "gap": 16,
+          "components": [
+            "Table",
+            "Badge"
+          ],
+          "responsive": "stack",
+          "usage": "ListPageで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "SettingsSection": {
+          "structure": [
+            "fields",
+            "save",
+            "danger"
+          ],
+          "gap": 16,
+          "components": [
+            "Input",
+            "Select",
+            "Checkbox",
+            "Button",
+            "Dialog"
+          ],
+          "responsive": "stack",
+          "usage": "SettingsSectionで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "FormSection": {
+          "structure": [
+            "fields",
+            "submit",
+            "help"
+          ],
+          "gap": 32,
+          "components": [
+            "Input",
+            "Select",
+            "Checkbox",
+            "Button"
+          ],
+          "responsive": "stack",
+          "usage": "FormSectionで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "EmptyState": {
+          "structure": [
+            "message",
+            "action"
+          ],
+          "gap": 16,
+          "components": [
+            "Button"
+          ],
+          "responsive": "stack",
+          "usage": "EmptyStateで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        }
+      },
+      "constraints": {
+        "accent": {
+          "locked": true,
+          "scope": "全画面",
+          "exceptions": "",
+          "rationale": "読みやすい青を利用者が指定",
+          "source": "隔離fixtureの手動選択",
+          "author": "user"
+        }
+      },
+      "accent": "#206493",
+      "radius": 10,
+      "spacing": 20,
+      "fontSize": 16,
+      "border": true,
+      "shadow": false
+    },
+    "reason": "手動でPatternsを編集",
+    "createdAt": "2026-10-07T05:00:38.071Z",
+    "revision": 5
+  },
+  "savedB": {
+    "snapshot": {
+      "projectId": "6588a724-e181-4761-bafd-35f87c4f7f79",
+      "brief": {
+        "name": "Edited export fixture 1440",
+        "purpose": "",
+        "audience": "",
+        "desired": "",
+        "avoid": ""
+      },
+      "sourceTasteProfileRevision": 2,
+      "taste": {
+        "answers": {
+          "density-0": "b",
+          "roundness-0": "a"
+        },
+        "dna": {
+          "density": 0.8,
+          "roundness": 0.2,
+          "decoration": null,
+          "contrast": null,
+          "borderEmphasis": null,
+          "shadowEmphasis": null,
+          "cardUsage": null
+        },
+        "reasons": {
+          "density-0": "隔離fixture：日本語入力と一覧の情報量を優先"
+        },
+        "principles": [
+          {
+            "id": "89ceaef0-2ae1-4eb3-a446-6cd733c9695c",
+            "target": "list",
+            "text": "本文・操作・一覧の読みやすさを保存値で比較する",
+            "reason": "隔離fixtureの明示選択",
+            "sources": [],
+            "locked": false
+          }
+        ],
+        "questionVersion": "taste-v1",
+        "comparisons": [
+          {
+            "id": "density-0",
+            "axis": "density",
+            "title": "どちらの情報量が、心地よいですか？",
+            "labels": [
+              "余白で呼吸をつくる",
+              "一覧性を高める"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "density-1",
+            "axis": "density",
+            "title": "どちらの情報量が、心地よいですか？",
+            "labels": [
+              "余白で呼吸をつくる",
+              "一覧性を高める"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "roundness-0",
+            "axis": "roundness",
+            "title": "角の仕上げは、どちらが好みですか？",
+            "labels": [
+              "直線的でシャープ",
+              "丸くやわらかい"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "roundness-1",
+            "axis": "roundness",
+            "title": "角の仕上げは、どちらが好みですか？",
+            "labels": [
+              "直線的でシャープ",
+              "丸くやわらかい"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "decoration-0",
+            "axis": "decoration",
+            "title": "どちらの表情が、しっくりきますか？",
+            "labels": [
+              "静かで控えめ",
+              "装飾で表情をつくる"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "decoration-1",
+            "axis": "decoration",
+            "title": "どちらの表情が、しっくりきますか？",
+            "labels": [
+              "静かで控えめ",
+              "装飾で表情をつくる"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "contrast-0",
+            "axis": "contrast",
+            "title": "情報の強弱は、どちらが好みですか？",
+            "labels": [
+              "穏やかな強弱",
+              "はっきりした強弱"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "contrast-1",
+            "axis": "contrast",
+            "title": "情報の強弱は、どちらが好みですか？",
+            "labels": [
+              "穏やかな強弱",
+              "はっきりした強弱"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "borderEmphasis-0",
+            "axis": "borderEmphasis",
+            "title": "境界は、どちらが見やすいですか？",
+            "labels": [
+              "余白で区切る",
+              "罫線で区切る"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "borderEmphasis-1",
+            "axis": "borderEmphasis",
+            "title": "境界は、どちらが見やすいですか？",
+            "labels": [
+              "余白で区切る",
+              "罫線で区切る"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "shadowEmphasis-0",
+            "axis": "shadowEmphasis",
+            "title": "奥行きは、どちらが自然ですか？",
+            "labels": [
+              "フラットに整える",
+              "影で奥行きをつくる"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "shadowEmphasis-1",
+            "axis": "shadowEmphasis",
+            "title": "奥行きは、どちらが自然ですか？",
+            "labels": [
+              "フラットに整える",
+              "影で奥行きをつくる"
+            ],
+            "context": "最近のアクティビティ"
+          },
+          {
+            "id": "cardUsage-0",
+            "axis": "cardUsage",
+            "title": "情報のまとまりは、どちらが好みですか？",
+            "labels": [
+              "連続したリスト",
+              "独立したカード"
+            ],
+            "context": "プロジェクトの一覧"
+          },
+          {
+            "id": "cardUsage-1",
+            "axis": "cardUsage",
+            "title": "情報のまとまりは、どちらが好みですか？",
+            "labels": [
+              "連続したリスト",
+              "独立したカード"
+            ],
+            "context": "最近のアクティビティ"
+          }
+        ],
+        "references": [],
+        "confirmed": true
+      },
+      "policies": [],
+      "references": [],
+      "maintained": []
+    },
+    "dna": {
+      "density": 0.8,
+      "roundness": 0.2,
+      "decoration": null,
+      "contrast": null,
+      "borderEmphasis": null,
+      "shadowEmphasis": null,
+      "cardUsage": null
+    },
+    "schemaVersion": 2,
+    "decisions": [
+      {
+        "targetPath": "accent",
+        "rationale": "手動でFoundationを編集",
+        "source": "隔離fixtureの手動選択",
+        "author": "user"
+      },
+      {
+        "targetPath": "canvas",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "surface",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "ink",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "muted",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "fontSize",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "fontFamily",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "heading1",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "heading2",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "heading3",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "lineHeight",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "bodyWeight",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "headingWeight",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "spacing",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "pagePadding",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "sectionGap",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "controlHeight",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "rowHeight",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      },
+      {
+        "targetPath": "radius",
+        "rationale": "手動でFoundationを編集",
+        "source": "ユーザー指定",
+        "author": "user"
+      }
+    ],
+    "design": {
+      "canvas": "#f6ece5",
+      "surface": "#fffaf5",
+      "ink": "#402419",
+      "muted": "#765748",
+      "borderColor": "#e9e9e3",
+      "success": "#327554",
+      "warning": "#946500",
+      "danger": "#b34040",
+      "focus": "#526f99",
+      "fontFamily": "monospace",
+      "heading1": 38,
+      "heading2": 28,
+      "heading3": 22,
+      "lineHeight": 1.4,
+      "bodyWeight": 400,
+      "headingWeight": 600,
+      "spacingScale": [
+        0,
+        4,
+        8,
+        12,
+        16,
+        24,
+        32,
+        48
+      ],
+      "pagePadding": 20,
+      "sectionGap": 24,
+      "controlHeight": 40,
+      "rowHeight": 56,
+      "radiusNone": 0,
+      "radiusXs": 2,
+      "radiusSm": 4,
+      "radiusLg": 12,
+      "radiusPill": 9999,
+      "radiusUsage": "md: 面、sm: コントロール、pill: バッジ",
+      "borderWidth": 1,
+      "borderPolicy": "一覧の行を区切る",
+      "shadowX": 0,
+      "shadowY": 5,
+      "shadowBlur": 18,
+      "shadowSpread": 0,
+      "shadowColor": "#222222",
+      "shadowOpacity": 0.08,
+      "shadowAllowed": "Dialog、Popover",
+      "duration": 160,
+      "easing": "ease-out",
+      "reducedMotion": "none",
+      "compactBreakpoint": 480,
+      "mediumBreakpoint": 768,
+      "wideBreakpoint": 1200,
+      "compactPolicy": "ナビゲーションを畳み、テーブルを横スクロール",
+      "mediumPolicy": "ナビゲーションを畳む",
+      "widePolicy": "サイドバーと本文を横並び",
+      "components": {
+        "Button": {
+          "variant": "subtle",
+          "size": "sm",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "loading"
+          ],
+          "usage": "Buttonの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Input": {
+          "variant": "outline",
+          "size": "lg",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "error"
+          ],
+          "usage": "Inputの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Select": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "error"
+          ],
+          "usage": "Selectの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Checkbox": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled",
+            "error"
+          ],
+          "usage": "Checkboxの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Tabs": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled"
+          ],
+          "usage": "Tabsの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Dialog": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "focus"
+          ],
+          "usage": "Dialogの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Table": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default",
+            "loading"
+          ],
+          "usage": "Tableの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        },
+        "Badge": {
+          "variant": "outline",
+          "size": "md",
+          "states": [
+            "default"
+          ],
+          "usage": "Badgeの標準的な操作・表示",
+          "rules": "ラベルとフォーカスを明確にする",
+          "rationale": "一貫した操作と読みやすさを保つ"
+        }
+      },
+      "patterns": {
+        "PageHeader": {
+          "structure": [
+            "title",
+            "action"
+          ],
+          "gap": 16,
+          "components": [
+            "Button"
+          ],
+          "responsive": "stack",
+          "usage": "PageHeaderで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "FilterBar": {
+          "structure": [
+            "tabs",
+            "search",
+            "filter"
+          ],
+          "gap": 16,
+          "components": [
+            "Tabs",
+            "Input",
+            "Select"
+          ],
+          "responsive": "stack",
+          "usage": "FilterBarで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "ListPage": {
+          "structure": [
+            "PageHeader",
+            "FilterBar",
+            "Table",
+            "EmptyState"
+          ],
+          "gap": 16,
+          "components": [
+            "Table",
+            "Badge"
+          ],
+          "responsive": "stack",
+          "usage": "ListPageで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "SettingsSection": {
+          "structure": [
+            "fields",
+            "save",
+            "danger"
+          ],
+          "gap": 16,
+          "components": [
+            "Input",
+            "Select",
+            "Checkbox",
+            "Button",
+            "Dialog"
+          ],
+          "responsive": "stack",
+          "usage": "SettingsSectionで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "FormSection": {
+          "structure": [
+            "fields",
+            "submit",
+            "help"
+          ],
+          "gap": 32,
+          "components": [
+            "Input",
+            "Select",
+            "Checkbox",
+            "Button"
+          ],
+          "responsive": "stack",
+          "usage": "FormSectionで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        },
+        "EmptyState": {
+          "structure": [
+            "message",
+            "action"
+          ],
+          "gap": 16,
+          "components": [
+            "Button"
+          ],
+          "responsive": "stack",
+          "usage": "EmptyStateで情報と操作をまとめる",
+          "avoid": "操作と無関係な情報を混在させない",
+          "rationale": "情報の順序と余白で構造を伝える"
+        }
+      },
+      "constraints": {
+        "accent": {
+          "locked": true,
+          "scope": "全画面",
+          "exceptions": "",
+          "rationale": "読みやすい青を利用者が指定",
+          "source": "隔離fixtureの手動選択",
+          "author": "user"
+        }
+      },
+      "accent": "#845034",
+      "radius": 2,
+      "spacing": 12,
+      "fontSize": 18,
+      "border": true,
+      "shadow": false
+    },
+    "reason": "手動でFoundationを編集",
+    "createdAt": "2026-10-07T05:00:46.373Z",
+    "revision": 6
+  },
+  "violations": []
+}
