@@ -416,6 +416,144 @@ test("Late exact result reads leave a newer Overview draft untouched", async ({
   ).toBe("NEW_DRAFT_DURING_RESULT_GET");
 });
 
+test("An older exact adoption receipt preserves a known newer Project revision and its dirty design draft", async ({
+  page,
+}) => {
+  const f = await setup(page, 1440, "Older receipt newer design");
+  await page.route(
+    `**${f.base}/references/${f.ref.id}/accept-policy`,
+    async (route) => {
+      await route.fetch();
+      await route.abort();
+    },
+  );
+  await f.button.click();
+  await expect(
+    page.getByRole("button", { name: "採用結果を再取得", exact: true }),
+  ).toBeEnabled();
+  const adopted = (await (await page.request.get(f.base)).json()).current;
+  const saved = await page.request.post(`${f.base}/foundation/save`, {
+    data: {
+      baseRevision: 2,
+      design: { ...adopted.design, accent: "#778899" },
+      reason: "Newer independent revision",
+      requestId: crypto.randomUUID(),
+    },
+  });
+  expect(saved.ok()).toBe(true);
+  await navigate(page, `${f.path}/foundation`);
+  await expect(page.locator(".save-status")).toContainText("設計 r3");
+  await page
+    .getByRole("button", { name: "最新の確定版を読み込む", exact: true })
+    .click();
+  await expect(page.getByLabel("accent", { exact: true })).toHaveValue(
+    "#778899",
+  );
+  await page.getByLabel("accent", { exact: true }).fill("#334455");
+  await navigate(page, `${f.path}/inspiration`);
+  const result = page.waitForResponse((r) =>
+    new URL(r.url()).pathname.endsWith("/accept-policy/result"),
+  );
+  await page
+    .getByRole("button", { name: "採用結果を再取得", exact: true })
+    .click();
+  expect((await (await result).json()).revision.revision).toBe(2);
+  await expect(
+    page.getByRole("status").filter({ hasText: "現在は r3" }),
+  ).toBeVisible();
+  await expect(page.locator(".save-status")).toContainText("設計 r3");
+  await navigate(page, `${f.path}/foundation`);
+  await expect(page.getByLabel("accent", { exact: true })).toHaveValue(
+    "#334455",
+  );
+  const draft = JSON.parse(
+    (await page.evaluate(
+      (id) => localStorage.getItem(`tasteprint.scope.${id}.draft.v1`),
+      f.p.id,
+    )) || "{}",
+  );
+  expect(draft.baseRevision).toBe(3);
+  expect(draft.design.accent).toBe("#334455");
+  const current = await (await page.request.get(`${f.base}/foundation`)).json();
+  expect(current.current.revision).toBe(3);
+  expect(current.current.design.accent).toBe("#778899");
+  expect(current.history).toHaveLength(3);
+});
+
+for (const deleted of [false, true]) {
+  test(`Exact recovery after the source is ${deleted ? "deleted" : "updated"} retains the frozen policy and commits current source state despite a failed list read`, async ({
+    page,
+  }) => {
+    const f = await setup(page, 390, "Changed source recovery");
+    let failRead = false;
+    await page.route(`**${f.base}/references`, (route) =>
+      failRead && route.request().method() === "GET"
+        ? route.fulfill({ status: 503, json: { message: "list unavailable" } })
+        : route.continue(),
+    );
+    await page.route(
+      `**${f.base}/references/${f.ref.id}/accept-policy`,
+      async (route) => {
+        await route.fetch();
+        failRead = true;
+        await route.abort();
+      },
+    );
+    await f.button.click();
+    await expect(
+      page.getByRole("button", { name: "採用結果を再取得", exact: true }),
+    ).toBeEnabled();
+    const source = (
+      await (await page.request.get(`${f.base}/references`)).json()
+    ).references.find((r: SavedReference) => r.id === f.ref.id);
+    const changed = deleted
+      ? await page.request.delete(`${f.base}/references/${f.ref.id}`, {
+          data: { version: source.version },
+        })
+      : await page.request.patch(`${f.base}/references/${f.ref.id}`, {
+          data: {
+            version: source.version,
+            name: "UPDATED_SOURCE_AFTER_COMMIT",
+            url: source.url,
+            selections: source.selections,
+            likes: "CURRENT_SOURCE_MEMO",
+            dislikes: source.dislikes,
+          },
+        });
+    expect(changed.ok()).toBe(true);
+    await page
+      .getByRole("button", { name: "採用結果を再取得", exact: true })
+      .click();
+    await expect(page.locator(".save-status")).toContainText("設計 r2");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "参考一覧の読み込みに失敗" }),
+    ).toBeVisible();
+    if (deleted) await expect(f.card).toHaveCount(0);
+    else {
+      const currentCard = page.getByRole("article").filter({
+        has: page.getByRole("heading", {
+          name: "UPDATED_SOURCE_AFTER_COMMIT",
+          exact: true,
+        }),
+      });
+      await expect(currentCard).toBeVisible();
+      await expect(
+        currentCard.getByRole("textbox", { name: "好きな点", exact: true }),
+      ).toHaveValue("CURRENT_SOURCE_MEMO");
+    }
+    const current = (await (await page.request.get(f.base)).json()).current;
+    expect(current.revision).toBe(2);
+    expect(current.snapshot.policies).toHaveLength(1);
+    expect(current.snapshot.policies[0].text).toBe(
+      f.ref.analysis!.findings[0].recommendation,
+    );
+    expect(
+      current.snapshot.references.find((r: SavedReference) => r.id === f.ref.id)
+        .version,
+    ).toBe(source.version);
+  });
+}
+
 for (const retry of [false, true]) {
   test(`Recovered policy ${retry ? "POST retry" : "exact GET"} commits the source version before a failed auxiliary list read`, async ({
     page,

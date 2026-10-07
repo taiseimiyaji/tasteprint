@@ -26,7 +26,7 @@ function setup() {
   });
   instances.push(s);
   const p = s.create(briefSchema.parse({ name: "Policy fixture" }), false);
-  return { s, p, scope: s.scope(p.id), inputs };
+  return { s, p, scope: s.scope(p.id), inputs, dir };
 }
 function analyzed(f: ReturnType<typeof setup>, name = "Controlled reference") {
   const r = f.scope.references.create({
@@ -243,20 +243,44 @@ it("rejects the 101st policy while allowing the 100th, before any partial refere
       ).toHaveLength(100);
   }
 });
-it("rolls acceptance, revision and request writes back together when revision insert fails", () => {
+it.each(["foundation_revisions", "foundation_requests"])(
+  "rolls acceptance, revision and request writes back together when %s insert fails",
+  (table) => {
+    const f = setup(),
+      r = analyzed(f),
+      before = rows(f);
+    f.scope.references.db.exec(
+      `CREATE TRIGGER fail_adoption BEFORE INSERT ON ${table} BEGIN SELECT RAISE(ABORT,'injected save failure'); END`,
+    );
+    expect(() => f.s.adoptReference(f.p.id, r.id, 2, 0, 1)).toThrow(
+      "injected save failure",
+    );
+    expect(rows(f)).toEqual(before);
+    expect(f.s.referenceAdoptionResult(f.p.id, r.id, 2, 0, 1)).toBeNull();
+    f.scope.references.db.exec("DROP TRIGGER fail_adoption");
+    expect(f.s.adoptReference(f.p.id, r.id, 2, 0, 1).revision.revision).toBe(2);
+  },
+);
+it("finds and replays the same durable adoption receipt after service restart without another revision or source acceptance", async () => {
   const f = setup(),
     r = analyzed(f),
-    before = rows(f);
-  f.scope.references.db.exec(
-    "CREATE TRIGGER fail_adoption BEFORE INSERT ON foundation_revisions BEGIN SELECT RAISE(ABORT,'injected revision failure'); END",
+    receipt = f.s.adoptReference(f.p.id, r.id, 2, 0, 1);
+  const before = rows(f);
+  instances.splice(instances.indexOf(f.s), 1);
+  await f.s.close();
+  const reopened = new ProjectService(f.dir, {
+    generate: async () => {
+      throw new Error("AI not allowed");
+    },
+  });
+  instances.push(reopened);
+  expect(reopened.referenceAdoptionResult(f.p.id, r.id, 2, 0, 1)).toEqual(
+    receipt,
   );
-  expect(() => f.s.adoptReference(f.p.id, r.id, 2, 0, 1)).toThrow(
-    "injected revision failure",
+  expect(reopened.adoptReference(f.p.id, r.id, 2, 0, 1)).toEqual(receipt);
+  expect(rows({ ...f, s: reopened, scope: reopened.scope(f.p.id) })).toEqual(
+    before,
   );
-  expect(rows(f)).toEqual(before);
-  expect(f.s.referenceAdoptionResult(f.p.id, r.id, 2, 0, 1)).toBeNull();
-  f.scope.references.db.exec("DROP TRIGGER fail_adoption");
-  expect(f.s.adoptReference(f.p.id, r.id, 2, 0, 1).revision.revision).toBe(2);
 });
 it("explicitly upgrades a legacy accepted source into a policy without rewriting old revisions or accepting it twice", () => {
   const f = setup(),
