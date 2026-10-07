@@ -2,7 +2,7 @@
 
 既存React画面で実際のZIPを直接読み込むと、`preview-9`の`:root`、全体リセット、汎用クラスとRuntimeThemeの動的CSSがホストまで変えていた。Kakudoの限定試用では紙色 `#f6f5f0 → #f5f6ef`、文字色 `#233a32 → #30352d`、タイトル幅 `672 → 630px` が変化し、SPAで比較画面を閉じてもCSSが残った。
 
-`preview-10`ではZIPの `ui/styles.css` と `tokens/variables.css` をCSS/selector ASTで `:where(.tasteprint-runtime)` 内へ限定する。ルート自身に当たるセレクタと子孫に当たるセレクタを分け、元の詳細度・media query・`::backdrop` を保持する。全体の初期値はRuntimeThemeルートへ移し、所有するkeyframes名を局所化する。動的な部品・パターンCSSはuseIdの属性で各RuntimeThemeを指定し、兄弟テーマが互いの寸法を変えない。通常アプリの `src/client/styles.css` は変更しない。
+`preview-10`ではZIPの `ui/styles.css` と `tokens/variables.css` をCSS/selector ASTで `:where(.tasteprint-runtime)` 内へ限定する。ルート自身に当たるセレクタと子孫に当たるセレクタを分け、通常セレクタへのscope追加では詳細度を増やさず、media query・`::backdrop` を保持する。全体の初期値はRuntimeThemeルートへ移し、所有するkeyframes名を局所化する。動的な部品・パターンCSSはuseIdの属性で各RuntimeThemeを指定し、兄弟テーマが互いの寸法を変えない。通常アプリの `src/client/styles.css` は変更しない。
 
 同梱3画面にはRuntimeThemeが含まれる。生のButton/Input等は `ui/design` の設計とRuntimeThemeで包む。新ZIPのREADMEに直接読み込み、独立ページでのbody余白設定、既存ホストへの導入条件を記載した。CSS変換の依存関係は生成側だけに追加し、利用側ZIPの依存関係は増やしていない。
 
