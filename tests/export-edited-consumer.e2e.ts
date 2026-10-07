@@ -317,6 +317,25 @@ async function verifyAppearance(
       join(evidence, `${edition}-${screen}-portable-${width}.png`),
       exported,
     );
+    if (!exported.equals(normal)) {
+      // Keep the actual compared bytes in CI artifacts before the strict assertion.
+      await test.info().attach(`${edition}-${screen}-normal-${width}`, {
+        body: normal,
+        contentType: "image/png",
+      });
+      await test.info().attach(`${edition}-${screen}-portable-${width}`, {
+        body: exported,
+        contentType: "image/png",
+      });
+      await test.info().attach(`${edition}-${screen}-metrics-${width}`, {
+        body: JSON.stringify(
+          { normal: normalMetrics, portable: await metrics(portable) },
+          null,
+          2,
+        ),
+        contentType: "application/json",
+      });
+    }
     expect(exported.equals(normal)).toBe(true);
     expect(await metrics(portable)).toEqual(normalMetrics);
     results.push({

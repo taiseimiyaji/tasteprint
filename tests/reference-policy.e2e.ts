@@ -640,8 +640,24 @@ test("Explicit adoption of an accepted legacy Reference preserves long raw metad
       ).references.find((r: SavedReference) => r.id === ref.id),
     ).toEqual(ref);
   } finally {
-    await page.request.delete(`${base}/references/${ref.id}`, {
+    const removed = await page.request.delete(`${base}/references/${ref.id}`, {
       data: { version: ref.version },
     });
+    expect(removed.ok()).toBe(true);
+    // The legacy Project is shared by migration fixtures; remove only our policy.
+    const latest = await (await page.request.get(base)).json();
+    const policies = latest.current.snapshot.policies.filter(
+      (p: { id: string }) => p.id !== `reference:${ref.id}:0`,
+    );
+    if (policies.length !== latest.current.snapshot.policies.length) {
+      const restored = await page.request.post(base, {
+        data: {
+          baseRevision: latest.current.revision,
+          brief: latest.current.snapshot.brief,
+          policies,
+        },
+      });
+      expect(restored.ok()).toBe(true);
+    }
   }
 });
