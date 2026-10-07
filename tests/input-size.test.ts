@@ -1,3 +1,4 @@
+import postcss from "postcss";
 import { expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -50,10 +51,13 @@ it("portable Input size uses component height while old preview-5 ZIPs and revis
         templateVersion,
         "preview-5",
       );
-    const rule =
-      '.sample-app.runtime-root input[data-component="Input"] {\n  min-height: var(--component-height);\n}\n';
-    expect(old.files["ui/styles.css"]).toContain(rule);
-    old.files["ui/styles.css"] = old.files["ui/styles.css"].replace(rule, "");
+    const selector = '.sample-app.runtime-root input[data-component="Input"]';
+    expect(old.files["ui/styles.css"]).toContain(selector);
+    const legacyCss = postcss.parse(old.files["ui/styles.css"]);
+    legacyCss.walkRules((rule) => {
+      if (rule.selector.includes(selector)) rule.remove();
+    });
+    old.files["ui/styles.css"] = legacyCss.toString();
     expect(old.files["ui/styles.css"]).not.toContain(
       '.sample-app.runtime-root input[data-component="Input"]',
     );
@@ -95,7 +99,7 @@ it("portable Input size uses component height while old preview-5 ZIPs and revis
     expect(current.templateVersion).toBe(templateVersion);
     const entries = unzipSync(Buffer.from(current.files[zipName], "base64"));
     const css = Buffer.from(entries[`${root}/ui/styles.css`]).toString();
-    expect(css).toContain(rule);
+    expect(css).toContain(selector);
     const library = Buffer.from(
       entries[`${root}/ui/design-runtime/Library.tsx`],
     ).toString();

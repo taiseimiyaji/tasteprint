@@ -59,7 +59,7 @@ export function RuntimeTheme({
             : c.variant === "subtle"
               ? "var(--color-canvas)"
               : "var(--color-surface)";
-        return `${scope} [data-component="${name}"] {--component-height:${size}px; min-height:${size}px; font-size:${design.fontSize + { sm: -2, md: 0, lg: 2 }[c.size]}px; color:${color}; background:${background}; border:${c.variant === "subtle" ? 0 : 1}px solid var(--preview-accent); border-radius:var(--preview-radius); padding:4px 10px;}`;
+        return `${scope} [data-component="${name}"] {--component-height:${size}px; min-height:${size}px; --component-font-size:${design.fontSize + { sm: -2, md: 0, lg: 2 }[c.size]}px; font-size:var(--component-font-size); color:${color}; background:${background}; border:${c.variant === "subtle" ? 0 : 1}px solid var(--preview-accent); border-radius:var(--preview-radius); padding:4px 10px;}`;
       })
       .join("\n") +
     patternNames
