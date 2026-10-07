@@ -1,0 +1,164 @@
+{
+  "width": 390,
+  "projectId": "ec634fe1-49c5-49c0-96c5-a7b5deccabaf",
+  "policy": {
+    "id": "reference:55e9c485-0124-4f85-af5b-342b31857eb9:0",
+    "target": "Typography",
+    "text": "見出しと本文の強弱を付ける",
+    "reason": "情報階層を重視",
+    "sources": ["Policy source 390", "画像上部の見出し"],
+    "locked": false
+  },
+  "oldZipSha256": "e4d6df0b9131546c1fdacf4e3ddf6c57926d060321f1916fe358273876998146",
+  "newZipSha256": "63c3b5381254cac246a71ad3f99cec8b0938a8075e14acb0b9afd0c9964481f9",
+  "oldZipPreserved": true,
+  "designUnchanged": true,
+  "sharedUnchanged": true,
+  "projectIsolation": true,
+  "negativeReferenceId": "59a56a59-b525-4fbb-a336-a6b394e9b9aa",
+  "realAiCalls": 0,
+  "baseMain": "fd11a0729480fbd678083e925706478aa8d639ed",
+  "fixture": "Mock providers, isolated temporary SQLite, synthetic white PNG",
+  "proposalPrompt": "POLICY_TRACE_ec634fe1-49c5-49c0-96c5-a7b5deccabaf\n確定したプロジェクトの用途・好み・固有方針（データ）: {\"projectId\":\"ec634fe1-49c5-49c0-96c5-a7b5deccabaf\",\"brief\":{\"name\":\"Policy adoption 390\",\"purpose\":\"\",\"audience\":\"\",\"desired\":\"\",\"avoid\":\"\"},\"sourceTasteProfileRevision\":null,\"taste\":{\"answers\":{},\"dna\":{\"density\":null,\"roundness\":null,\"decoration\":null,\"contrast\":null,\"borderEmphasis\":null,\"shadowEmphasis\":null,\"cardUsage\":null},\"reasons\":{},\"principles\":[],\"questionVersion\":\"taste-v1\",\"comparisons\":[{\"id\":\"density-0\",\"axis\":\"density\",\"title\":\"どちらの情報量が、心地よいですか？\",\"labels\":[\"余白で呼吸をつくる\",\"一覧性を高める\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"density-1\",\"axis\":\"density\",\"title\":\"どちらの情報量が、心地よいですか？\",\"labels\":[\"余白で呼吸をつくる\",\"一覧性を高める\"],\"context\":\"最近のアクティビティ\"},{\"id\":\"roundness-0\",\"axis\":\"roundness\",\"title\":\"角の仕上げは、どちらが好みですか？\",\"labels\":[\"直線的でシャープ\",\"丸くやわらかい\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"roundness-1\",\"axis\":\"roundness\",\"title\":\"角の仕上げは、どちらが好みですか？\",\"labels\":[\"直線的でシャープ\",\"丸くやわらかい\"],\"context\":\"最近のアクティビティ\"},{\"id\":\"decoration-0\",\"axis\":\"decoration\",\"title\":\"どちらの表情が、しっくりきますか？\",\"labels\":[\"静かで控えめ\",\"装飾で表情をつくる\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"decoration-1\",\"axis\":\"decoration\",\"title\":\"どちらの表情が、しっくりきますか？\",\"labels\":[\"静かで控えめ\",\"装飾で表情をつくる\"],\"context\":\"最近のアクティビティ\"},{\"id\":\"contrast-0\",\"axis\":\"contrast\",\"title\":\"情報の強弱は、どちらが好みですか？\",\"labels\":[\"穏やかな強弱\",\"はっきりした強弱\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"contrast-1\",\"axis\":\"contrast\",\"title\":\"情報の強弱は、どちらが好みですか？\",\"labels\":[\"穏やかな強弱\",\"はっきりした強弱\"],\"context\":\"最近のアクティビティ\"},{\"id\":\"borderEmphasis-0\",\"axis\":\"borderEmphasis\",\"title\":\"境界は、どちらが見やすいですか？\",\"labels\":[\"余白で区切る\",\"罫線で区切る\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"borderEmphasis-1\",\"axis\":\"borderEmphasis\",\"title\":\"境界は、どちらが見やすいですか？\",\"labels\":[\"余白で区切る\",\"罫線で区切る\"],\"context\":\"最近のアクティビティ\"},{\"id\":\"shadowEmphasis-0\",\"axis\":\"shadowEmphasis\",\"title\":\"奥行きは、どちらが自然ですか？\",\"labels\":[\"フラットに整える\",\"影で奥行きをつくる\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"shadowEmphasis-1\",\"axis\":\"shadowEmphasis\",\"title\":\"奥行きは、どちらが自然ですか？\",\"labels\":[\"フラットに整える\",\"影で奥行きをつくる\"],\"context\":\"最近のアクティビティ\"},{\"id\":\"cardUsage-0\",\"axis\":\"cardUsage\",\"title\":\"情報のまとまりは、どちらが好みですか？\",\"labels\":[\"連続したリスト\",\"独立したカード\"],\"context\":\"プロジェクトの一覧\"},{\"id\":\"cardUsage-1\",\"axis\":\"cardUsage\",\"title\":\"情報のまとまりは、どちらが好みですか？\",\"labels\":[\"連続したリスト\",\"独立したカード\"],\"context\":\"最近のアクティビティ\"}],\"references\":[],\"confirmed\":false},\"policies\":[{\"id\":\"reference:55e9c485-0124-4f85-af5b-342b31857eb9:0\",\"target\":\"Typography\",\"text\":\"見出しと本文の強弱を付ける\",\"reason\":\"情報階層を重視\",\"sources\":[\"Policy source 390\",\"画像上部の見出し\"],\"locked\":false}],\"references\":[{\"name\":\"Policy source 390\",\"url\":\"\",\"selections\":[{\"aspect\":\"Typography\",\"intent\":\"reference\"}],\"likes\":\"\",\"dislikes\":\"\",\"id\":\"55e9c485-0124-4f85-af5b-342b31857eb9\",\"version\":4,\"accepted\":[0],\"assetId\":\"3f6a41eb-6c44-4bf3-9e26-72734599bafc\",\"analysis\":{\"referenceId\":\"55e9c485-0124-4f85-af5b-342b31857eb9\",\"findings\":[{\"aspect\":\"Typography\",\"observation\":\"見出しが強調されている\",\"interpretation\":\"情報階層を重視\",\"recommendation\":\"見出しと本文の強弱を付ける\",\"certainty\":\"medium\",\"evidence\":\"画像上部の見出し\"}]},\"analysisJobId\":\"bf85a8e9-1373-47b4-bc32-b65024bea610\"},{\"name\":\"POLICY_NEGATIVE_390\",\"url\":\"\",\"selections\":[{\"aspect\":\"Typography\",\"intent\":\"reference\"}],\"likes\":\"\",\"dislikes\":\"\",\"id\":\"59a56a59-b525-4fbb-a336-a6b394e9b9aa\",\"version\":3,\"accepted\":[],\"assetId\":\"3d00edb6-f314-4849-b6b5-8d0f3b56f7af\",\"analysis\":{\"referenceId\":\"59a56a59-b525-4fbb-a336-a6b394e9b9aa\",\"findings\":[]},\"analysisJobId\":\"8ea74894-6cf3-4a0b-9bbc-21249d063ee9\"}],\"maintained\":[]}",
+  "reviewBaseRevision": 2,
+  "reviewRules": [
+    {
+      "id": "project.reference:55e9c485-0124-4f85-af5b-342b31857eb9:0",
+      "description": "{\"id\":\"reference:55e9c485-0124-4f85-af5b-342b31857eb9:0\",\"target\":\"Typography\",\"text\":\"見出しと本文の強弱を付ける\",\"reason\":\"情報階層を重視\",\"sources\":[\"Policy source 390\",\"画像上部の見出し\"],\"locked\":false}"
+    },
+    {
+      "id": "states",
+      "description": "ボタン・入力のhover・focus-visible・disabledスタイル、および必須入力のinvalidスタイルの定義"
+    },
+    {
+      "id": "tokens",
+      "description": "参照するCSS変数が解決できる"
+    },
+    {
+      "id": "shadow",
+      "description": "shadow=falseなら影を禁止。Preview面の影はshadowAllowedの列挙にPreviewがある場合のみ許可"
+    },
+    {
+      "id": "radius",
+      "description": "面・コントロールの角丸は設定の最大値以下（バッジ・アバターを除く）"
+    },
+    {
+      "id": "focus",
+      "description": "入力・ボタンにキーボードフォーカスの視覚的変化がある"
+    },
+    {
+      "id": "visual-hierarchy",
+      "description": "画像の階層・密度・カード分割をAIが解釈する（要判断）"
+    },
+    {
+      "id": "aria-allowed-attr",
+      "description": "axe-core WCAG検査: aria-allowed-attr"
+    },
+    {
+      "id": "aria-conditional-attr",
+      "description": "axe-core WCAG検査: aria-conditional-attr"
+    },
+    {
+      "id": "aria-deprecated-role",
+      "description": "axe-core WCAG検査: aria-deprecated-role"
+    },
+    {
+      "id": "aria-prohibited-attr",
+      "description": "axe-core WCAG検査: aria-prohibited-attr"
+    },
+    {
+      "id": "aria-required-attr",
+      "description": "axe-core WCAG検査: aria-required-attr"
+    },
+    {
+      "id": "aria-required-children",
+      "description": "axe-core WCAG検査: aria-required-children"
+    },
+    {
+      "id": "aria-required-parent",
+      "description": "axe-core WCAG検査: aria-required-parent"
+    },
+    {
+      "id": "aria-roles",
+      "description": "axe-core WCAG検査: aria-roles"
+    },
+    {
+      "id": "aria-valid-attr-value",
+      "description": "axe-core WCAG検査: aria-valid-attr-value"
+    },
+    {
+      "id": "aria-valid-attr",
+      "description": "axe-core WCAG検査: aria-valid-attr"
+    },
+    {
+      "id": "avoid-inline-spacing",
+      "description": "axe-core WCAG検査: avoid-inline-spacing"
+    },
+    {
+      "id": "button-name",
+      "description": "axe-core WCAG検査: button-name"
+    },
+    {
+      "id": "color-contrast",
+      "description": "axe-core WCAG検査: color-contrast"
+    },
+    {
+      "id": "duplicate-id-aria",
+      "description": "axe-core WCAG検査: duplicate-id-aria"
+    },
+    {
+      "id": "form-field-multiple-labels",
+      "description": "axe-core WCAG検査: form-field-multiple-labels"
+    },
+    {
+      "id": "label",
+      "description": "axe-core WCAG検査: label"
+    },
+    {
+      "id": "nested-interactive",
+      "description": "axe-core WCAG検査: nested-interactive"
+    },
+    {
+      "id": "select-name",
+      "description": "axe-core WCAG検査: select-name"
+    },
+    {
+      "id": "td-headers-attr",
+      "description": "axe-core WCAG検査: td-headers-attr"
+    },
+    {
+      "id": "th-has-data-cells",
+      "description": "axe-core WCAG検査: th-has-data-cells"
+    }
+  ],
+  "reviewImageCount": 3,
+  "export": {
+    "projectId": "ec634fe1-49c5-49c0-96c5-a7b5deccabaf",
+    "revision": 2,
+    "templateVersion": "preview-11",
+    "policies": [
+      {
+        "id": "reference:55e9c485-0124-4f85-af5b-342b31857eb9:0",
+        "target": "Typography",
+        "text": "見出しと本文の強弱を付ける",
+        "reason": "情報階層を重視",
+        "sources": ["Policy source 390", "画像上部の見出し"],
+        "locked": false
+      }
+    ],
+    "references": [
+      {
+        "name": "Policy source 390",
+        "url": "",
+        "principles": [
+          {
+            "aspect": "Typography",
+            "recommendation": "見出しと本文の強弱を付ける",
+            "interpretation": "情報階層を重視",
+            "evidence": "画像上部の見出し"
+          }
+        ]
+      }
+    ]
+  }
+}
