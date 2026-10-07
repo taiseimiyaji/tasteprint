@@ -28,10 +28,12 @@ main `07fcb5b` を基準に、実ユーザー保存データを使わない一�
 | Input sm/md/lg | 1440 / 390pxの部品詳細とList / Settings / Formで保存した高さ・文字サイズを確認 |
 | ローカル | typecheck、29ファイル158単体テスト、重点26 E2E、test:built成功。実AI呼び出し0 |
 
+Form画像は色・余白・見出し・配置の記録。入力欄は空なので、serifの修正前後は両幅とも同一画像であり、Input文字サイズの変化を視覚的には示さない。11px → 18px / 20pxの根拠は下記JSONのcomputed style測定とE2Eの値検証で確認する。
+
 | 幅 | 修正前 serif Form | 修正後 serif Form | 保存し直したmonospace Form |
 | --- | --- | --- | --- |
-| 1440px | ![旧11px入力](./images/export-edited-consumer/before-serif-form-1440.png) | ![保存18px入力](./images/export-edited-consumer/serif-form-1440.png) | ![保存20px入力](./images/export-edited-consumer/monospace-form-1440.png) |
-| 390px | ![旧11px入力](./images/export-edited-consumer/before-serif-form-390.png) | ![保存18px入力](./images/export-edited-consumer/serif-form-390.png) | ![保存20px入力](./images/export-edited-consumer/monospace-form-390.png) |
+| 1440px | ![修正前の空欄Form](./images/export-edited-consumer/before-serif-form-1440.png) | ![修正後の空欄serif Form](./images/export-edited-consumer/serif-form-1440.png) | ![保存し直した空欄monospace Form](./images/export-edited-consumer/monospace-form-1440.png) |
+| 390px | ![修正前の空欄Form](./images/export-edited-consumer/before-serif-form-390.png) | ![修正後の空欄serif Form](./images/export-edited-consumer/serif-form-390.png) | ![保存し直した空欄monospace Form](./images/export-edited-consumer/monospace-form-390.png) |
 
 測定結果は [1440px](./export-edited-consumer/verification-1440.json) / [390px](./export-edited-consumer/verification-390.json)、修正前は同ディレクトリのbeforeファイル。これらは隔離fixtureの記録で、実ユーザーのデザイン選好を代弁するものではない。
 
