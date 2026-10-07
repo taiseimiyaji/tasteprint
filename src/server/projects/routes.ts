@@ -193,6 +193,42 @@ export function projectRoutes(
         ),
       );
     })
+    .post("/projects/:id/references/:referenceId/accept-policy", async (c) => {
+      const v = z
+        .object({
+          baseRevision: revision,
+          version: revision,
+          index: z.number().int().min(0),
+        })
+        .parse(await c.req.json());
+      return c.json(
+        service.adoptReference(
+          c.req.param("id"),
+          c.req.param("referenceId"),
+          v.version,
+          v.index,
+          v.baseRevision,
+        ),
+      );
+    })
+    .get("/projects/:id/references/:referenceId/accept-policy/result", (c) => {
+      const v = z
+        .object({
+          baseRevision: z.coerce.number().int().positive(),
+          version: z.coerce.number().int().positive(),
+          index: z.coerce.number().int().min(0),
+        })
+        .parse(c.req.query());
+      return c.json(
+        service.referenceAdoptionResult(
+          c.req.param("id"),
+          c.req.param("referenceId"),
+          v.version,
+          v.index,
+          v.baseRevision,
+        ),
+      );
+    })
     .get("/projects/:id/conversations", (c) =>
       c.json(service.conversations(c.req.param("id"))),
     )

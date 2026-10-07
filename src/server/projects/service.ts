@@ -427,9 +427,8 @@ export class ProjectService {
       scope.foundation.snapshotProvider = () => this.snapshotForSave(id);
     }
   }
-  saveProject(id: string, base: number, brief: Brief, policies: Principle[]) {
+  private validatePolicies(policies: Principle[]) {
     policies = principlesSchema.parse(policies);
-    const r = this.base(id, base);
     const duplicate = policies.find((p, i) =>
       policies.some(
         (q, j) => j < i && q.target === p.target && q.text !== p.text,
@@ -440,6 +439,109 @@ export class ProjectService {
         409,
         `${duplicate.target} の明示指定が矛盾しています。原則を一つに整理してください。`,
       );
+    return policies;
+  }
+  private referenceAdoptionKey(
+    referenceId: string,
+    version: number,
+    index: number,
+    base: number,
+  ) {
+    return `project-reference-policy:${referenceId}:${version}:${index}:${base}`;
+  }
+  referenceAdoptionResult(
+    id: string,
+    referenceId: string,
+    version: number,
+    index: number,
+    base: number,
+  ) {
+    const scope = this.scope(id);
+    const row = scope.references.db
+      .prepare("SELECT revision FROM foundation_requests WHERE id=?")
+      .get(this.referenceAdoptionKey(referenceId, version, index, base));
+    if (!row) return null;
+    return {
+      revision: this.revision(id, Number(row.revision)),
+      // A replay reports the source's current state, including a later deletion.
+      reference:
+        scope.references.references().find((r) => r.id === referenceId) ?? null,
+    };
+  }
+  adoptReference(
+    id: string,
+    referenceId: string,
+    version: number,
+    index: number,
+    base: number,
+  ) {
+    this.writable(id);
+    const previous = this.referenceAdoptionResult(
+      id,
+      referenceId,
+      version,
+      index,
+      base,
+    );
+    if (previous) return previous;
+    const current = this.base(id, base),
+      scope = this.scope(id);
+    const reference = scope.references.reference(referenceId);
+    if (reference.version !== version)
+      throw new ServiceError(
+        409,
+        "参考が更新されています。最新の内容を確認してください。",
+      );
+    const finding = reference.analysis?.findings[index];
+    if (!finding) throw new ServiceError(400, "分析項目が見つかりません。");
+    const policyId = `reference:${referenceId}:${index}`;
+    if (current.snapshot.policies.some((p) => p.id === policyId))
+      throw new ServiceError(
+        409,
+        "この参考項目の方針は保存済みです。概要で確認・編集してください。",
+      );
+    const policies = this.validatePolicies([
+      ...current.snapshot.policies,
+      {
+        id: policyId,
+        target: finding.aspect,
+        text: finding.recommendation,
+        reason: finding.interpretation,
+        sources: [reference.url || reference.name, finding.evidence],
+        locked: false,
+      },
+    ]);
+    const requestId = this.referenceAdoptionKey(
+      referenceId,
+      version,
+      index,
+      base,
+    );
+    const provider = scope.foundation.snapshotProvider;
+    scope.foundation.snapshotProvider = () => ({
+      ...current.snapshot,
+      policies,
+      references: this.freezeReferences(scope.references),
+    });
+    try {
+      const revision = scope.foundation.save(
+        base,
+        current.design,
+        "参考をプロジェクト方針として保存",
+        requestId,
+        current.snapshot.taste.dna,
+        () => {
+          scope.references.accept(referenceId, version, index);
+        },
+      );
+      return { revision, reference: scope.references.reference(referenceId) };
+    } finally {
+      scope.foundation.snapshotProvider = provider;
+    }
+  }
+  saveProject(id: string, base: number, brief: Brief, policies: Principle[]) {
+    policies = this.validatePolicies(policies);
+    const r = this.base(id, base);
     return this.commit(
       id,
       base,
