@@ -67,6 +67,26 @@ for (const width of [1440, 390] as const)
         await specimen.evaluate((el) => el.getBoundingClientRect().height),
       ).toBe(height);
       await save(revision);
+      // The saved size must reach each screen, including legacy form inputs.
+      await page.goto(`/projects/${p.id}/preview`);
+      if (width === 390)
+        await page
+          .getByRole("button", { name: "Mobile 390px", exact: true })
+          .click();
+      for (const screen of ["List", "Settings", "Form"]) {
+        await page.getByRole("button", { name: screen, exact: true }).click();
+        await expect(frame.locator(".sample-breadcrumb")).toHaveText(
+          `Workspace / ${screen.toLowerCase()}`,
+        );
+        for (const input of await frame
+          .locator('input[data-component="Input"]:visible')
+          .all()) {
+          await expect(input).toHaveCSS("min-height", `${height}px`);
+          await expect(input).toHaveCSS("font-size", `${font}px`);
+        }
+      }
+      await page.goto(`/projects/${p.id}/components`);
+      await page.getByRole("button", { name: "Input", exact: true }).click();
       const actual = (
         await (await page.request.get(`${base}/foundation`)).json()
       ).current;
@@ -114,6 +134,7 @@ for (const width of [1440, 390] as const)
       await expect(inputs).toHaveCount(screen === "List" ? 1 : 2);
       for (const element of await inputs.all()) {
         await expect(element).toHaveCSS("min-height", "88px");
+        await expect(element).toHaveCSS("font-size", "16px");
         expect(
           await element.evaluate((el) => el.getBoundingClientRect().height),
         ).toBe(88);
