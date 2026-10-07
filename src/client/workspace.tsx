@@ -5,7 +5,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useRouterState, useBlocker } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownToLine,
@@ -41,11 +41,31 @@ import { References } from "./components/References";
 import { PreviewFrame } from "./components/PreviewFrame";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { initialState, type WorkspaceState } from "./state";
-import { parseWorkspaceDraft } from "./draft-shapes";
+import { parseWorkspaceDraft, parseOverviewDraft } from "./draft-shapes";
+import type { SavedReference } from "../domain/reference";
+import {
+  selectionSchema,
+  analysisSchema,
+  findingSchema,
+} from "../domain/reference";
+import { principleSchema } from "../domain/projects";
+import { z } from "zod";
 import { profile, type Design } from "../domain/design";
 
 import { steps } from "./navigation";
 import { useStoredDraft, DraftReadRecovery } from "./draft-storage";
+type ReferenceAdoptionAttempt = {
+  referenceId: string;
+  version: number;
+  index: number;
+  baseRevision: number;
+  designSignature: string;
+  policySignature: string;
+};
+type ReferenceAdoptionReceipt = {
+  revision: Revision;
+  reference: SavedReference | null;
+};
 const tabs = [
   "Colors",
   "Typography",
@@ -63,7 +83,11 @@ function Pill({ children }: { children: ReactNode }) {
 
 import { Link, useScope, draftKey, jsonRequest } from "./scope";
 import { ExportHistory } from "./projects";
-import { commitProjectRevision, commitConversation } from "./query-cache";
+import {
+  commitProjectRevision,
+  commitConversation,
+  commitReferenceReply,
+} from "./query-cache";
 import type { Conversation } from "../domain/projects";
 export function Workspace({
   initial,
@@ -111,9 +135,37 @@ export function Workspace({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setBusy] = useState(false);
   const [reviewApplying, setReviewApplying] = useState(false);
+  const [policySaving, setPolicySaving] = useState(false);
+  const policyWriting = useRef(false);
+  const [policyAttempt, setPolicyAttempt] =
+    useState<ReferenceAdoptionAttempt>();
+  const [policyNotice, setPolicyNotice] = useState("");
+  const [policyReadError, setPolicyReadError] = useState("");
+  const policyMounted = useRef(true);
+  useEffect(() => {
+    policyMounted.current = true;
+    return () => {
+      policyMounted.current = false;
+    };
+  }, []);
+  const policyNavigation = useBlocker({
+    shouldBlockFn: () => policyWriting.current,
+    withResolver: true,
+    enableBeforeUnload: policySaving,
+  });
+  useEffect(() => {
+    if (policyNavigation.status === "blocked") {
+      policyNavigation.reset();
+      setPolicyNotice("方針の保存が完了してから移動してください。");
+    }
+  }, [policyNavigation.status]);
   const foundationReadVersion = useRef(0);
   const busy =
-    saving || historyLoading || reviewApplying || draftRecovery.blocked;
+    saving ||
+    historyLoading ||
+    reviewApplying ||
+    policySaving ||
+    draftRecovery.blocked;
   const [validInput, setValidInput] = useState(true);
   const [editorVersion, setEditorVersion] = useState(0);
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -348,7 +400,7 @@ export function Workspace({
     ? projectMarkdown({ ...saved, snapshot: saved.snapshot })
     : "";
   const ask = (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || policyWriting.current || policyAttempt) return;
     setPrompt(text);
     setCandidateIndex(0);
     proposal.mutate(text);
@@ -361,6 +413,295 @@ export function Workspace({
     current.id,
   );
   const staged = displayDesign !== state.design;
+  const policyLatest = useRef({ saved, validInput });
+  policyLatest.current = { saved, validInput };
+  const policyDisabledReason = !saved
+    ? "確定版の読み込みを待ってください。"
+    : policyAttempt
+      ? "前の採用結果を確認するか、同じ採用を再試行してください。"
+      : busy || proposal.isPending
+        ? "処理が完了してから方針を保存してください。"
+        : dirty || staged || !validInput || stale
+          ? "未保存・未採用・古い設計があります。Foundationで保存・取消・最新の確定版を確認してください。"
+          : undefined;
+  function checkOverviewDraft() {
+    let raw: string | null, draft: ReturnType<typeof parseOverviewDraft>;
+    try {
+      raw = localStorage.getItem(`tasteprint.${scope.id}.overview`);
+      if (raw === null) return;
+      draft = parseOverviewDraft(JSON.parse(raw));
+    } catch {
+      throw new Error(
+        "概要の下書きを読めません。概要で保存・復旧を確認してから方針を保存してください。",
+      );
+    }
+    if (
+      draft.baseRevision !== saved!.revision ||
+      JSON.stringify([draft.brief, draft.policies]) !==
+        JSON.stringify([saved!.snapshot?.brief, saved!.snapshot?.policies])
+    )
+      throw new Error(
+        "未保存・古い概要の下書きがあります。概要で保存・取消・最新の確定版を確認してください。",
+      );
+  }
+  async function acceptPolicyReceipt(
+    receipt: ReferenceAdoptionReceipt,
+    attempt: ReferenceAdoptionAttempt,
+  ) {
+    const valid = z
+      .object({
+        revision: z.object({
+          revision: z.literal(attempt.baseRevision + 1),
+          createdAt: z.string().min(1),
+          reason: z.string(),
+          snapshot: z.object({
+            projectId: z.literal(scope.id),
+            brief: z.object({
+              name: z.string(),
+              purpose: z.string(),
+              audience: z.string(),
+              desired: z.string(),
+              avoid: z.string(),
+            }),
+            policies: z
+              .array(principleSchema.extend({ locked: z.boolean() }))
+              .max(100)
+              .refine((p) => new Set(p.map((v) => v.id)).size === p.length),
+            sourceTasteProfileRevision: z.number().int().positive().nullable(),
+            references: z.array(z.unknown()),
+            maintained: z.array(
+              z.object({ key: z.string(), reason: z.string() }),
+            ),
+            taste: z.object({
+              // Read DTOs also contain legal legacy values; do not reapply input limits.
+              answers: z.record(
+                z.string(),
+                z.enum(["a", "b", "both", "neither", "skip"]),
+              ),
+              reasons: z.record(z.string(), z.string()),
+              principles: z.array(
+                z.object({
+                  id: z.string(),
+                  target: z.string(),
+                  text: z.string(),
+                  reason: z.string(),
+                  sources: z.array(z.string()),
+                  locked: z.boolean(),
+                }),
+              ),
+              dna: z.record(z.string(), z.number().nullable()),
+              questionVersion: z.string(),
+              comparisons: z.array(z.unknown()),
+              references: z.array(z.unknown()),
+              confirmed: z.boolean(),
+            }),
+          }),
+        }),
+        reference: z
+          .object({
+            name: z.string(),
+            url: z.string(),
+            likes: z.string(),
+            dislikes: z.string(),
+            selections: z.array(selectionSchema),
+            id: z.literal(attempt.referenceId),
+            version: z.number().int().min(attempt.version),
+            accepted: z.array(z.number().int().nonnegative()),
+            analysis: analysisSchema
+              .extend({ findings: z.array(findingSchema) })
+              .optional(),
+            capture: z
+              .object({
+                capturedAt: z.string(),
+                finalUrl: z.string(),
+                viewport: z.object({
+                  width: z.number().positive(),
+                  height: z.number().positive(),
+                }),
+                structure: z.object({
+                  title: z.string(),
+                  headings: z.array(
+                    z.object({ level: z.string(), text: z.string() }),
+                  ),
+                  landmarks: z.record(z.string(), z.number()),
+                  controls: z.record(z.string(), z.number()),
+                }),
+              })
+              .optional(),
+            assetId: z.string().optional(),
+            analysisJobId: z.string().optional(),
+          })
+          .refine((r) => !r.analysis || r.analysis.referenceId === r.id)
+          .nullable(),
+      })
+      .safeParse(receipt);
+    if (!valid.success)
+      throw new Error(
+        "採用の保存応答を確認できません。同じ採用結果を再取得してください。",
+      );
+    const result = parseRevision(receipt.revision);
+    const policy = result.snapshot!.policies.find(
+      (p) => p.id === `reference:${attempt.referenceId}:${attempt.index}`,
+    );
+    if (
+      JSON.stringify(result.design) !== attempt.designSignature ||
+      !policy ||
+      JSON.stringify(principleSchema.parse(policy)) !== attempt.policySignature
+    )
+      throw new Error(
+        "採用の保存内容が一致しません。同じ採用結果を再取得してください。",
+      );
+    await commitProjectRevision(queryClient, scope.id, result);
+    await commitReferenceReply(
+      queryClient,
+      scope.id,
+      attempt.referenceId,
+      receipt.reference,
+    );
+    if (policyMounted.current) {
+      const latest = Math.max(
+        policyLatest.current.saved?.revision ?? 0,
+        queryClient.getQueryData<{ current: Revision }>(["project", scope.id])
+          ?.current.revision ?? 0,
+      );
+      foundationReadVersion.current++;
+      setSaved((previous) =>
+        previous && previous.revision > result.revision ? previous : result,
+      );
+      setRevisions((previous) =>
+        previous.some((r) => r.revision === result.revision)
+          ? previous
+          : [...previous, result].sort((a, b) => a.revision - b.revision),
+      );
+      if (latest <= result.revision && policyLatest.current.validInput)
+        setWorkspaceDraft((d) =>
+          d.baseRevision === attempt.baseRevision &&
+          JSON.stringify(d.state.design) === attempt.designSignature
+            ? { ...d, baseRevision: result.revision }
+            : d,
+        );
+      setPolicyAttempt(undefined);
+      setPolicyReadError("");
+      setPolicyNotice(
+        `プロジェクト方針を設計 r${result.revision} に保存しました。数値設定は変えていません。概要では最新の確定版を読み込んで確認してください。${latest > result.revision ? ` 現在は r${latest} です。` : ""}`,
+      );
+    }
+    void queryClient.invalidateQueries({
+      queryKey: ["project", scope.id],
+      exact: true,
+    });
+    void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    return receipt.reference;
+  }
+  async function writePolicy(attempt: ReferenceAdoptionAttempt) {
+    if (policyWriting.current) throw new Error("方針を保存中です。");
+    policyWriting.current = true;
+    setPolicySaving(true);
+    setPolicyReadError("");
+    try {
+      const receipt = await jsonRequest<ReferenceAdoptionReceipt>(
+        `${scope.api}/references/${attempt.referenceId}/accept-policy`,
+        {
+          baseRevision: attempt.baseRevision,
+          version: attempt.version,
+          index: attempt.index,
+        },
+      );
+      return await acceptPolicyReceipt(receipt, attempt);
+    } catch (e) {
+      if (
+        [400, 401, 403, 404, 409, 413].includes(
+          (e as { status?: number }).status ?? 0,
+        )
+      ) {
+        setPolicyAttempt(undefined);
+        void queryClient.invalidateQueries({
+          queryKey: ["project", scope.id],
+          exact: true,
+        });
+      }
+      throw e;
+    } finally {
+      policyWriting.current = false;
+      if (policyMounted.current) setPolicySaving(false);
+    }
+  }
+  async function adoptProjectReference(
+    reference: SavedReference,
+    index: number,
+  ) {
+    if (policyWriting.current) throw new Error("方針を保存中です。");
+    if (policyDisabledReason) throw new Error(policyDisabledReason);
+    checkOverviewDraft();
+    const attempt = {
+      referenceId: reference.id,
+      version: reference.version,
+      index,
+      baseRevision: saved!.revision,
+      designSignature: JSON.stringify(state.design),
+      policySignature: JSON.stringify(
+        principleSchema.parse({
+          id: `reference:${reference.id}:${index}`,
+          target: reference.analysis!.findings[index].aspect,
+          text: reference.analysis!.findings[index].recommendation,
+          reason: reference.analysis!.findings[index].interpretation,
+          sources: [
+            reference.url || reference.name,
+            reference.analysis!.findings[index].evidence,
+          ],
+          locked: false,
+        }),
+      ),
+    };
+    setPolicyAttempt(attempt);
+    return writePolicy(attempt);
+  }
+  async function recoverPolicy(retry = false) {
+    if (!policyAttempt || policyWriting.current) return;
+    if (retry) {
+      try {
+        await writePolicy(policyAttempt);
+        void queryClient.invalidateQueries({
+          queryKey: ["references", scope.id],
+          exact: true,
+        });
+      } catch (e) {
+        setPolicyReadError(
+          e instanceof Error ? e.message : "採用結果を確認できません。",
+        );
+      }
+      return;
+    }
+    setPolicySaving(true);
+    setPolicyReadError("");
+    try {
+      const params = new URLSearchParams({
+        baseRevision: String(policyAttempt.baseRevision),
+        version: String(policyAttempt.version),
+        index: String(policyAttempt.index),
+      });
+      const receipt = await jsonRequest<ReferenceAdoptionReceipt | null>(
+        `${scope.api}/references/${policyAttempt.referenceId}/accept-policy/result?${params}`,
+      );
+      if (!receipt) {
+        setPolicyReadError(
+          "この採用の保存結果はまだ確認できません。同じ採用内容を保持しています。",
+        );
+        return;
+      }
+      await acceptPolicyReceipt(receipt, policyAttempt);
+      void queryClient.invalidateQueries({
+        queryKey: ["references", scope.id],
+        exact: true,
+      });
+    } catch (e) {
+      setPolicyReadError(
+        e instanceof Error ? e.message : "採用結果を確認できません。",
+      );
+    } finally {
+      if (policyMounted.current) setPolicySaving(false);
+    }
+  }
   const saveDisabledReason = !saved
     ? "確定版の読み込みを待ってください。"
     : stale
@@ -676,7 +1017,53 @@ export function Workspace({
             {current.id === "inspiration" && (
               <>
                 <p>保存先: {projectName}（このプロジェクト固有）</p>
+                <p>
+                  「プロジェクト方針として保存」で参考の採用と方針を新しい設計revisionに同時保存し、提案・Review・Exportに使用します。数値設定や共通の好みは変えません。参考を更新・削除しても保存済み方針は保持し、概要で確認・編集します。
+                </p>
+                {policyDisabledReason && (
+                  <p role="status">
+                    {policyDisabledReason}{" "}
+                    <Link to="/$step" params={{ step: "foundation" }}>
+                      Foundation
+                    </Link>{" "}
+                    /{" "}
+                    <Link to="/$step" params={{ step: "overview" }}>
+                      概要
+                    </Link>
+                  </p>
+                )}
+                {policyNotice && <p role="status">{policyNotice}</p>}
+                {policyReadError && <p role="alert">{policyReadError}</p>}
+                {policyAttempt && (
+                  <div>
+                    <p role="status">
+                      採用結果を確認するまで、新しい方針は保存しません。
+                    </p>
+                    <button
+                      className="button"
+                      disabled={policySaving}
+                      onClick={() => void recoverPolicy()}
+                    >
+                      採用結果を再取得
+                    </button>
+                    <button
+                      className="button"
+                      disabled={policySaving}
+                      onClick={() => void recoverPolicy(true)}
+                    >
+                      同じ採用を再試行
+                    </button>
+                  </div>
+                )}
                 <References
+                  projectAdoption={{
+                    disabledReason: policyDisabledReason,
+                    hasPolicy: (id, index) =>
+                      !!saved?.snapshot?.policies.some(
+                        (p) => p.id === `reference:${id}:${index}`,
+                      ),
+                    save: adoptProjectReference,
+                  }}
                   onChange={(references) =>
                     setState((s) => ({
                       ...s,
@@ -1054,7 +1441,7 @@ export function Workspace({
                   ].map((text) => (
                     <button
                       key={text}
-                      disabled={busy || proposal.isPending}
+                      disabled={busy || proposal.isPending || !!policyAttempt}
                       onClick={() => ask(text)}
                     >
                       {text}
@@ -1142,7 +1529,12 @@ export function Workspace({
                     <span>試して、選んで、あなたの形に。</span>
                     <button
                       aria-label="提案を依頼"
-                      disabled={busy || !prompt.trim() || proposal.isPending}
+                      disabled={
+                        busy ||
+                        !prompt.trim() ||
+                        proposal.isPending ||
+                        !!policyAttempt
+                      }
                     >
                       <ArrowUp size={17} />
                     </button>

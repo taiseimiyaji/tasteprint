@@ -7,6 +7,10 @@ import { FoundationService } from "../src/server/foundation/service";
 import { Hono } from "hono";
 import { CodexGateway } from "../src/server/codex/gateway";
 let codexCalls = 0;
+const providerInputs: { proposals: unknown[]; reviews: unknown[] } = {
+  proposals: [],
+  reviews: [],
+};
 // Fail closed if a fixture accidentally reaches host authentication or real AI.
 const denyCodex = async () => {
   codexCalls++;
@@ -16,6 +20,7 @@ CodexGateway.prototype.checkConnection = denyCodex;
 CodexGateway.prototype.run = denyCodex;
 const app = new Hono()
   .get("/api/health", (c) => c.json({ ready: true, codexCalls }))
+  .get("/api/e2e-provider-inputs", (c) => c.json(providerInputs))
   // Keep connection status deterministic without reading host Codex credentials.
   .get("/api/connection", (c) => c.json({ state: "ready" }));
 import { ReferenceService } from "../src/server/references/service";
@@ -52,15 +57,18 @@ const service = new ProjectService(dir, {
             aspect: "Typography",
             observation: "見出しが強調されている",
             interpretation: "情報階層を重視",
-            recommendation: "見出しと本文の強弱を付ける",
+            recommendation: r.name.startsWith("POLICY_NEGATIVE_")
+              ? "UNADOPTED_POLICY_MARKER"
+              : "見出しと本文の強弱を付ける",
             certainty: "medium",
             evidence: "画像上部の見出し",
           },
         ],
       }),
     ),
-  generate: async (design, prompt) =>
-    prompt.startsWith("部品を調整")
+  generate: async (design, prompt) => {
+    providerInputs.proposals.push(structuredClone({ design, prompt }));
+    return prompt.startsWith("部品を調整")
       ? {
           candidates: [
             {
@@ -92,20 +100,24 @@ const service = new ProjectService(dir, {
               explanation: "直線的に整えます",
             },
           ],
-        },
+        };
+  },
   previewOrigin: "http://127.0.0.1:3100",
-  reviewAI: async () => ({
-    findings: [
-      {
-        ruleId: "visual-hierarchy",
-        targetPath: "list:heading",
-        severity: "warning",
-        evidence: "見出しと本文の強弱が小さい",
-        explanation: "情報階層を確認",
-        suggestedChange: "見出しを強調",
-      },
-    ],
-  }),
+  reviewAI: async (review) => {
+    providerInputs.reviews.push(structuredClone(review));
+    return {
+      findings: [
+        {
+          ruleId: "visual-hierarchy",
+          targetPath: "list:heading",
+          severity: "warning",
+          evidence: "見出しと本文の強弱が小さい",
+          explanation: "情報階層を確認",
+          suggestedChange: "見出しを強調",
+        },
+      ],
+    };
+  },
 });
 app.route("/api", projectRoutes(service, "e2e-pair-code", [3100, 3101]));
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 3101 });

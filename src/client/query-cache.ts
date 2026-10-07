@@ -35,6 +35,37 @@ export async function commitQuery<T>(
   client.setQueryData<T>(key, update);
 }
 
+export async function commitReferenceReply(
+  client: QueryClient,
+  scopeId: string,
+  id: string,
+  saved: SavedReference | null,
+  createsReference = false,
+  observedIds = new Set<string>(),
+) {
+  await commitQuery<ReferenceData>(client, ["references", scopeId], (data) => {
+    if (!saved)
+      return data
+        ? { ...data, references: data.references.filter((r) => r.id !== id) }
+        : data;
+    // Retain newer versions and an already known absence for existing records.
+    if (
+      data &&
+      (!createsReference || observedIds.has(saved.id)) &&
+      !data.references.some((r) => r.id === saved.id)
+    )
+      return data;
+    return {
+      references: data?.references.some((r) => r.id === saved.id)
+        ? data.references.map((r) =>
+            r.id === saved.id && r.version <= saved.version ? saved : r,
+          )
+        : [...(data?.references ?? []), saved],
+      jobs: data?.jobs ?? [],
+    };
+  });
+}
+
 // Use the database's project-local insertion order, not HTTP arrival or clocks.
 export async function commitConversation(
   client: QueryClient,

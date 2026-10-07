@@ -77,7 +77,10 @@ async function holdReply(page: Page, endpoint: string) {
     writes = 0;
   const gate = new Promise<void>((r) => (release = r)),
     started = new Promise<void>((r) => (entered = r));
-  const base = endpoint.replace(/\/[a-f0-9-]+(?:\/(?:image|accept))?$/, "");
+  const base = endpoint.replace(
+    /\/[a-f0-9-]+(?:\/(?:image|accept(?:-policy)?))?$/,
+    "",
+  );
   await page.route(`**${base}`, (route) =>
     failRead && route.request().method() === "GET"
       ? route.fulfill({
@@ -91,7 +94,8 @@ async function holdReply(page: Page, endpoint: string) {
       return route.continue();
     const response = await route.fetch();
     expect(response.ok()).toBe(true);
-    accepted = await response.json();
+    const reply = await response.json();
+    accepted = reply.reference ?? reply;
     entered();
     await gate;
     await route.fulfill({ response });
@@ -189,7 +193,7 @@ for (const profile of [true, false])
         ).references.find((r: SavedReference) => r.id === f.ref.id).analysis
           .findings[0];
       }
-      const endpoint = `${f.base}/${f.ref.id}${kind === "notes" ? "" : kind === "image" ? "/image" : "/accept"}`;
+      const endpoint = `${f.base}/${f.ref.id}${kind === "notes" ? "" : kind === "image" ? "/image" : profile ? "/accept" : "/accept-policy"}`;
       const held = await holdReply(page, endpoint);
       if (kind === "notes") {
         await f.card
@@ -212,7 +216,10 @@ for (const profile of [true, false])
           .setInputFiles(await image("white"));
       } else {
         await f.card
-          .getByRole("button", { name: "設計方針として採用", exact: true })
+          .getByRole("button", {
+            name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+            exact: true,
+          })
           .click();
       }
       await held.started;

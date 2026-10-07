@@ -11,7 +11,11 @@ import { useStoredDraft, DraftReadRecovery } from "../draft-storage";
 import { parseReferenceInputDraft } from "../draft-shapes";
 import { useScope } from "../scope";
 import type { Principle } from "../../domain/projects";
-import { commitReferenceJob, type ReferenceData } from "../query-cache";
+import {
+  commitReferenceJob,
+  commitReferenceReply,
+  type ReferenceData,
+} from "../query-cache";
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -121,14 +125,24 @@ type SaveReference = (
   method: string,
   body: unknown,
 ) => Promise<SavedReference>;
+export type ProjectReferenceAdoption = {
+  disabledReason?: string;
+  hasPolicy: (referenceId: string, index: number) => boolean;
+  save: (
+    reference: SavedReference,
+    index: number,
+  ) => Promise<SavedReference | null>;
+};
 export function References({
   onChange,
   onAdopt,
   onBusyChange,
+  projectAdoption,
 }: {
   onChange: (references: SavedReference[]) => void;
   onAdopt?: (principle: Principle) => void;
   onBusyChange?: (busy: boolean, error?: string) => void;
+  projectAdoption?: ProjectReferenceAdoption;
 }) {
   const scope = useScope(),
     base = `${scope.api}/references`;
@@ -201,36 +215,26 @@ export function References({
         }
         throw e;
       }
-      // Cancel older reads, and retain newer versions or an already known absence.
-      await client.cancelQueries({ queryKey, exact: true });
-      client.setQueryData<ReferenceData>(queryKey, (data) => {
-        if (
-          data &&
-          (!createsReference || observedIds.has(saved.id)) &&
-          !data.references.some((r) => r.id === saved.id)
-        )
-          return data;
-        return {
-          references: data?.references.some((r) => r.id === saved.id)
-            ? data.references.map((r) =>
-                r.id === saved.id && r.version <= saved.version ? saved : r,
-              )
-            : [...(data?.references ?? []), saved],
-          jobs: data?.jobs ?? [],
-        };
-      });
+      await commitReferenceReply(
+        client,
+        scope.id,
+        saved.id,
+        saved,
+        createsReference,
+        observedIds,
+      );
       return saved;
     } finally {
       stopObserving?.();
     }
   };
+  const saveProjectReference = projectAdoption
+    ? async (reference: SavedReference, index: number) => {
+        await projectAdoption.save(reference, index);
+      }
+    : undefined;
   const removeReference = async (id: string) => {
-    await client.cancelQueries({ queryKey, exact: true });
-    client.setQueryData<ReferenceData>(queryKey, (data) =>
-      data
-        ? { ...data, references: data.references.filter((r) => r.id !== id) }
-        : data,
-    );
+    await commitReferenceReply(client, scope.id, id, null);
   };
   const [url, setUrl] = useState("");
   const [imageFile, setImageFile] = useState<File>();
@@ -565,6 +569,8 @@ export function References({
             key={ref.id}
             reference={ref}
             onAdopt={onAdopt}
+            projectAdoption={projectAdoption}
+            saveProjectReference={saveProjectReference}
             saveReference={saveReference}
             saveJob={saveJob}
             removeReference={removeReference}
@@ -587,6 +593,8 @@ export function References({
 function ReferenceCard({
   reference: r,
   onAdopt,
+  projectAdoption,
+  saveProjectReference,
   saveReference,
   saveJob,
   removeReference,
@@ -597,6 +605,11 @@ function ReferenceCard({
 }: {
   reference: SavedReference;
   onAdopt?: (principle: Principle) => void;
+  projectAdoption?: ProjectReferenceAdoption;
+  saveProjectReference?: (
+    reference: SavedReference,
+    index: number,
+  ) => Promise<void>;
   saveReference: SaveReference;
   saveJob: SaveJob;
   removeReference: (id: string) => Promise<void>;
@@ -920,27 +933,38 @@ function ReferenceCard({
                 active ||
                 dirty ||
                 stale ||
-                r.accepted.includes(i)
+                (projectAdoption
+                  ? !!projectAdoption.disabledReason ||
+                    projectAdoption.hasPolicy(r.id, i)
+                  : r.accepted.includes(i))
               }
               onClick={() =>
                 void run(() =>
-                  saveReference(`/${r.id}/accept`, "POST", {
-                    version: r.version,
-                    index: i,
-                  }).then(() => {
-                    onAdopt?.({
-                      id: `reference:${r.id}:${i}`,
-                      target: finding.aspect,
-                      text: finding.recommendation,
-                      reason: finding.interpretation,
-                      sources: [r.url || r.name, finding.evidence],
-                      locked: false,
-                    });
-                  }),
+                  saveProjectReference
+                    ? saveProjectReference(r, i)
+                    : saveReference(`/${r.id}/accept`, "POST", {
+                        version: r.version,
+                        index: i,
+                      }).then(() => {
+                        onAdopt?.({
+                          id: `reference:${r.id}:${i}`,
+                          target: finding.aspect,
+                          text: finding.recommendation,
+                          reason: finding.interpretation,
+                          sources: [r.url || r.name, finding.evidence],
+                          locked: false,
+                        });
+                      }),
                 )
               }
             >
-              {r.accepted.includes(i) ? "採用済み" : "設計方針として採用"}
+              {projectAdoption
+                ? projectAdoption.hasPolicy(r.id, i)
+                  ? "方針保存済み"
+                  : "プロジェクト方針として保存"
+                : r.accepted.includes(i)
+                  ? "採用済み"
+                  : "設計方針として採用"}
             </button>
           </section>
         ))}
