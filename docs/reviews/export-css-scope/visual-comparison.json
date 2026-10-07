@@ -1,0 +1,38 @@
+[
+  {
+    "screen": "list",
+    "width": 1440,
+    "normalEqualsPortable": true,
+    "sha256": "7a5003997b9dddd30720a2cc767f3bd6f3979c42fa88616b8d7737841628c1b2"
+  },
+  {
+    "screen": "settings",
+    "width": 1440,
+    "normalEqualsPortable": true,
+    "sha256": "c0e56684d1c0a8aa0e1b211cd270d7354d64fc1679718a11b7d767751a4ddbfb"
+  },
+  {
+    "screen": "form",
+    "width": 1440,
+    "normalEqualsPortable": true,
+    "sha256": "2fd28785ed68d0ab9b75f8d28cf648aa6f1c08cd1072c0f228223a1227605b28"
+  },
+  {
+    "screen": "list",
+    "width": 390,
+    "normalEqualsPortable": true,
+    "sha256": "1ee80e54a25b7fcaf3b135cd88cce78317c21410e945c7805f7548b910f37302"
+  },
+  {
+    "screen": "settings",
+    "width": 390,
+    "normalEqualsPortable": true,
+    "sha256": "6379e1df6c0a65ba78e1b12da89b931e7d86a7546ed18523cadae5c4722b8513"
+  },
+  {
+    "screen": "form",
+    "width": 390,
+    "normalEqualsPortable": true,
+    "sha256": "94a65c3271b3c879de8eaf521474ad10a24da4edfa20d6ef93ba977ab45ae7dc"
+  }
+]
