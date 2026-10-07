@@ -1,0 +1,31 @@
+{
+  "templateVersion": "preview-9",
+  "before": {
+    "paper": "#f6f5f0",
+    "ink": "#233a32",
+    "rootColor": "rgb(35, 58, 50)",
+    "bodyBackground": "rgba(0, 0, 0, 0)",
+    "workspaceDisplay": "block",
+    "inputWidth": 358,
+    "inputColor": "rgb(35, 58, 50)",
+    "sameClassDisplay": "block",
+    "sameClassFont": "12px Arial",
+    "sameClassInputHeight": "17px",
+    "animationName": "spin",
+    "motionDuration": "0.23s"
+  },
+  "after": {
+    "paper": "#f5f6ef",
+    "ink": "#30352d",
+    "rootColor": "rgb(48, 53, 45)",
+    "bodyBackground": "rgba(0, 0, 0, 0)",
+    "workspaceDisplay": "flex",
+    "inputWidth": 142.484375,
+    "inputColor": "rgb(48, 53, 45)",
+    "sameClassDisplay": "block",
+    "sameClassFont": "12px Arial",
+    "sameClassInputHeight": "17px",
+    "animationName": "none",
+    "motionDuration": "0s"
+  }
+}

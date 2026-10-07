@@ -24,6 +24,8 @@ export function RuntimeTheme({
   children: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const scopeId = useId();
+  const scope = `[data-tasteprint-scope=${JSON.stringify(scopeId)}]`;
   const [width, setWidth] = useState(1440);
   const variables = designVariables(design);
   useEffect(() => {
@@ -57,15 +59,15 @@ export function RuntimeTheme({
             : c.variant === "subtle"
               ? "var(--color-canvas)"
               : "var(--color-surface)";
-        return `.sample-app [data-component="${name}"] {--component-height:${size}px; min-height:${size}px; font-size:${design.fontSize + { sm: -2, md: 0, lg: 2 }[c.size]}px; color:${color}; background:${background}; border:${c.variant === "subtle" ? 0 : 1}px solid var(--preview-accent); border-radius:var(--preview-radius); padding:4px 10px;}`;
+        return `${scope} [data-component="${name}"] {--component-height:${size}px; min-height:${size}px; font-size:${design.fontSize + { sm: -2, md: 0, lg: 2 }[c.size]}px; color:${color}; background:${background}; border:${c.variant === "subtle" ? 0 : 1}px solid var(--preview-accent); border-radius:var(--preview-radius); padding:4px 10px;}`;
       })
       .join("\n") +
     patternNames
       .map((name) => {
         const p = design.patterns[name];
         return (
-          `.sample-app [data-pattern="${name}"] {display:flex; gap:${p.gap}px; ${["ListPage", "SettingsSection", "FormSection", "EmptyState"].includes(name) ? "flex-direction:column;" : ""}}` +
-          `@media(max-width:${design.mediumBreakpoint - 1}px) {.sample-app [data-pattern="${name}"] {${p.responsive === "stack" ? "flex-direction:column;align-items:stretch;" : "flex-direction:row;flex-wrap:wrap;"}}}`
+          `${scope} [data-pattern="${name}"] {display:flex; gap:${p.gap}px; ${["ListPage", "SettingsSection", "FormSection", "EmptyState"].includes(name) ? "flex-direction:column;" : ""}}` +
+          `@media(max-width:${design.mediumBreakpoint - 1}px) {${scope} [data-pattern="${name}"] {${p.responsive === "stack" ? "flex-direction:column;align-items:stretch;" : "flex-direction:row;flex-wrap:wrap;"}}}`
         );
       })
       .join("\n");
@@ -74,7 +76,8 @@ export function RuntimeTheme({
       ref={root}
       data-layout={layout}
       data-reduced-motion={design.reducedMotion}
-      className="sample-app runtime-root"
+      className="sample-app runtime-root tasteprint-runtime"
+      data-tasteprint-scope={scopeId}
       style={
         {
           ...variables,

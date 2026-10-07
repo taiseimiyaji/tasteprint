@@ -1,0 +1,54 @@
+{
+  "before": {
+    "bodyFont": "Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "paper": "#f6f5f0",
+    "ink": "#233a32",
+    "headingMargin": "0px",
+    "buttonBorder": "1px solid rgb(185, 201, 189)",
+    "buttonBackground": "rgb(232, 238, 231)",
+    "titleWidth": 672,
+    "titlePadding": "4px 0px 8px",
+    "titleFont": "500 32px / 48px Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "titleColor": "rgb(35, 58, 50)"
+  },
+  "isolated": {
+    "bodyFont": "Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "paper": "#f6f5f0",
+    "ink": "#233a32",
+    "headingMargin": "0px",
+    "buttonBorder": "1px solid rgb(185, 201, 189)",
+    "buttonBackground": "rgb(232, 238, 231)",
+    "titleWidth": 672,
+    "titlePadding": "4px 0px 8px",
+    "titleFont": "500 32px / 48px Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "titleColor": "rgb(35, 58, 50)"
+  },
+  "direct": {
+    "bodyFont": "Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "paper": "#f6f5f0",
+    "ink": "#233a32",
+    "headingMargin": "0px",
+    "buttonBorder": "1px solid rgb(185, 201, 189)",
+    "buttonBackground": "rgb(232, 238, 231)",
+    "titleWidth": 672,
+    "titlePadding": "4px 0px 8px",
+    "titleFont": "500 32px / 48px Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "titleColor": "rgb(35, 58, 50)"
+  },
+  "returned": {
+    "bodyFont": "Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "paper": "#f6f5f0",
+    "ink": "#233a32",
+    "headingMargin": "0px",
+    "buttonBorder": "1px solid rgb(185, 201, 189)",
+    "buttonBackground": "rgb(232, 238, 231)",
+    "titleWidth": 672,
+    "titlePadding": "4px 0px 8px",
+    "titleFont": "500 32px / 48px Arial, \"Hiragino Kaku Gothic ProN\", \"Noto Sans JP\", sans-serif",
+    "titleColor": "rgb(35, 58, 50)"
+  },
+  "pageErrors": [],
+  "editorPreserved": true,
+  "undo": true,
+  "autosave": true
+}

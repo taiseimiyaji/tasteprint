@@ -5,7 +5,7 @@ import { unzipSync } from "fflate";
 
 // Use the downloaded archive, never the workspace runtime imports. The test
 // consumer has its own React root and follows the ZIP's independent-page advice.
-export async function openExportConsumer(page: Page, screen = "widgets") {
+export async function downloadExportConsumer(page: Page) {
   const created = await page.request.post("/api/projects", {
     data: { brief: { name: "Export consumer" }, useTaste: false },
   });
@@ -34,6 +34,11 @@ export async function openExportConsumer(page: Page, screen = "widgets") {
     mkdirSync(dirname(destination), { recursive: true });
     writeFileSync(destination, bytes);
   }
+  return { project, record, directory };
+}
+
+export async function openExportConsumer(page: Page, screen = "widgets") {
+  const { project, record, directory } = await downloadExportConsumer(page);
   writeFileSync(
     `${directory}/client.tsx`,
     `import {useState} from 'react';
