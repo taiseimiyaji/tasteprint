@@ -79,7 +79,7 @@ for (const width of [1440, 390])
       expect(exported.ok()).toBe(true);
       const record = await exported.json();
       expect(record.revision).toBe(2);
-      expect(record.templateVersion).toBe("preview-13");
+      expect(record.templateVersion).toBe("preview-14");
       const zipName = Object.keys(record.files).find((n) =>
         n.endsWith(".zip"),
       )!;

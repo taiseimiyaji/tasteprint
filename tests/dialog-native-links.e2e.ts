@@ -9,7 +9,7 @@ for (const width of [1440, 390])
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       const { project, record, directory } = await downloadExportConsumer(page);
-      expect(record.templateVersion).toBe("preview-13");
+      expect(record.templateVersion).toBe("preview-14");
       const imports =
         mode === "portable"
           ? `import {Button,Input,RuntimeTheme,RuntimeDialog} from './ui';import './ui/styles.css';`
