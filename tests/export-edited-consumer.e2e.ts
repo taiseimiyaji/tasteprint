@@ -111,10 +111,10 @@ async function download(page: Page, id: string, revision: number) {
   const manifest = JSON.parse(
     readFileSync(join(directory, "manifest.json"), "utf8"),
   );
-  expect(record.templateVersion).toBe("preview-12");
+  expect(record.templateVersion).toBe("preview-13");
   expect(json.revision).toBe(revision);
   expect(manifest.revision).toBe(revision);
-  expect(manifest.templateVersion).toBe("preview-12");
+  expect(manifest.templateVersion).toBe("preview-13");
   return { record, url, bytes, directory, json, manifest };
 }
 async function metrics(root: Locator) {
@@ -600,7 +600,7 @@ for (const width of [1440, 390])
     expect(
       (await (await page.request.get(`${base}/exports`)).json()).filter(
         (item: { templateVersion?: string }) =>
-          item.templateVersion === "preview-12",
+          item.templateVersion === "preview-13",
       ),
     ).toHaveLength(2);
     expect(errors).toEqual([]);
@@ -614,7 +614,7 @@ for (const width of [1440, 390])
           base: "07fcb5ba64c8e7046e7eda942ce55bbafe31c765",
           width,
           sourceTasteProfileRevision: taste.revision,
-          templateVersion: "preview-12",
+          templateVersion: "preview-13",
           revisions: [5, 6],
           zipSha256: { serif: sha(a.bytes), monospace: sha(b.bytes) },
           oldZipPreserved: true,

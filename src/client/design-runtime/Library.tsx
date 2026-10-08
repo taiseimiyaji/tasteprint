@@ -137,7 +137,7 @@ export function RuntimeDialog({
           return;
         const controls = [
           ...e.currentTarget.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
           ),
         ].filter(
           (el) =>

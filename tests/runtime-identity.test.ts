@@ -36,6 +36,8 @@ async function verifyFrozen(frozenVersion: string) {
     // A frozen renderer fixture reproducing the old fixed ARIA IDs. The raw
     // archive is the preservation contract, independent of runtime internals.
     const path = "ui/design-runtime/Library.tsx";
+    old.files[path] = old.files[path].replace("a[href], ", "");
+    expect(old.files[path]).not.toContain("a[href]");
     if (frozenVersion === "preview-6") {
       old.files[path] = old.files[path]
         .replace("aria-labelledby={titleId}", 'aria-labelledby="dialog-title"')
@@ -54,6 +56,9 @@ async function verifyFrozen(frozenVersion: string) {
     } else if (frozenVersion === "preview-7") {
       old.files[path] = old.files[path].replaceAll('type="button"', "");
       expect(old.files[path]).not.toContain('type="button"');
+    } else if (frozenVersion === "preview-12") {
+      expect(old.files[path]).toContain("el.tabIndex >= 0");
+      expect(old.files[path]).toContain('!el.matches(":disabled")');
     } else if (frozenVersion === "preview-11") {
       old.files[path] = old.files[path].replace(
         /\.filter\(\s*\(el\) =>\s*el\.tabIndex >= 0 &&\s*!el\.matches\(":disabled"\) &&\s*el\.getClientRects\(\)\.length,?\s*\);/,
@@ -151,6 +156,7 @@ for (const frozenVersion of [
   "preview-7",
   "preview-8",
   "preview-11",
+  "preview-12",
 ])
   it(`new portable widget source preserves frozen ${frozenVersion} ZIP and revision`, () =>
     verifyFrozen(frozenVersion));
