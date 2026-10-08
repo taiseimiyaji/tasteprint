@@ -190,13 +190,19 @@ for (const profile of [true, false]) {
       card.getByRole("button", { name: "Codexで分析する", exact: true }),
     ).toBeDisabled();
     await expect(
-      card.getByRole("button", { name: "設計方針として採用", exact: true }),
+      card.getByRole("button", {
+        name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+        exact: true,
+      }),
     ).toHaveCount(0);
     expect(reads.count()).toBe(1);
     await reads.recover();
     await expect(card.getByRole("status")).toContainText("Codex分析: 完了");
     await expect(
-      card.getByRole("button", { name: "設計方針として採用", exact: true }),
+      card.getByRole("button", {
+        name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+        exact: true,
+      }),
     ).toBeVisible();
     expect(reads.count()).toBe(1);
     const stored = (

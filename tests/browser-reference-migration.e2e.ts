@@ -65,8 +65,11 @@ for (const width of [1440, 390]) {
           card.getByText(source.principles[0].recommendation, { exact: true }),
         ).toBeVisible();
         await expect(
-          card.getByRole("button", { name: "採用済み", exact: true }),
-        ).toBeDisabled();
+          card.getByRole("button", {
+            name: "プロジェクト方針として保存",
+            exact: true,
+          }),
+        ).toBeEnabled();
       }
       const stored = await (
         await page.request.get(`${base}/references`)

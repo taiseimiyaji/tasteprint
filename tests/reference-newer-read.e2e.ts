@@ -65,7 +65,9 @@ async function setup(
   const card = page.locator(".reference-card").filter({
     has: page
       .getByRole("heading", { name: ref.name, exact: true, level: 3 })
-      .or(page.getByRole("heading", { name: newerName, exact: true, level: 3 })),
+      .or(
+        page.getByRole("heading", { name: newerName, exact: true, level: 3 }),
+      ),
   });
   await expect(card).toBeVisible();
   return {
@@ -85,7 +87,10 @@ async function holdReply(page: Page, endpoint: string) {
     writes = 0;
   const gate = new Promise<void>((r) => (release = r)),
     started = new Promise<void>((r) => (entered = r));
-  const base = endpoint.replace(/\/[a-f0-9-]+(?:\/(?:image|accept))?$/, "");
+  const base = endpoint.replace(
+    /\/[a-f0-9-]+(?:\/(?:image|accept(?:-policy)?))?$/,
+    "",
+  );
   await page.route(`**${base}`, (route) =>
     failRead && route.request().method() === "GET"
       ? route.fulfill({
@@ -99,7 +104,8 @@ async function holdReply(page: Page, endpoint: string) {
       return route.continue();
     const response = await route.fetch();
     expect(response.ok()).toBe(true);
-    accepted = await response.json();
+    const reply = await response.json();
+    accepted = reply.reference ?? reply;
     entered();
     await gate;
     await route.fulfill({ response });
@@ -352,9 +358,15 @@ for (const profile of [true, false])
     const original = (
       await (await page.request.get(f.base)).json()
     ).references.find((r: SavedReference) => r.id === f.ref.id);
-    const held = await holdReply(page, `${f.base}/${f.ref.id}/accept`);
+    const held = await holdReply(
+      page,
+      `${f.base}/${f.ref.id}/${profile ? "accept" : "accept-policy"}`,
+    );
     await f.card
-      .getByRole("button", { name: "設計方針として採用", exact: true })
+      .getByRole("button", {
+        name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+        exact: true,
+      })
       .click();
     await held.started;
     const latestName = `External after reviewed acceptance ${profile}`;
@@ -399,7 +411,10 @@ for (const profile of [true, false])
       card.getByRole("textbox", { name: "好きな点", exact: true }),
     ).toHaveValue("External input resets earlier analysis");
     await expect(
-      card.getByRole("button", { name: "採用済み", exact: true }),
+      card.getByRole("button", {
+        name: /^(採用済み|方針保存済み)$/,
+        exact: true,
+      }),
     ).toHaveCount(0);
     await expect(
       card.getByText("画像上部の見出し", { exact: true }),

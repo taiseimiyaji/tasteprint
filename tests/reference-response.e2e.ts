@@ -246,13 +246,19 @@ for (const profile of [true, false]) {
       (r: { name: string }) => r.name === `${label}-adopt.png`,
     );
     const reads = await failReadsAfterMutation(page, scope);
-    await page.route(`**${scope.base}/${before.id}/accept`, async (route) => {
-      const response = await route.fetch();
-      if (response.ok()) reads.fail();
-      await route.fulfill({ response });
-    });
+    await page.route(
+      `**${scope.base}/${before.id}/${profile ? "accept" : "accept-policy"}`,
+      async (route) => {
+        const response = await route.fetch();
+        if (response.ok()) reads.fail();
+        await route.fulfill({ response });
+      },
+    );
     await card
-      .getByRole("button", { name: "設計方針として採用", exact: true })
+      .getByRole("button", {
+        name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+        exact: true,
+      })
       .click();
     if (profile) {
       // Adoption switches to DNA asynchronously after its accepted reply.
@@ -264,7 +270,10 @@ for (const profile of [true, false]) {
         .click();
     }
     await expect(
-      card.getByRole("button", { name: "採用済み", exact: true }),
+      card.getByRole("button", {
+        name: /^(採用済み|方針保存済み)$/,
+        exact: true,
+      }),
     ).toBeDisabled();
     await expect(page.getByRole("alert")).toContainText(
       "参考一覧の読み込みに失敗",

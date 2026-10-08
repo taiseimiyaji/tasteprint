@@ -279,7 +279,7 @@ for (const profile of [true, false])
             .toBuffer(),
         });
       await expect(card.getByRole("img")).toBeVisible();
-      const analyzeAndAccept = async () => {
+      const analyzeAndAccept = async (existingProjectPolicy = false) => {
         await card.getByLabel("送信対象を確認しました").check();
         await card
           .getByRole("button", { name: "Codexで分析する", exact: true })
@@ -287,8 +287,18 @@ for (const profile of [true, false])
         await expect(
           card.getByText("画像上部の見出し", { exact: true }),
         ).toBeVisible();
+        if (existingProjectPolicy) {
+          await expect(
+            card.getByRole("button", { name: "方針保存済み", exact: true }),
+          ).toBeDisabled();
+          expect((await current()).accepted).toEqual([]);
+          return;
+        }
         await card
-          .getByRole("button", { name: "設計方針として採用", exact: true })
+          .getByRole("button", {
+            name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+            exact: true,
+          })
           .click();
         await expect.poll(async () => (await current()).accepted).toEqual([0]);
         if (profile)
@@ -297,12 +307,26 @@ for (const profile of [true, false])
           ).toHaveAttribute("aria-pressed", "true");
         else {
           await expect(
-            card.getByRole("button", { name: "採用済み", exact: true }),
+            card.getByRole("button", {
+              name: /^(採用済み|方針保存済み)$/,
+              exact: true,
+            }),
           ).toBeVisible();
           await expect(name).toBeEditable();
         }
       };
       await analyzeAndAccept();
+      const foundationAfterAdoption = projectId
+        ? await (
+            await page.request.get(`/api/projects/${projectId}/foundation`)
+          ).json()
+        : null;
+      if (projectId) {
+        expect(foundationAfterAdoption.current.revision).toBe(2);
+        expect(foundationAfterAdoption.current.design).toEqual(
+          foundationBefore.current.design,
+        );
+      }
       if (profile) {
         await page
           .getByRole("button", { name: "共通の好みを保存", exact: true })
@@ -369,7 +393,7 @@ for (const profile of [true, false])
         expect(
           (await (await page.request.get("/api/profile")).json()).current,
         ).toEqual(confirmedProfile);
-      await analyzeAndAccept();
+      await analyzeAndAccept(!profile);
       await showReferences();
       const reanalyzed = await current();
       await url.fill("relative/invalid-edit");
@@ -432,7 +456,7 @@ for (const profile of [true, false])
           await (
             await page.request.get(`/api/projects/${projectId}/foundation`)
           ).json(),
-        ).toEqual(foundationBefore);
+        ).toEqual(foundationAfterAdoption);
       await page.screenshot({
         path: `${prefix}-after-url-save.png`,
         fullPage: true,
@@ -450,6 +474,7 @@ for (const profile of [true, false])
             changed,
             confirmedProfile,
             foundationBefore,
+            foundationAfterAdoption,
             pendingInputsDisabled: true,
             failedURLDraftRetained: true,
             codexCalls,

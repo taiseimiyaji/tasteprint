@@ -168,10 +168,16 @@ test("reference and taste workflow preserves explicit choices", async ({
   await expect(
     page.getByText("画像上部の見出し", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "設計方針として採用" }).click();
-  await expect(page.getByRole("button", { name: "採用済み" })).toBeDisabled();
+  await page
+    .getByRole("button", { name: "プロジェクト方針として保存" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "方針保存済み" }),
+  ).toBeDisabled();
   await page.reload();
-  await expect(page.getByRole("button", { name: "採用済み" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "方針保存済み" }),
+  ).toBeVisible();
   await page.screenshot({
     path: "test-results/inspiration-desktop.png",
     fullPage: true,
@@ -1823,7 +1829,10 @@ for (const outcome of ["success", "failure"] as const) {
     await page.unroute(endpoint);
     if (outcome === "failure") {
       await expect(
-        card.getByRole("button", { name: "設計方針として採用", exact: true }),
+        card.getByRole("button", {
+          name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+          exact: true,
+        }),
       ).toBeEnabled();
       await adopt.click();
     }
@@ -1853,7 +1862,10 @@ for (const outcome of ["success", "failure"] as const) {
         });
     });
     await card
-      .getByRole("button", { name: "設計方針として採用", exact: true })
+      .getByRole("button", {
+        name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+        exact: true,
+      })
       .click();
     try {
       // Only the conflicting save waits; other answers remain editable and survive adoption.
@@ -1898,7 +1910,10 @@ for (const outcome of ["success", "failure"] as const) {
       ).toBeVisible();
       await page.unroute(endpoint);
       await card
-        .getByRole("button", { name: "設計方針として採用", exact: true })
+        .getByRole("button", {
+          name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+          exact: true,
+        })
         .click();
     }
     await page.unroute(endpoint);
@@ -2018,7 +2033,10 @@ test("Profile reload warns during adoption and dismissing the warning keeps the 
     await route.fulfill({ response });
   });
   await card
-    .getByRole("button", { name: "設計方針として採用", exact: true })
+    .getByRole("button", {
+      name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+      exact: true,
+    })
     .click();
   try {
     await ready;
@@ -2084,7 +2102,10 @@ test("Profile cancels queued navigation if the adopted draft cannot be stored", 
     };
   });
   await card
-    .getByRole("button", { name: "設計方針として採用", exact: true })
+    .getByRole("button", {
+      name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+      exact: true,
+    })
     .click();
   try {
     await page.getByRole("link", { name: "プロジェクト", exact: true }).click();

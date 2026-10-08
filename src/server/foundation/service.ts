@@ -193,6 +193,7 @@ export class FoundationService {
     reason: string,
     requestId: string,
     dna = this.current()?.dna ?? {},
+    beforeInsert?: () => void,
   ) {
     const existing = this.db
       .prepare("SELECT revision FROM foundation_requests WHERE id=?")
@@ -202,6 +203,8 @@ export class FoundationService {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       this.base(baseRevision);
+      // Synchronous writes on this DB share the revision's rollback boundary.
+      beforeInsert?.();
       const result = this.insert(design, reason, "user", dna);
       this.db
         .prepare("INSERT INTO foundation_requests VALUES (?,?)")
