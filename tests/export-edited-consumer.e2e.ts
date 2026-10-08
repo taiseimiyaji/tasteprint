@@ -149,29 +149,6 @@ async function metrics(root: Locator) {
 }
 const rgb = (hex: string) =>
   `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
-async function screenshotWithinViewport(page: Page, root: Locator) {
-  const viewport = page.viewportSize()!,
-    before = (await root.boundingBox())!;
-  // Keep both compared roots fully visible instead of capturing past the viewport.
-  // CI differed by six RGB +/-1 pixels at a rounded corner below the 1000px viewport.
-  const height = Math.max(
-    viewport.height,
-    Math.ceil(before.y + before.height) + 1,
-  );
-  try {
-    await page.setViewportSize({ ...viewport, height });
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const after = (await root.boundingBox())!;
-    expect(after.width).toBe(before.width);
-    expect(after.height).toBe(before.height);
-    expect(after.x).toBe(0);
-    expect(after.y).toBe(0);
-    expect(after.y + after.height).toBeLessThan(page.viewportSize()!.height);
-    return await root.screenshot();
-  } finally {
-    await page.setViewportSize(viewport);
-  }
-}
 async function verifyAppearance(
   page: Page,
   id: string,
@@ -268,11 +245,14 @@ async function verifyAppearance(
     expect(normalMetrics.button.minHeight).toBe(`${d.controlHeight - 8}px`);
     expect(normalMetrics.button.fontSize).toBe(`${d.fontSize - 2}px`);
     expect(normalMetrics.select.minHeight).toBe(`${d.controlHeight}px`);
-    const backdrop = await page
-      .locator("html")
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const backdrop = await page.evaluate(() => ({
+      html: getComputedStyle(document.documentElement).backgroundColor,
+      body: getComputedStyle(document.body).backgroundColor,
+    }));
+    const normalRect = await root.boundingBox(),
+      normalScroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
     await page.mouse.move(0, 0);
-    const normal = await screenshotWithinViewport(page, root);
+    const normal = await root.screenshot();
     writeFileSync(
       join(evidence, `${edition}-${screen}-normal-${width}.png`),
       normal,
@@ -324,7 +304,7 @@ async function verifyAppearance(
     }
     writeFileSync(
       join(archive.directory, `pages-${screen}.html`),
-      `<!doctype html><html lang="ja"><head><style>body{margin:0;background:${backdrop}}</style></head><body><div id="consumer-root"></div><script type="module" src="/${archive.directory}/pages.tsx?screen=${screen}"></script></body></html>`,
+      `<!doctype html><html lang="ja"><head><style>html{background:${backdrop.html}}body{margin:0;background:${backdrop.body}}</style></head><body><div id="consumer-root"></div><script type="module" src="/${archive.directory}/pages.tsx?screen=${screen}"></script></body></html>`,
     );
     await page.goto(`/${archive.directory}/pages-${screen}.html`);
     const portable = page.locator(".sample-app");
@@ -334,8 +314,19 @@ async function verifyAppearance(
       "data-layout",
       width === 390 ? "compact" : "wide",
     );
+    // Match background ownership as well as its color in both host documents.
+    expect(
+      await page.evaluate(() => ({
+        html: getComputedStyle(document.documentElement).backgroundColor,
+        body: getComputedStyle(document.body).backgroundColor,
+      })),
+    ).toEqual(backdrop);
+    expect(await portable.boundingBox()).toEqual(normalRect);
+    expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(
+      normalScroll,
+    );
     await page.mouse.move(0, 0);
-    const exported = await screenshotWithinViewport(page, portable);
+    const exported = await portable.screenshot();
     writeFileSync(
       join(evidence, `${edition}-${screen}-portable-${width}.png`),
       exported,
@@ -352,7 +343,16 @@ async function verifyAppearance(
       });
       await test.info().attach(`${edition}-${screen}-metrics-${width}`, {
         body: JSON.stringify(
-          { normal: normalMetrics, portable: await metrics(portable) },
+          {
+            normal: normalMetrics,
+            portable: await metrics(portable),
+            captureContext: {
+              viewport: page.viewportSize(),
+              rect: normalRect,
+              scroll: normalScroll,
+              backdrop,
+            },
+          },
           null,
           2,
         ),
