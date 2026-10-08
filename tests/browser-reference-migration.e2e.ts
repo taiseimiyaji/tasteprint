@@ -3,7 +3,7 @@ import { initialState } from "../src/client/state";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 for (const width of [1440, 390]) {
-  test(`browser migration retains independent same-URL evidence and completed replay at ${width}`, async ({
+  test(`browser migration retains unknown answers, independent same-URL evidence and completed replay at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -25,7 +25,11 @@ for (const width of [1440, 390]) {
         },
       ],
     }));
-    const raw = { ...structuredClone(initialState), references };
+    const raw = {
+      ...structuredClone(initialState),
+      answers: { "legacy-axis": "both" as const },
+      references,
+    };
     const original = JSON.stringify(raw);
     const profile = await (await page.request.get("/api/profile")).json();
     await page.addInitScript(
@@ -85,6 +89,7 @@ for (const width of [1440, 390]) {
       const frozen = foundation.current.snapshot.references.filter(
         (row: { id: string }) => owned.some((record) => record.id === row.id),
       );
+      expect(foundation.current.snapshot.taste.answers).toEqual(raw.answers);
       expect(frozen.map((row: { name: string }) => row.name)).toEqual(
         references.map((source) => source.name),
       );
@@ -141,6 +146,7 @@ for (const width of [1440, 390]) {
             independentAcceptedEvidence: true,
             completedReplayUnchanged: true,
             sourceAndBackupPreserved: true,
+            unknownAnswersRetainedInProject: true,
             profileUnchanged: true,
             uiMigrationPosts,
             realCodexCalls: health.codexCalls,

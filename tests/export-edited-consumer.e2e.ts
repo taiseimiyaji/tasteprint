@@ -245,9 +245,12 @@ async function verifyAppearance(
     expect(normalMetrics.button.minHeight).toBe(`${d.controlHeight - 8}px`);
     expect(normalMetrics.button.fontSize).toBe(`${d.fontSize - 2}px`);
     expect(normalMetrics.select.minHeight).toBe(`${d.controlHeight}px`);
-    const backdrop = await page
-      .locator("html")
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const backdrop = await page.evaluate(() => ({
+      html: getComputedStyle(document.documentElement).backgroundColor,
+      body: getComputedStyle(document.body).backgroundColor,
+    }));
+    const normalRect = await root.boundingBox(),
+      normalScroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
     await page.mouse.move(0, 0);
     const normal = await root.screenshot();
     writeFileSync(
@@ -301,7 +304,7 @@ async function verifyAppearance(
     }
     writeFileSync(
       join(archive.directory, `pages-${screen}.html`),
-      `<!doctype html><html lang="ja"><head><style>body{margin:0;background:${backdrop}}</style></head><body><div id="consumer-root"></div><script type="module" src="/${archive.directory}/pages.tsx?screen=${screen}"></script></body></html>`,
+      `<!doctype html><html lang="ja"><head><style>html{background:${backdrop.html}}body{margin:0;background:${backdrop.body}}</style></head><body><div id="consumer-root"></div><script type="module" src="/${archive.directory}/pages.tsx?screen=${screen}"></script></body></html>`,
     );
     await page.goto(`/${archive.directory}/pages-${screen}.html`);
     const portable = page.locator(".sample-app");
@@ -310,6 +313,17 @@ async function verifyAppearance(
     await expect(portable).toHaveAttribute(
       "data-layout",
       width === 390 ? "compact" : "wide",
+    );
+    // Match background ownership as well as its color in both host documents.
+    expect(
+      await page.evaluate(() => ({
+        html: getComputedStyle(document.documentElement).backgroundColor,
+        body: getComputedStyle(document.body).backgroundColor,
+      })),
+    ).toEqual(backdrop);
+    expect(await portable.boundingBox()).toEqual(normalRect);
+    expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(
+      normalScroll,
     );
     await page.mouse.move(0, 0);
     const exported = await portable.screenshot();
@@ -329,7 +343,16 @@ async function verifyAppearance(
       });
       await test.info().attach(`${edition}-${screen}-metrics-${width}`, {
         body: JSON.stringify(
-          { normal: normalMetrics, portable: await metrics(portable) },
+          {
+            normal: normalMetrics,
+            portable: await metrics(portable),
+            captureContext: {
+              viewport: page.viewportSize(),
+              rect: normalRect,
+              scroll: normalScroll,
+              backdrop,
+            },
+          },
           null,
           2,
         ),
@@ -457,6 +480,7 @@ for (const width of [1440, 390])
     await page
       .getByRole("button", { name: "プロジェクトを作成", exact: true })
       .click();
+    await expect(page).toHaveURL(/\/projects\/[a-f0-9-]{36}\/overview$/);
     await expect(
       page.getByRole("heading", {
         name: `Edited export fixture ${width}`,

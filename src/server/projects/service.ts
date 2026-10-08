@@ -14,7 +14,12 @@ import {
 } from "../foundation/service";
 import { ReviewService, type ReviewAI } from "../review/service";
 import { reviewCapture } from "../review/capture";
-import { defaultDesign, profile, type Design } from "../../domain/design";
+import {
+  defaultDesign,
+  profile,
+  questions,
+  type Design,
+} from "../../domain/design";
 import { projectMarkdown } from "../../domain/project-export";
 import { designCss } from "../../domain/tokens";
 import {
@@ -930,10 +935,16 @@ export class ProjectService {
     }
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      const taste = this.taste();
-      if (!taste.snapshot.confirmed && Object.keys(state.answers).length)
+      const taste = this.taste(),
+        currentAnswers = Object.fromEntries(
+          Object.entries(state.answers).filter(([id]) =>
+            questions.some((q) => q.id === id),
+          ),
+        );
+      // Raw legacy answers remain in the backup and Project checkpoint above.
+      if (!taste.snapshot.confirmed && Object.keys(currentAnswers).length)
         this.saveTaste(taste.revision, {
-          answers: state.answers,
+          answers: currentAnswers,
           reasons: {},
           principles: [],
         });
