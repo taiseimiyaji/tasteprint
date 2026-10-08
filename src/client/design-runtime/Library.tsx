@@ -139,7 +139,12 @@ export function RuntimeDialog({
           ...e.currentTarget.querySelectorAll<HTMLElement>(
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
           ),
-        ].filter((el) => el.getClientRects().length);
+        ].filter(
+          (el) =>
+            el.tabIndex >= 0 &&
+            !el.matches(":disabled") &&
+            el.getClientRects().length,
+        );
         const first = controls[0],
           last = controls.at(-1);
         if (e.shiftKey && document.activeElement === first) {

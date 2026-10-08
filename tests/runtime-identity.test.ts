@@ -54,6 +54,15 @@ async function verifyFrozen(frozenVersion: string) {
     } else if (frozenVersion === "preview-7") {
       old.files[path] = old.files[path].replaceAll('type="button"', "");
       expect(old.files[path]).not.toContain('type="button"');
+    } else if (frozenVersion === "preview-11") {
+      old.files[path] = old.files[path].replace(
+        /\.filter\(\s*\(el\) =>\s*el\.tabIndex >= 0 &&\s*!el\.matches\(":disabled"\) &&\s*el\.getClientRects\(\)\.length,?\s*\);/,
+        ".filter((el) => el.getClientRects().length);",
+      );
+      expect(old.files[path]).not.toContain("el.tabIndex >= 0");
+      expect(old.files[path]).toContain(
+        ".filter((el) => el.getClientRects().length)",
+      );
     } else {
       old.files[path] = old.files[path]
         .replace(/onClose=\{\(e\) => \{[\s\S]*?\}\}/, "onClose={close}")
@@ -137,6 +146,11 @@ async function verifyFrozen(frozenVersion: string) {
   }
 }
 
-for (const frozenVersion of ["preview-6", "preview-7", "preview-8"])
+for (const frozenVersion of [
+  "preview-6",
+  "preview-7",
+  "preview-8",
+  "preview-11",
+])
   it(`new portable widget source preserves frozen ${frozenVersion} ZIP and revision`, () =>
     verifyFrozen(frozenVersion));
