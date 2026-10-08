@@ -36,8 +36,31 @@ async function verifyFrozen(frozenVersion: string) {
     // A frozen renderer fixture reproducing the old fixed ARIA IDs. The raw
     // archive is the preservation contract, independent of runtime internals.
     const path = "ui/design-runtime/Library.tsx";
-    old.files[path] = old.files[path].replace("a[href], ", "");
-    expect(old.files[path]).not.toContain("a[href]");
+    // Freeze the previous collector implementation, including its known
+    // eligibility/order limitations, rather than relabeling the new runtime.
+    old.files[path] = old.files[path]
+      .replace(
+        /function dialogControls\(dialog: HTMLDialogElement\) \{[\s\S]*?\n\}\n(?=export function RuntimeDialog)/,
+        "",
+      )
+      .replace(
+        "const controls = dialogControls(e.currentTarget);",
+        `const controls = [
+          ...e.currentTarget.querySelectorAll<HTMLElement>(
+            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+          ),
+        ].filter(
+          (el) =>
+            el.tabIndex >= 0 &&
+            !el.matches(":disabled") &&
+            el.getClientRects().length,
+        );`,
+      );
+    expect(old.files[path]).not.toContain("function dialogControls");
+    if (frozenVersion !== "preview-13") {
+      old.files[path] = old.files[path].replace("a[href], ", "");
+      expect(old.files[path]).not.toContain("a[href]");
+    }
     if (frozenVersion === "preview-6") {
       old.files[path] = old.files[path]
         .replace("aria-labelledby={titleId}", 'aria-labelledby="dialog-title"')
@@ -56,6 +79,10 @@ async function verifyFrozen(frozenVersion: string) {
     } else if (frozenVersion === "preview-7") {
       old.files[path] = old.files[path].replaceAll('type="button"', "");
       expect(old.files[path]).not.toContain('type="button"');
+    } else if (frozenVersion === "preview-13") {
+      expect(old.files[path]).toContain("a[href]");
+      expect(old.files[path]).toContain("el.tabIndex >= 0");
+      expect(old.files[path]).not.toContain("getComputedStyle(el)");
     } else if (frozenVersion === "preview-12") {
       expect(old.files[path]).toContain("el.tabIndex >= 0");
       expect(old.files[path]).toContain('!el.matches(":disabled")');
@@ -157,6 +184,7 @@ for (const frozenVersion of [
   "preview-8",
   "preview-11",
   "preview-12",
+  "preview-13",
 ])
   it(`new portable widget source preserves frozen ${frozenVersion} ZIP and revision`, () =>
     verifyFrozen(frozenVersion));

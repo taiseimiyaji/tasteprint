@@ -102,6 +102,40 @@ export function RuntimeTheme({
     </div>
   );
 }
+function dialogControls(dialog: HTMLDialogElement) {
+  return [
+    ...dialog.querySelectorAll<HTMLElement>(
+      'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+    ),
+  ]
+    .filter((el) => {
+      if (
+        el.closest("dialog") !== dialog ||
+        el.tabIndex < 0 ||
+        el.matches(":disabled") ||
+        !el.getClientRects().length ||
+        getComputedStyle(el).visibility !== "visible"
+      )
+        return false;
+      // RuntimeDialog uses showModal: ancestors outside this modal do not
+      // make its contents inert. Explicit inert inside it still applies.
+      for (
+        let ancestor: HTMLElement | null = el;
+        ancestor;
+        ancestor = ancestor.parentElement
+      ) {
+        if (ancestor.inert) return false;
+        if (ancestor === dialog) break;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const first = a.tabIndex > 0 ? a.tabIndex : Infinity,
+        second = b.tabIndex > 0 ? b.tabIndex : Infinity;
+      // Stable sorting retains DOM order for equal positive or zero indexes.
+      return first === second ? 0 : first - second;
+    });
+}
 export function RuntimeDialog({
   open,
   close,
@@ -135,16 +169,7 @@ export function RuntimeDialog({
           (e.target as Element).closest("dialog") !== e.currentTarget
         )
           return;
-        const controls = [
-          ...e.currentTarget.querySelectorAll<HTMLElement>(
-            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
-          ),
-        ].filter(
-          (el) =>
-            el.tabIndex >= 0 &&
-            !el.matches(":disabled") &&
-            el.getClientRects().length,
-        );
+        const controls = dialogControls(e.currentTarget);
         const first = controls[0],
           last = controls.at(-1);
         if (e.shiftKey && document.activeElement === first) {
