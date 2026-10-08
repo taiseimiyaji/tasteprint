@@ -75,20 +75,24 @@ async function holdReply(page: Page, endpoint: string) {
     accepted!: SavedReference,
     failRead = false,
     writes = 0;
+  let releaseReads!: () => void;
+  const readsReady = new Promise<void>((resolve) => (releaseReads = resolve));
   const gate = new Promise<void>((r) => (release = r)),
     started = new Promise<void>((r) => (entered = r));
   const base = endpoint.replace(
     /\/[a-f0-9-]+(?:\/(?:image|accept(?:-policy)?))?$/,
     "",
   );
-  await page.route(`**${base}`, (route) =>
-    failRead && route.request().method() === "GET"
-      ? route.fulfill({
-          status: 503,
-          json: { message: "Read failed after delayed reply" },
-        })
-      : route.continue(),
-  );
+  await page.route(`**${base}`, async (route) => {
+    // Keep collection reads before fetch until this case chooses its boundary.
+    if (route.request().method() === "GET") await readsReady;
+    if (failRead && route.request().method() === "GET")
+      await route.fulfill({
+        status: 503,
+        json: { message: "Read failed after delayed reply" },
+      });
+    else await route.continue();
+  });
   await page.route(`**${endpoint}`, async (route: Route) => {
     if (route.request().method() === "GET" || ++writes !== 1)
       return route.continue();
@@ -102,6 +106,7 @@ async function holdReply(page: Page, endpoint: string) {
   });
   return {
     started,
+    releaseReads,
     release,
     fail: () => (failRead = true),
     recover: () => (failRead = false),
@@ -142,8 +147,13 @@ async function survivor(page: Page, base: string, name: string) {
   return { ref, job };
 }
 for (const profile of [true, false])
-  for (const kind of ["notes", "image", "accept"] as const)
-    test(`${profile ? "Profile" : "Project"} delayed ${kind} reply preserves a known Reference deletion`, async ({
+  for (const [kind, observeCommitted] of [
+    ["notes", false],
+    ["notes", true],
+    ["image", true],
+    ["accept", true],
+  ] as const)
+    test(`${profile ? "Profile" : "Project"} delayed ${kind} reply preserves a known Reference deletion with committed version ${observeCommitted ? "observed" : "unobserved"}`, async ({
       page,
     }) => {
       let profilePosts = 0;
@@ -223,16 +233,48 @@ for (const profile of [true, false])
           .click();
       }
       await held.started;
-      let draftBeforeDeletion: string | null = null;
+      let draftAtKnownDeletion: string | null = null;
       try {
-        draftBeforeDeletion = await page.evaluate(
+        const submittedDraft = await page.evaluate(
           (key) => localStorage.getItem(key),
           f.key,
         );
+        expect(submittedDraft).not.toBeNull();
+        if (kind === "notes")
+          expect(JSON.parse(submittedDraft!).baseVersion).toBe(f.ref.version);
+        const expectedBase = observeCommitted
+          ? held.accepted().version
+          : f.ref.version;
+        if (observeCommitted) {
+          const committedRead = page.waitForResponse(async (response) => {
+            if (
+              new URL(response.url()).pathname !== f.base ||
+              response.request().method() !== "GET" ||
+              !response.ok()
+            )
+              return false;
+            const data = await response.json();
+            return data.references.some(
+              (r: SavedReference) =>
+                r.id === f.ref.id && r.version === expectedBase,
+            );
+          });
+          held.releaseReads();
+          await committedRead;
+          await expect
+            .poll(() =>
+              page.evaluate(
+                (key) => JSON.parse(localStorage.getItem(key)!).baseVersion,
+                f.key,
+              ),
+            )
+            .toBe(expectedBase);
+        }
         const deleted = await page.request.delete(`${f.base}/${f.ref.id}`, {
           data: { version: held.accepted().version },
         });
         expect(deleted.ok()).toBe(true);
+        held.releaseReads();
         await expect(f.card).toHaveCount(0, { timeout: 10000 });
         const actual = await (await page.request.get(f.base)).json();
         expect(
@@ -244,8 +286,19 @@ for (const profile of [true, false])
         expect(
           actual.jobs.some((j: { id: string }) => j.id === other.job.id),
         ).toBe(true);
+        // A matching committed read may legitimately advance the draft before
+        // deletion. Preserve every byte from the known-deletion boundary onward.
+        draftAtKnownDeletion = await page.evaluate(
+          (key) => localStorage.getItem(key),
+          f.key,
+        );
+        expect(JSON.parse(draftAtKnownDeletion!)).toEqual({
+          ...JSON.parse(submittedDraft!),
+          baseVersion: expectedBase,
+        });
         held.fail();
       } finally {
+        held.releaseReads();
         held.release();
       }
       if (profile && kind === "accept") {
@@ -286,15 +339,16 @@ for (const profile of [true, false])
       );
       expect(
         await page.evaluate((key) => localStorage.getItem(key), f.key),
-      ).toBe(draftBeforeDeletion);
+      ).toBe(draftAtKnownDeletion);
       expect(held.writes()).toBe(1);
       mkdirSync("../evidence/reference-deleted-read-ui", { recursive: true });
-      await page.screenshot({
-        path: `../evidence/reference-deleted-read-ui/${profile ? "Profile" : "Project"}-${kind}.png`,
-        fullPage: true,
-      });
+      if (kind !== "notes" || !observeCommitted)
+        await page.screenshot({
+          path: `../evidence/reference-deleted-read-ui/${profile ? "Profile" : "Project"}-${kind}.png`,
+          fullPage: true,
+        });
       writeFileSync(
-        `../evidence/reference-deleted-read-ui/${profile ? "Profile" : "Project"}-${kind}.json`,
+        `../evidence/reference-deleted-read-ui/${profile ? "Profile" : "Project"}-${kind}${kind === "notes" && observeCommitted ? "-observed" : ""}.json`,
         JSON.stringify(
           {
             scope: profile ? "Profile" : "Project",
@@ -302,6 +356,8 @@ for (const profile of [true, false])
             width,
             deletedId: f.ref.id,
             acceptedVersion: held.accepted().version,
+            observeCommittedBeforeDeletion: observeCommitted,
+            retainedBaseVersion: JSON.parse(draftAtKnownDeletion!).baseVersion,
             draftRetained: true,
             cardAbsentAfterLateReplyAndGET503: true,
             survivorId: other.ref.id,
@@ -333,7 +389,7 @@ for (const profile of [true, false])
       await expect(f.card).toHaveCount(0);
       expect(
         await page.evaluate((key) => localStorage.getItem(key), f.key),
-      ).toBe(draftBeforeDeletion);
+      ).toBe(draftAtKnownDeletion);
       const final = await (await page.request.get(f.base)).json();
       expect(
         final.references.some((r: SavedReference) => r.id === f.ref.id),
