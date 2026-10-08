@@ -149,6 +149,29 @@ async function metrics(root: Locator) {
 }
 const rgb = (hex: string) =>
   `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+async function screenshotWithinViewport(page: Page, root: Locator) {
+  const viewport = page.viewportSize()!,
+    before = (await root.boundingBox())!;
+  // Keep both compared roots fully visible instead of capturing past the viewport.
+  // CI differed by six RGB +/-1 pixels at a rounded corner below the 1000px viewport.
+  const height = Math.max(
+    viewport.height,
+    Math.ceil(before.y + before.height) + 1,
+  );
+  try {
+    await page.setViewportSize({ ...viewport, height });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const after = (await root.boundingBox())!;
+    expect(after.width).toBe(before.width);
+    expect(after.height).toBe(before.height);
+    expect(after.x).toBe(0);
+    expect(after.y).toBe(0);
+    expect(after.y + after.height).toBeLessThan(page.viewportSize()!.height);
+    return await root.screenshot();
+  } finally {
+    await page.setViewportSize(viewport);
+  }
+}
 async function verifyAppearance(
   page: Page,
   id: string,
@@ -249,7 +272,7 @@ async function verifyAppearance(
       .locator("html")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     await page.mouse.move(0, 0);
-    const normal = await root.screenshot();
+    const normal = await screenshotWithinViewport(page, root);
     writeFileSync(
       join(evidence, `${edition}-${screen}-normal-${width}.png`),
       normal,
@@ -312,7 +335,7 @@ async function verifyAppearance(
       width === 390 ? "compact" : "wide",
     );
     await page.mouse.move(0, 0);
-    const exported = await portable.screenshot();
+    const exported = await screenshotWithinViewport(page, portable);
     writeFileSync(
       join(evidence, `${edition}-${screen}-portable-${width}.png`),
       exported,
@@ -457,6 +480,7 @@ for (const width of [1440, 390])
     await page
       .getByRole("button", { name: "プロジェクトを作成", exact: true })
       .click();
+    await expect(page).toHaveURL(/\/projects\/[a-f0-9-]{36}\/overview$/);
     await expect(
       page.getByRole("heading", {
         name: `Edited export fixture ${width}`,
