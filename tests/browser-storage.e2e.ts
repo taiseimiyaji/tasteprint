@@ -187,76 +187,106 @@ test("prompt write warning survives a successful design save and clears only aft
 for (const failedKey of [
   "tasteprint.new-project",
   "tasteprint.new-project.use-taste",
-]) {
-  test(`successful Project opens once when cleanup of ${failedKey} fails`, async ({
-    page,
-  }) => {
-    await page.addInitScript((failedKey) => {
-      const state = window as FixtureWindow;
-      state.cleanupAttempts = [];
-      const remove = Storage.prototype.removeItem;
-      Storage.prototype.removeItem = function (key) {
-        if (key.startsWith("tasteprint.new-project"))
-          state.cleanupAttempts.push(key);
-        if (key === failedKey)
-          throw new DOMException("Cleanup denied", "SecurityError");
-        return remove.call(this, key);
-      };
-    }, failedKey);
-    await page.goto("/projects");
-    await page
-      .getByRole("button", { name: "新規プロジェクト", exact: true })
-      .click();
-    const dialog = page.getByRole("dialog");
-    const name = `Cleanup ${failedKey}`;
-    await dialog.getByLabel("プロジェクト名", { exact: true }).fill(name);
-    let creates = 0;
-    page.on("request", (request) => {
-      if (
-        new URL(request.url()).pathname === "/api/projects" &&
-        request.method() === "POST"
-      )
-        creates++;
+])
+  for (const failure of ["remove", "read"] as const) {
+    test(`successful Project opens once when cleanup ${failure} of ${failedKey} fails`, async ({
+      page,
+    }) => {
+      await page.addInitScript(
+        ({ failedKey, failure }) => {
+          const state = window as FixtureWindow;
+          state.cleanupAttempts = [];
+          const probe = window as typeof window & {
+            cleanupReadBlocked: boolean;
+          };
+          probe.cleanupReadBlocked = false;
+          const get = Storage.prototype.getItem;
+          Storage.prototype.getItem = function (key) {
+            if (
+              failure === "read" &&
+              key === failedKey &&
+              probe.cleanupReadBlocked
+            )
+              throw new DOMException("Cleanup read denied", "SecurityError");
+            return get.call(this, key);
+          };
+          const remove = Storage.prototype.removeItem;
+          Storage.prototype.removeItem = function (key) {
+            if (key.startsWith("tasteprint.new-project"))
+              state.cleanupAttempts.push(key);
+            if (failure === "remove" && key === failedKey)
+              throw new DOMException("Cleanup denied", "SecurityError");
+            return remove.call(this, key);
+          };
+        },
+        { failedKey, failure },
+      );
+      await page.goto("/projects");
+      await page
+        .getByRole("button", { name: "新規プロジェクト", exact: true })
+        .click();
+      const dialog = page.getByRole("dialog");
+      const name = `Cleanup ${failure} ${failedKey} ${crypto.randomUUID()}`;
+      await dialog.getByLabel("プロジェクト名", { exact: true }).fill(name);
+      let creates = 0;
+      page.on("request", (request) => {
+        if (
+          new URL(request.url()).pathname === "/api/projects" &&
+          request.method() === "POST"
+        )
+          creates++;
+      });
+      if (failure === "read")
+        await page.route("**/api/projects", async (route) => {
+          if (route.request().method() !== "POST") return route.continue();
+          const response = await route.fetch();
+          expect(response.ok()).toBe(true);
+          await page.evaluate(() => {
+            (
+              window as typeof window & { cleanupReadBlocked: boolean }
+            ).cleanupReadBlocked = true;
+          });
+          await route.fulfill({ response });
+        });
+      const reply = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/projects" &&
+          response.request().method() === "POST",
+      );
+      await dialog
+        .getByRole("button", { name: "プロジェクトを作成", exact: true })
+        .click();
+      const response = await reply;
+      expect(response.ok()).toBe(true);
+      await expect(
+        page.getByRole("heading", { name, exact: true }),
+      ).toBeVisible();
+      const list = await (await page.request.get("/api/projects")).json();
+      const created = list.filter(
+        (p: { brief: { name: string } }) => p.brief.name === name,
+      );
+      expect(created).toHaveLength(1);
+      await expect(page).toHaveURL(
+        new RegExp(`/projects/${created[0].id}/overview$`),
+      );
+      const otherKey =
+        failedKey === "tasteprint.new-project"
+          ? "tasteprint.new-project.use-taste"
+          : "tasteprint.new-project";
+      expect(
+        await page.evaluate((key) => localStorage.getItem(key), otherKey),
+      ).toBeNull();
+      expect(
+        await page.evaluate((key) => localStorage.getItem(key), failedKey),
+      ).not.toBeNull();
+      expect(creates).toBe(1);
+      await page.reload();
+      await expect(
+        page.getByRole("heading", { name, exact: true }),
+      ).toBeVisible();
+      expect(creates).toBe(1);
     });
-    const reply = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/projects" &&
-        response.request().method() === "POST",
-    );
-    await dialog
-      .getByRole("button", { name: "プロジェクトを作成", exact: true })
-      .click();
-    const response = await reply;
-    expect(response.ok()).toBe(true);
-    await expect(
-      page.getByRole("heading", { name, exact: true }),
-    ).toBeVisible();
-    const list = await (await page.request.get("/api/projects")).json();
-    const created = list.filter(
-      (p: { brief: { name: string } }) => p.brief.name === name,
-    );
-    expect(created).toHaveLength(1);
-    await expect(page).toHaveURL(
-      new RegExp(`/projects/${created[0].id}/overview$`),
-    );
-    const otherKey =
-      failedKey === "tasteprint.new-project"
-        ? "tasteprint.new-project.use-taste"
-        : "tasteprint.new-project";
-    expect(
-      await page.evaluate((key) => localStorage.getItem(key), otherKey),
-    ).toBeNull();
-    expect(
-      await page.evaluate((key) => localStorage.getItem(key), failedKey),
-    ).not.toBeNull();
-    expect(creates).toBe(1);
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name, exact: true }),
-    ).toBeVisible();
-    expect(creates).toBe(1);
-  });
-}
+  }
 
 test("failed Project creation preserves its browser draft and never runs cleanup", async ({
   page,

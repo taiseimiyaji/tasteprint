@@ -8,6 +8,8 @@ import {
 export type DraftRecovery<T> = {
   blocked: boolean;
   conflict?: boolean;
+  retainedInput?: boolean;
+  storedRaw: () => string | null;
   retry: () => void;
   replace: (value?: T) => void;
 };
@@ -25,10 +27,17 @@ export function useStoredDraft<T>(
         value: stored === null ? initial : decode(stored),
         blocked: false,
         conflict: false,
+        retainedInput: false,
         raw,
       };
     } catch {
-      return { value: initial, blocked: true, conflict: false, raw: null };
+      return {
+        value: initial,
+        blocked: true,
+        conflict: false,
+        retainedInput: false,
+        raw: null,
+      };
     }
   };
   const [draft, setDraft] = useState(read);
@@ -40,6 +49,7 @@ export function useStoredDraft<T>(
       ...d,
       blocked: true,
       conflict: conflict || d.conflict,
+      retainedInput: true,
     }));
     setError(
       conflict
@@ -98,6 +108,8 @@ export function useStoredDraft<T>(
   const recovery: DraftRecovery<T> = {
     blocked: draft.blocked,
     conflict: draft.conflict,
+    retainedInput: draft.retainedInput,
+    storedRaw: () => lastStored.current,
     retry: () => {
       const next = read();
       if (next.blocked) {
@@ -110,13 +122,14 @@ export function useStoredDraft<T>(
       overwrite.current = false;
       setDraft(next);
     },
-    replace: (value = draft.conflict ? draft.value : initial) => {
+    replace: (value = draft.retainedInput ? draft.value : initial) => {
       // Existing explicit replacement is allowed even when storage is unreadable.
       overwrite.current = true;
       setDraft({
         value,
         blocked: false,
         conflict: false,
+        retainedInput: false,
         raw: lastStored.current,
       });
     },

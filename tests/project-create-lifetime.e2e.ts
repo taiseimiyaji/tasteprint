@@ -226,3 +226,118 @@ for (const [width, readFails, initialReadPending] of [
     }
   });
 }
+
+for (const width of [1440, 390])
+  for (const changed of ["brief", "taste", "both"] as const)
+    test(`successful creation keeps a peer tab's newer ${changed} draft at ${width}`, async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/projects");
+      await page
+        .getByRole("button", { name: "新規プロジェクト", exact: true })
+        .click();
+      const dialog = page.getByRole("dialog");
+      const firstName = `Committed owner ${crypto.randomUUID()}`;
+      const peerName = `Unsent peer ${crypto.randomUUID()}`;
+      await dialog
+        .getByLabel("プロジェクト名", { exact: true })
+        .fill(firstName);
+      await dialog.getByLabel("共通の好みを使う", { exact: true }).check();
+      let entered!: () => void, release!: () => void;
+      const started = new Promise<void>((resolve) => (entered = resolve));
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let accepted: { id: string } | undefined;
+      let posts = 0;
+      await page.route("**/api/projects", async (route) => {
+        if (route.request().method() !== "POST") return route.continue();
+        posts++;
+        const response = await route.fetch();
+        expect(response.ok()).toBe(true);
+        accepted = await response.json();
+        entered();
+        await held;
+        await route.fulfill({ response });
+      });
+      await dialog
+        .getByRole("button", { name: "プロジェクトを作成", exact: true })
+        .click();
+      await started;
+      const peer = await context.newPage();
+      try {
+        await peer.setViewportSize({ width, height: 1000 });
+        await peer.goto("/projects");
+        await peer
+          .getByRole("button", { name: "新規プロジェクト", exact: true })
+          .click();
+        const peerDialog = peer.getByRole("dialog");
+        await expect(
+          peerDialog.getByLabel("プロジェクト名", { exact: true }),
+        ).toHaveValue(firstName);
+        if (changed !== "taste")
+          await peerDialog
+            .getByLabel("プロジェクト名", { exact: true })
+            .fill(peerName);
+        if (changed !== "brief")
+          await peerDialog
+            .getByLabel("共通の好みを使う", { exact: true })
+            .uncheck();
+        const storage = () =>
+          peer.evaluate(() => ({
+            brief: localStorage.getItem("tasteprint.new-project"),
+            taste: localStorage.getItem("tasteprint.new-project.use-taste"),
+          }));
+        await expect
+          .poll(async () => {
+            const raw = await storage();
+            return {
+              name: raw.brief && JSON.parse(raw.brief).name,
+              taste: raw.taste,
+            };
+          })
+          .toEqual({
+            name: changed === "taste" ? firstName : peerName,
+            taste: changed === "brief" ? "true" : "false",
+          });
+        const newer = await storage();
+        await expect(
+          dialog
+            .getByRole("alert")
+            .filter({ hasText: "の下書きが別タブ・別画面で変更されています" })
+            .first(),
+        ).toBeVisible();
+        release();
+        await expect(page).toHaveURL(
+          new RegExp(`/projects/${accepted!.id}/overview$`),
+        );
+        // Each key is cleaned only if its raw bytes still match this request.
+        expect(await storage()).toEqual({
+          brief: changed === "taste" ? null : newer.brief,
+          taste: changed === "brief" ? null : newer.taste,
+        });
+        await expect(
+          peerDialog.getByLabel("プロジェクト名", { exact: true }),
+        ).toHaveValue(changed === "taste" ? firstName : peerName);
+        if (changed !== "brief")
+          await expect(
+            peerDialog.getByLabel("共通の好みを使う", { exact: true }),
+          ).not.toBeChecked();
+        expect(posts).toBe(1);
+        const projects = await (await page.request.get("/api/projects")).json();
+        expect(
+          projects.filter((p: { id: string }) => p.id === accepted!.id),
+        ).toHaveLength(1);
+        expect(
+          projects.some(
+            (p: { brief: { name: string } }) => p.brief.name === peerName,
+          ),
+        ).toBe(false);
+        expect(
+          (await (await page.request.get("/api/health")).json()).codexCalls,
+        ).toBe(0);
+      } finally {
+        release();
+        await peer.close();
+      }
+    });

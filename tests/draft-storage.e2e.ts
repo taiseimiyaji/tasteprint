@@ -1110,3 +1110,123 @@ test("failed explicit replacement cannot authorize a later automatic overwrite a
   expect(f.updates()).toBe(0);
   await second.close();
 });
+
+for (const kind of kinds)
+  for (const width of [1440, 390])
+    test(`${kind} write-time read failure explicitly saves the displayed input at ${width}`, async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width, height: 1050 });
+      const f = await fixture(page, kind, false, false, true);
+      const input = draftInput(page, kind, f);
+      await expect(input).toBeEnabled();
+      const initial =
+        kind === "workspace"
+          ? "#112233"
+          : kind === "overview"
+            ? "UNREAD_PROJECT_NAME"
+            : kind === "new-project"
+              ? "UNREAD_NEW_PROJECT"
+              : kind === "profile"
+                ? "UNREAD_PRINCIPLE"
+                : kind === "reference"
+                  ? "UNREAD_REFERENCE_NOTE"
+                  : kind === "position"
+                    ? "5"
+                    : false;
+      await expectDraftInput(input, kind, initial);
+      const original = await page.evaluate(() =>
+        (window as StorageProbe).draftStored(),
+      );
+      await page.evaluate(() => {
+        (window as StorageProbe).draftReadBlocked = true;
+        (window as StorageProbe).draftWrites = [];
+      });
+      const marker =
+        kind === "workspace"
+          ? "#abcdef"
+          : kind === "position"
+            ? "3"
+            : kind === "use-taste"
+              ? "true"
+              : "DISPLAYED_INPUT";
+      if (kind === "use-taste") await input.check();
+      else if (kind === "position") await input.selectOption(marker);
+      else await input.fill(marker);
+      await expectDraftInput(input, kind, kind === "use-taste" ? true : marker);
+      await expect(input).toBeDisabled();
+      await expect(f.warning).toBeVisible();
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftStored()),
+      ).toBe(original);
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftWrites),
+      ).toEqual([]);
+      await page
+        .getByRole("button", {
+          name: `${f.label}の下書きを再読込`,
+          exact: true,
+        })
+        .click();
+      await expect(input).toBeDisabled();
+      await expectDraftInput(input, kind, kind === "use-taste" ? true : marker);
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftStored()),
+      ).toBe(original);
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftWrites),
+      ).toEqual([]);
+      await page
+        .getByRole("button", {
+          name: `${f.label}の下書きを表示中の内容で置き換える`,
+          exact: true,
+        })
+        .click();
+      await expect(input).toBeEnabled();
+      await expectDraftInput(input, kind, kind === "use-taste" ? true : marker);
+      const expected = tabValue(kind, JSON.parse(original!), marker);
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            JSON.parse((window as StorageProbe).draftStored()!),
+          ),
+        )
+        .toEqual(expected);
+      expect(f.updates()).toBe(0);
+      expect(f.errors).toEqual([]);
+      const path = new URL(page.url()).pathname;
+      await page.close();
+      const resumed = await context.newPage();
+      await resumed.goto(path);
+      if (["new-project", "use-taste"].includes(kind))
+        await resumed
+          .getByRole("button", { name: "新規プロジェクト", exact: true })
+          .click();
+      if (kind === "profile")
+        await resumed
+          .getByRole("button", { name: "DNA・原則", exact: true })
+          .click();
+      const restored =
+        kind === "workspace"
+          ? resumed.getByLabel("accent", { exact: true })
+          : kind === "overview" || kind === "new-project"
+            ? resumed.getByLabel("プロジェクト名", { exact: true })
+            : kind === "profile"
+              ? resumed.getByLabel("原則", { exact: true })
+              : kind === "reference"
+                ? resumed.getByRole("textbox", {
+                    name: "好きな点",
+                    exact: true,
+                  })
+                : kind === "position"
+                  ? resumed.getByLabel("質問を選ぶ", { exact: true })
+                  : resumed.getByLabel("共通の好みを使う", { exact: true });
+      await expectDraftInput(
+        restored,
+        kind,
+        kind === "use-taste" ? true : marker,
+      );
+      await expect(resumed.getByRole("alert")).toHaveCount(0);
+      await resumed.close();
+    });

@@ -773,7 +773,7 @@ export function Workspace({
               recovery={{
                 ...draftRecovery,
                 replace: () =>
-                  draftRecovery.conflict
+                  draftRecovery.retainedInput
                     ? draftRecovery.replace()
                     : draftRecovery.replace({
                         state: { ...state, design: saved!.design },
