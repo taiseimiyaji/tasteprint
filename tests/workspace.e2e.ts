@@ -2153,3 +2153,109 @@ test("Profile cancels queued navigation if the adopted draft cannot be stored", 
   ).toHaveCount(0);
   await saveAdoptedProfile(page, principleId);
 });
+
+test("Profile keeps an adopted principle and cancels pending navigation when another tab changes its draft", async ({
+  page,
+  context,
+}) => {
+  const { card, id, principleId } = await analyzedProfileReference(
+    page,
+    "other-tab-adoption.png",
+  );
+  const key = "tasteprint.profile.draft";
+  const original = await page.evaluate(
+    (key) => JSON.parse(localStorage.getItem(key)!),
+    key,
+  );
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve)),
+    started = new Promise<void>((resolve) => (entered = resolve));
+  const endpoint = `**/api/profile/references/${id}/accept`;
+  await page.route(endpoint, async (route) => {
+    const response = await route.fetch();
+    entered();
+    await gate;
+    await route.fulfill({ response });
+  });
+  const second = await context.newPage();
+  await second.goto("/preview-render");
+  try {
+    await card
+      .getByRole("button", {
+        name: /^(設計方針として採用|プロジェクト方針として保存)$/,
+        exact: true,
+      })
+      .click();
+    await started;
+    const other = {
+        ...original,
+        principles: [
+          ...original.principles,
+          {
+            id: "other-tab-principle",
+            target: "list",
+            text: "OTHER_TAB_PRINCIPLE",
+            reason: "keep",
+            sources: [],
+            locked: false,
+          },
+        ],
+      },
+      raw = JSON.stringify(other);
+    await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+      key,
+      raw,
+    });
+    await expect(
+      page
+        .getByRole("alert")
+        .filter({
+          hasText: "共通の好みの下書きが別タブ・別画面で変更されています",
+        }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "プロジェクト", exact: true }).click();
+    await expect(
+      page.getByText("更新の完了を待ってから移動します。", { exact: false }),
+    ).toBeVisible();
+    release();
+    await expect(
+      page.getByText(
+        "更新または下書きの保存に失敗したため、移動を中止しました。",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/profile");
+    expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(
+      raw,
+    );
+    await expect(
+      page
+        .locator(".principle-fields")
+        .getByLabel("原則", { exact: true })
+        .last(),
+    ).toHaveValue("見出しと本文の強弱を付ける");
+    await page
+      .getByRole("button", {
+        name: "共通の好みの下書きを表示中の内容で置き換える",
+        exact: true,
+      })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) =>
+            JSON.parse(localStorage.getItem(key)!).principles.map(
+              (p: { id: string }) => p.id,
+            ),
+          key,
+        ),
+      )
+      .toContain(principleId);
+    await second.close();
+    await page.unroute(endpoint);
+    await saveAdoptedProfile(page, principleId);
+  } finally {
+    release();
+    if (!second.isClosed()) await second.close();
+  }
+});

@@ -1,6 +1,15 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 export type DraftRecovery<T> = {
   blocked: boolean;
+  conflict?: boolean;
+  retainedInput?: boolean;
+  storedRaw: () => string | null;
   retry: () => void;
   replace: (value?: T) => void;
 };
@@ -17,17 +26,72 @@ export function useStoredDraft<T>(
       return {
         value: stored === null ? initial : decode(stored),
         blocked: false,
+        conflict: false,
+        retainedInput: false,
+        raw,
       };
     } catch {
-      return { value: initial, blocked: true };
+      return {
+        value: initial,
+        blocked: true,
+        conflict: false,
+        retainedInput: false,
+        raw: null,
+      };
     }
   };
   const [draft, setDraft] = useState(read);
+  const lastStored = useRef(draft.raw);
+  const overwrite = useRef(false);
   const [error, setError] = useState("");
+  const block = (conflict = false) => {
+    setDraft((d) => ({
+      ...d,
+      blocked: true,
+      conflict: conflict || d.conflict,
+      retainedInput: true,
+    }));
+    setError(
+      conflict
+        ? "別タブの下書き変更を確認しました。再読込または明示置換を選んでください。"
+        : "下書きの保存前確認に失敗しました。下書きを再読込してください。",
+    );
+  };
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.key !== key && event.key !== null) return;
+      try {
+        if (event.storageArea !== localStorage) return;
+        // Read the current value: a queued event may predate our own write/recovery.
+        if (localStorage.getItem(key) !== lastStored.current) block(true);
+      } catch {
+        block();
+      }
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [key]);
   useEffect(() => {
     if (draft.blocked) return;
     try {
-      localStorage.setItem(key, JSON.stringify(encode(draft.value)));
+      // Events can be delayed or absent. Check again immediately before writing.
+      // This detects observed changes; localStorage has no atomic compare-and-set.
+      if (
+        !overwrite.current &&
+        localStorage.getItem(key) !== lastStored.current
+      ) {
+        block(true);
+        return;
+      }
+    } catch {
+      block();
+      return;
+    }
+    overwrite.current = false;
+    try {
+      const raw = JSON.stringify(encode(draft.value));
+      localStorage.setItem(key, raw);
+      lastStored.current = raw;
       setError("");
     } catch {
       setError("下書きを保存できません。空き容量を確認してください。");
@@ -43,8 +107,32 @@ export function useStoredDraft<T>(
     }));
   const recovery: DraftRecovery<T> = {
     blocked: draft.blocked,
-    retry: () => setDraft(read()),
-    replace: (value = initial) => setDraft({ value, blocked: false }),
+    conflict: draft.conflict,
+    retainedInput: draft.retainedInput,
+    storedRaw: () => lastStored.current,
+    retry: () => {
+      const next = read();
+      if (next.blocked) {
+        // A failed reread cannot replace the input we were protecting.
+        setDraft((d) => ({ ...d, blocked: true }));
+        setError("下書きを再読込できません。表示中の入力は保持しています。");
+        return;
+      }
+      lastStored.current = next.raw;
+      overwrite.current = false;
+      setDraft(next);
+    },
+    replace: (value = draft.retainedInput ? draft.value : initial) => {
+      // Existing explicit replacement is allowed even when storage is unreadable.
+      overwrite.current = true;
+      setDraft({
+        value,
+        blocked: false,
+        conflict: false,
+        retainedInput: false,
+        raw: lastStored.current,
+      });
+    },
   };
   return [draft.value, setValue, error, recovery] as const;
 }
@@ -61,8 +149,17 @@ export function DraftReadRecovery<T>({
   return (
     <div role="alert" className="editor-error">
       <p>
-        {label}
-        の下書きを読み込めません。保存した下書きを保持しています。編集を始める前に再読込するか、表示中の内容で下書きを置き換えてください。
+        {recovery.conflict ? (
+          <>
+            {label}
+            の下書きが別タブ・別画面で変更されています。自動保存を停止し、この画面の入力と別タブの保存内容を保持しています。この画面の入力はまだ保存していません。移動・再読み込み前に回復操作を選んでください。再読込すると、この画面の入力を別タブの下書きで置き換えます。表示中の内容で置き換えると、別タブの下書きを上書きします。
+          </>
+        ) : (
+          <>
+            {label}
+            の下書きを読み込めません。保存した下書きを保持しています。編集を始める前に再読込するか、表示中の内容で下書きを置き換えてください。
+          </>
+        )}
       </p>
       <button
         className="button"

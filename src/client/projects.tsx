@@ -479,6 +479,12 @@ function ProjectList({
                 useTaste,
                 sourceTasteProfileRevision: taste.revision,
               };
+              // Capture this screen's known bytes, not a peer's current bytes.
+              // The receipt may arrive after another tab edits either draft.
+              const submittedDrafts = [
+                ["tasteprint.new-project", briefRecovery.storedRaw()],
+                ["tasteprint.new-project.use-taste", tasteRecovery.storedRaw()],
+              ] as const;
               let p: Project;
               try {
                 p = await req<Project>("/api/projects", attempted);
@@ -521,12 +527,10 @@ function ProjectList({
               }
               // The project is committed. Optional browser cleanup must not
               // report creation as failed or offer another creation attempt.
-              for (const key of [
-                "tasteprint.new-project",
-                "tasteprint.new-project.use-taste",
-              ]) {
+              for (const [key, raw] of submittedDrafts) {
                 try {
-                  localStorage.removeItem(key);
+                  if (raw !== null && localStorage.getItem(key) === raw)
+                    localStorage.removeItem(key);
                 } catch {}
               }
               location.href = `/projects/${p.id}/overview`;
