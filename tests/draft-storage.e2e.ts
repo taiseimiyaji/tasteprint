@@ -389,7 +389,7 @@ for (const kind of kinds) {
     }
     expect(f.errors).toEqual([]);
   });
-  test(`${kind} explicit replacement permits normal editing without an unread overwrite on mount`, async ({
+  test(`${kind} explicit replacement writes once while unread and editing resumes after read recovery`, async ({
     page,
   }) => {
     const f = await fixture(page, kind);
@@ -406,12 +406,17 @@ for (const kind of kinds) {
     await expect(f.input).toBeEnabled();
     await expect
       .poll(() =>
-        page.evaluate(() => (window as StorageProbe).draftWrites.length),
+        page.evaluate(() => (window as StorageProbe).draftWrites),
       )
-      .toBeGreaterThan(0);
+      .toHaveLength(1);
     expect(
       await page.evaluate(() => (window as StorageProbe).draftStored()),
     ).not.toBe(f.stored);
+    // The explicit action authorizes one write. Further automatic writes still
+    // need a readable store; persistent read failure must block them again.
+    await page.evaluate(() => {
+      (window as StorageProbe).draftReadBlocked = false;
+    });
     if (kind === "workspace") await f.input.fill("#445566");
     else if (["overview", "new-project", "reference"].includes(kind))
       await f.input.fill("Explicit replacement edit");
