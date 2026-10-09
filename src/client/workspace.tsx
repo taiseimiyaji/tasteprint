@@ -1285,6 +1285,8 @@ export function Workspace({
                   setState((s) => ({ ...s, design: r.design }));
                   setEditorVersion((v) => v + 1);
                   setRevisions((v) => [...v, r]);
+                  proposal.reset();
+                  setHistory([]);
                   await commitProjectRevision(queryClient, scope.id, r);
                   void queryClient.invalidateQueries({
                     queryKey: ["project", scope.id],
