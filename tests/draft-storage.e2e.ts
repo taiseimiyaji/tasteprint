@@ -20,6 +20,7 @@ async function fixture(
   kind: Kind,
   active = false,
   malformed = false,
+  readable = false,
 ) {
   const p = await (
     await page.request.post("/api/projects", {
@@ -142,12 +143,12 @@ async function fixture(
               : { ...(value as object), name: [] };
   const stored = JSON.stringify(malformed ? invalid : value);
   await page.addInitScript(
-    ({ key, stored, malformed }) => {
+    ({ key, stored, malformed, readable }) => {
       const get = Storage.prototype.getItem,
         set = Storage.prototype.setItem;
       set.call(localStorage, key, stored);
       const state = window as StorageProbe;
-      state.draftReadBlocked = !malformed;
+      state.draftReadBlocked = !malformed && !readable;
       state.draftWriteBlocked = false;
       state.draftWrites = [];
       state.draftStored = () => get.call(localStorage, key);
@@ -165,7 +166,7 @@ async function fixture(
         return set.call(this, candidate, content);
       };
     },
-    { key, stored, malformed },
+    { key, stored, malformed, readable },
   );
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -188,7 +189,8 @@ async function fixture(
   const warning = page
     .getByRole("alert")
     .filter({ hasText: `${label}の下書きを読み込めません` });
-  await expect(warning).toBeVisible();
+  if (readable) await expect(warning).toHaveCount(0);
+  else await expect(warning).toBeVisible();
   const input =
     kind === "workspace"
       ? page.getByLabel("accent", { exact: true })
@@ -639,4 +641,472 @@ test("Profile incomplete principles, whitespace and snapshot metadata survive dr
   ).toHaveCount(0);
   expect(saves).toBe(0);
   await restored.close();
+});
+
+function tabValue(kind: Kind, original: unknown, marker: string): unknown {
+  const value: any = structuredClone(original);
+  if (kind === "workspace") value.design.accent = marker;
+  else if (kind === "profile") value.principles[0].text = marker;
+  else if (kind === "overview") value.brief.name = marker;
+  else if (kind === "new-project") value.name = marker;
+  else if (kind === "reference") value.likes = marker;
+  else if (kind === "position") return Number(marker);
+  else return marker === "true";
+  return value;
+}
+function draftInput(
+  page: Page,
+  kind: Kind,
+  f: Awaited<ReturnType<typeof fixture>>,
+) {
+  return kind === "profile"
+    ? page.getByLabel("原則", { exact: true })
+    : f.input;
+}
+async function expectDraftInput(
+  input: ReturnType<typeof draftInput>,
+  kind: Kind,
+  value: any,
+) {
+  if (kind === "use-taste") {
+    if (value) await expect(input).toBeChecked();
+    else await expect(input).not.toBeChecked();
+  } else await expect(input).toHaveValue(String(value));
+}
+for (const width of [1440, 390])
+  for (const kind of kinds) {
+    test(`${kind} observed other-tab draft stays intact until explicit reread or replacement at ${width}`, async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width, height: 1050 });
+      const f = await fixture(page, kind, false, false, true);
+      const input = draftInput(page, kind, f);
+      await expect(input).toBeEnabled();
+      const original = await page.evaluate(() =>
+        (window as StorageProbe).draftStored(),
+      );
+      const second = await context.newPage();
+      await second.goto("/preview-render");
+      const otherMarker =
+        kind === "workspace"
+          ? "#334455"
+          : kind === "position"
+            ? "8"
+            : kind === "use-taste"
+              ? "true"
+              : "OTHER_TAB_DRAFT";
+      const other = tabValue(kind, JSON.parse(original!), otherMarker),
+        raw = JSON.stringify(other);
+      const conflict = page.getByRole("alert").filter({
+        hasText: `${f.label}の下書きが別タブ・別画面で変更されています`,
+      });
+      await page.evaluate(() => ((window as StorageProbe).draftWrites = []));
+      await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+        key: f.key,
+        raw,
+      });
+      await expect(conflict).toBeVisible();
+      await expect(input).toBeDisabled();
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftStored()),
+      ).toBe(raw);
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftWrites),
+      ).toEqual([]);
+      await expect(conflict).toContainText(
+        "再読込すると、この画面の入力を別タブの下書きで置き換えます",
+      );
+      await page
+        .getByRole("button", {
+          name: `${f.label}の下書きを再読込`,
+          exact: true,
+        })
+        .click();
+      await expect(conflict).toHaveCount(0);
+      await expect(input).toBeEnabled();
+      await expectDraftInput(
+        input,
+        kind,
+        kind === "use-taste" ? true : otherMarker,
+      );
+      const ownMarker =
+        kind === "workspace"
+          ? "#aabbcc"
+          : kind === "position"
+            ? "3"
+            : kind === "use-taste"
+              ? "false"
+              : "THIS_TAB_INPUT";
+      if (kind === "use-taste") await input.uncheck();
+      else if (kind === "position") await input.selectOption(ownMarker);
+      else await input.fill(ownMarker);
+      const own = tabValue(kind, other, ownMarker);
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            JSON.parse((window as StorageProbe).draftStored()!),
+          ),
+        )
+        .toEqual(own);
+      const another = tabValue(
+        kind,
+        other,
+        kind === "position"
+          ? "9"
+          : kind === "workspace"
+            ? "#778899"
+            : kind === "use-taste"
+              ? "true"
+              : "ANOTHER_TAB_INPUT",
+      );
+      const anotherRaw = JSON.stringify(another);
+      await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+        key: f.key,
+        raw: anotherRaw,
+      });
+      await expect(conflict).toBeVisible();
+      await expect(input).toBeDisabled();
+      await expectDraftInput(
+        input,
+        kind,
+        kind === "use-taste" ? false : ownMarker,
+      );
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftStored()),
+      ).toBe(anotherRaw);
+      await page
+        .getByRole("button", {
+          name: `${f.label}の下書きを表示中の内容で置き換える`,
+          exact: true,
+        })
+        .click();
+      await expect(conflict).toHaveCount(0);
+      await expect(input).toBeEnabled();
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            JSON.parse((window as StorageProbe).draftStored()!),
+          ),
+        )
+        .toEqual(own);
+      expect(f.updates()).toBe(0);
+      expect(f.errors).toEqual([]);
+      expect(
+        (await (await page.request.get(`${f.base}/foundation`)).json()).current
+          .revision,
+      ).toBe(1);
+      await second.close();
+    });
+  }
+for (const width of [1440, 390])
+  test(`write-time check protects a changed draft without a storage notification at ${width}`, async ({
+    page,
+    context,
+  }) => {
+    await page.addInitScript(() =>
+      window.addEventListener(
+        "storage",
+        (e) => e.stopImmediatePropagation(),
+        true,
+      ),
+    );
+    await page.setViewportSize({ width, height: 1050 });
+    const f = await fixture(page, "workspace", false, false, true);
+    const second = await context.newPage();
+    await second.goto("/preview-render");
+    const other = tabValue("workspace", f.value, "#445566"),
+      raw = JSON.stringify(other);
+    await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+      key: f.key,
+      raw,
+    });
+    await f.input.fill("#abcdef");
+    const conflict = page
+      .getByRole("alert")
+      .filter({ hasText: "設計の下書きが別タブ・別画面で変更されています" });
+    await expect(conflict).toBeVisible();
+    await expect(f.input).toHaveValue("#abcdef");
+    await expect(f.input).toBeDisabled();
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftStored()),
+    ).toBe(raw);
+    expect(f.updates()).toBe(0);
+    await second.close();
+  });
+for (const clear of [false, true])
+  test(`other-tab ${clear ? "clear" : "remove"} blocks autosave and explicit replacement keeps this input`, async ({
+    page,
+    context,
+  }) => {
+    const f = await fixture(page, "workspace", false, false, true);
+    const second = await context.newPage();
+    await second.goto("/preview-render");
+    await second.evaluate(
+      ({ key, clear }) =>
+        clear ? localStorage.clear() : localStorage.removeItem(key),
+      { key: f.key, clear },
+    );
+    const conflict = page
+      .getByRole("alert")
+      .filter({ hasText: "設計の下書きが別タブ・別画面で変更されています" });
+    await expect(conflict).toBeVisible();
+    await expect(f.input).toHaveValue("#112233");
+    expect(
+      await page.evaluate(() => (window as StorageProbe).draftStored()),
+    ).toBeNull();
+    await page
+      .getByRole("button", {
+        name: "設計の下書きを表示中の内容で置き換える",
+        exact: true,
+      })
+      .click();
+    await expect(f.input).toBeEnabled();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse((window as StorageProbe).draftStored()!).design.accent,
+        ),
+      )
+      .toBe("#112233");
+    expect(f.updates()).toBe(0);
+    await second.close();
+  });
+test("other-scope and sessionStorage changes keep normal draft editing available", async ({
+  page,
+  context,
+}) => {
+  const f = await fixture(page, "workspace", false, false, true);
+  const second = await context.newPage();
+  await second.goto("/preview-render");
+  await second.evaluate((key) => {
+    localStorage.setItem("tasteprint.another-scope.draft", "other");
+    sessionStorage.setItem(key, "session only");
+  }, f.key);
+  await f.input.fill("#abcdef");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse((window as StorageProbe).draftStored()!).design.accent,
+      ),
+    )
+    .toBe("#abcdef");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  expect(f.updates()).toBe(0);
+  await second.close();
+});
+
+for (const width of [1440, 390])
+  test(`actual Foundation two-tab edits preserve both inputs and require explicit recovery at ${width}`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 1050 });
+    const f = await fixture(page, "workspace", false, false, true);
+    const second = await context.newPage();
+    await second.setViewportSize({ width, height: 1050 });
+    await second.goto(`/projects/${f.p.id}/foundation`);
+    const otherInput = second.getByRole("textbox", {
+      name: "accent",
+      exact: true,
+    });
+    await expect(otherInput).toHaveValue("#112233");
+    await f.input.fill("#224466");
+    const otherWarning = second
+      .getByRole("alert")
+      .filter({ hasText: "設計の下書きが別タブ・別画面で変更されています" });
+    await expect(otherWarning).toBeVisible();
+    await expect(otherInput).toBeDisabled();
+    await expect(otherInput).toHaveValue("#112233");
+    await second
+      .getByRole("button", { name: "設計の下書きを再読込", exact: true })
+      .click();
+    await expect(otherInput).toHaveValue("#224466");
+    await otherInput.fill("#445566");
+    const firstWarning = page
+      .getByRole("alert")
+      .filter({ hasText: "設計の下書きが別タブ・別画面で変更されています" });
+    await expect(firstWarning).toBeVisible();
+    await expect(f.input).toHaveValue("#224466");
+    await expect(f.input).toBeDisabled();
+    await expect(
+      page.getByRole("textbox", { name: "ink", exact: true }),
+    ).toBeDisabled();
+    const before = await second.evaluate(
+      (key) => localStorage.getItem(key),
+      f.key,
+    );
+    expect(JSON.parse(before!).design.accent).toBe("#445566");
+    await second.close();
+    await page
+      .getByRole("button", { name: "設計の下書きを再読込", exact: true })
+      .click();
+    await expect(f.input).toHaveValue("#445566");
+    await page.getByRole("button", { name: "変更を保存", exact: true }).click();
+    await expect(page.locator(".editor-actions")).toContainText(
+      "保存済み · 設計 r2",
+    );
+    const saved = (
+      await (await page.request.get(`${f.base}/foundation`)).json()
+    ).current;
+    expect(saved.design.accent).toBe("#445566");
+    expect(saved.revision).toBe(2);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse((window as StorageProbe).draftStored()!).baseRevision,
+        ),
+      )
+      .toBe(2);
+    // The fixture's page init seeds its starting draft on every load. A fresh
+    // page has no seed and exercises the application's actual persisted bytes.
+    await page.close();
+    const resumed = await context.newPage();
+    await resumed.goto(`/projects/${f.p.id}/foundation`);
+    await expect(
+      resumed.getByRole("textbox", { name: "accent", exact: true }),
+    ).toHaveValue("#445566");
+    await expect(resumed.getByRole("alert")).toHaveCount(0);
+    await resumed.close();
+  });
+
+for (const failure of ["read", "shape"] as const)
+  for (const width of [1440, 390])
+    test(`conflict reread ${failure} failure keeps this input until explicit recovery at ${width}`, async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width, height: 1050 });
+      const f = await fixture(page, "workspace", false, false, true);
+      await f.input.fill("#abcdef");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              JSON.parse((window as StorageProbe).draftStored()!).design.accent,
+          ),
+        )
+        .toBe("#abcdef");
+      const second = await context.newPage();
+      await second.goto("/preview-render");
+      const validRaw = JSON.stringify(
+        tabValue("workspace", f.value, "#445566"),
+      );
+      const raw = failure === "shape" ? '{"broken":true}' : validRaw;
+      await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+        key: f.key,
+        raw,
+      });
+      const conflict = page
+        .getByRole("alert")
+        .filter({ hasText: "設計の下書きが別タブ・別画面で変更されています" });
+      await expect(conflict).toBeVisible();
+      if (failure === "read")
+        await page.evaluate(
+          () => ((window as StorageProbe).draftReadBlocked = true),
+        );
+      await page.evaluate(() => ((window as StorageProbe).draftWrites = []));
+      await page
+        .getByRole("button", { name: "設計の下書きを再読込", exact: true })
+        .click();
+      await expect(f.input).toHaveValue("#abcdef");
+      await expect(f.input).toBeDisabled();
+      await expect(conflict).toBeVisible();
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftStored()),
+      ).toBe(raw);
+      expect(
+        await page.evaluate(() => (window as StorageProbe).draftWrites),
+      ).toEqual([]);
+      await page
+        .getByRole("button", {
+          name: "設計の下書きを表示中の内容で置き換える",
+          exact: true,
+        })
+        .click();
+      await expect(f.input).toBeEnabled();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              JSON.parse((window as StorageProbe).draftStored()!).design.accent,
+          ),
+        )
+        .toBe("#abcdef");
+      await page.evaluate(
+        () => ((window as StorageProbe).draftReadBlocked = false),
+      );
+      await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+        key: f.key,
+        raw: validRaw,
+      });
+      await expect(conflict).toBeVisible();
+      await page
+        .getByRole("button", { name: "設計の下書きを再読込", exact: true })
+        .click();
+      await expect(f.input).toHaveValue("#445566");
+      await expect(page.getByRole("alert")).toHaveCount(0);
+      expect(f.updates()).toBe(0);
+      await second.close();
+    });
+
+test("failed explicit replacement cannot authorize a later automatic overwrite after quota recovery", async ({
+  page,
+  context,
+}) => {
+  await page.addInitScript(() =>
+    window.addEventListener(
+      "storage",
+      (e) => e.stopImmediatePropagation(),
+      true,
+    ),
+  );
+  const f = await fixture(page, "workspace", false, false, true);
+  const second = await context.newPage();
+  await second.goto("/preview-render");
+  const otherRaw = JSON.stringify(tabValue("workspace", f.value, "#445566"));
+  await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+    key: f.key,
+    raw: otherRaw,
+  });
+  await f.input.fill("#abcdef");
+  const conflict = page
+    .getByRole("alert")
+    .filter({ hasText: "設計の下書きが別タブ・別画面で変更されています" });
+  await expect(conflict).toBeVisible();
+  await page.evaluate(
+    () => ((window as StorageProbe).draftWriteBlocked = true),
+  );
+  await page
+    .getByRole("button", {
+      name: "設計の下書きを表示中の内容で置き換える",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.locator(".editor-actions").getByRole("alert"),
+  ).toContainText("下書きを保存できません");
+  await expect(f.input).toBeEnabled();
+  expect(
+    await page.evaluate(() => (window as StorageProbe).draftStored()),
+  ).toBe(otherRaw);
+  const newestRaw = JSON.stringify(tabValue("workspace", f.value, "#778899"));
+  await second.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+    key: f.key,
+    raw: newestRaw,
+  });
+  await page.evaluate(
+    () => ((window as StorageProbe).draftWriteBlocked = false),
+  );
+  await f.input.fill("#ddeeff");
+  await expect(conflict).toBeVisible();
+  await expect(f.input).toHaveValue("#ddeeff");
+  await expect(f.input).toBeDisabled();
+  expect(
+    await page.evaluate(() => (window as StorageProbe).draftStored()),
+  ).toBe(newestRaw);
+  expect(f.updates()).toBe(0);
+  await second.close();
 });

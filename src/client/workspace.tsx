@@ -773,10 +773,12 @@ export function Workspace({
               recovery={{
                 ...draftRecovery,
                 replace: () =>
-                  draftRecovery.replace({
-                    state: { ...state, design: saved!.design },
-                    baseRevision: saved!.revision,
-                  }),
+                  draftRecovery.conflict
+                    ? draftRecovery.replace()
+                    : draftRecovery.replace({
+                        state: { ...state, design: saved!.design },
+                        baseRevision: saved!.revision,
+                      }),
               }}
               disabled={saving || historyLoading || reviewApplying || !saved}
             />
