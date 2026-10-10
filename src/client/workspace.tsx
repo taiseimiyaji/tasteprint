@@ -772,6 +772,14 @@ export function Workspace({
               label="設計"
               recovery={{
                 ...draftRecovery,
+                retry: () => {
+                  const loaded = draftRecovery.retry();
+                  if (loaded) {
+                    setValidInput(true);
+                    setEditorVersion((v) => v + 1);
+                  }
+                  return loaded;
+                },
                 replace: () =>
                   draftRecovery.retainedInput
                     ? draftRecovery.replace()

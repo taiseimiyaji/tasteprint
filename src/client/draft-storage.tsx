@@ -10,7 +10,7 @@ export type DraftRecovery<T> = {
   conflict?: boolean;
   retainedInput?: boolean;
   storedRaw: () => string | null;
-  retry: () => void;
+  retry: () => boolean;
   replace: (value?: T) => void;
 };
 export function useStoredDraft<T>(
@@ -116,11 +116,12 @@ export function useStoredDraft<T>(
         // A failed reread cannot replace the input we were protecting.
         setDraft((d) => ({ ...d, blocked: true }));
         setError("下書きを再読込できません。表示中の入力は保持しています。");
-        return;
+        return false;
       }
       lastStored.current = next.raw;
       overwrite.current = false;
       setDraft(next);
+      return true;
     },
     replace: (value = draft.retainedInput ? draft.value : initial) => {
       // Existing explicit replacement is allowed even when storage is unreadable.
