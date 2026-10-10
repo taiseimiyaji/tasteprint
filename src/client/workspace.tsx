@@ -248,15 +248,13 @@ export function Workspace({
       setSaved(result);
       setDraftBase(result.revision);
       setState((s) => ({ ...s, design: result.design }));
-      setEditorVersion((v) => v + 1);
+      resetDraftContext();
       setRevisions((history) =>
         history.some((r) => r.revision === result.revision)
           ? history
           : [...history, result],
       );
       setFoundationError("");
-      proposal.reset();
-      setHistory([]);
       setNotice("設計を保存しました");
       await commitProjectRevision(queryClient, scope.id, result);
       void queryClient.invalidateQueries({ queryKey: ["project", scope.id] });
@@ -379,6 +377,16 @@ export function Workspace({
     const timer = setTimeout(() => setNotice(""), 3500);
     return () => clearTimeout(timer);
   }, [notice]);
+  function resetEditorInput() {
+    // A replacement must reset validation even without a mounted editor.
+    setValidInput(true);
+    setEditorVersion((v) => v + 1);
+  }
+  function resetDraftContext() {
+    resetEditorInput();
+    proposal.reset();
+    setHistory([]);
+  }
   function updateDesign(patch: Partial<Design>) {
     setHistory((h) => [...h.slice(-19), state.design]);
     setState((s) => ({ ...s, design: { ...s.design, ...patch } }));
@@ -388,7 +396,7 @@ export function Workspace({
     const previous = history.at(-1);
     if (!previous) return;
     setState((s) => ({ ...s, design: previous }));
-    setEditorVersion((v) => v + 1);
+    resetEditorInput();
     setHistory((h) => h.slice(0, -1));
     proposal.reset();
     setNotice("ひとつ前の設定に戻しました");
@@ -774,12 +782,7 @@ export function Workspace({
                 ...draftRecovery,
                 retry: () => {
                   const loaded = draftRecovery.retry();
-                  if (loaded) {
-                    proposal.reset();
-                    setHistory([]);
-                    setValidInput(true);
-                    setEditorVersion((v) => v + 1);
-                  }
+                  if (loaded) resetDraftContext();
                   return loaded;
                 },
                 replace: () =>
@@ -842,11 +845,8 @@ export function Workspace({
                       onClick={() => {
                         setState((s) => ({ ...s, design: saved!.design }));
                         setDraftBase(saved!.revision);
-                        proposal.reset();
-                        setHistory([]);
+                        resetDraftContext();
                         setFoundationError("");
-                        setValidInput(true);
-                        setEditorVersion((v) => v + 1);
                       }}
                     >
                       {stale
@@ -1293,10 +1293,8 @@ export function Workspace({
                   setSaved(r);
                   setDraftBase(r.revision);
                   setState((s) => ({ ...s, design: r.design }));
-                  setEditorVersion((v) => v + 1);
+                  resetDraftContext();
                   setRevisions((v) => [...v, r]);
-                  proposal.reset();
-                  setHistory([]);
                   await commitProjectRevision(queryClient, scope.id, r);
                   void queryClient.invalidateQueries({
                     queryKey: ["project", scope.id],
