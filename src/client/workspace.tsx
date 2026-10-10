@@ -775,6 +775,8 @@ export function Workspace({
                 retry: () => {
                   const loaded = draftRecovery.retry();
                   if (loaded) {
+                    proposal.reset();
+                    setHistory([]);
                     setValidInput(true);
                     setEditorVersion((v) => v + 1);
                   }
