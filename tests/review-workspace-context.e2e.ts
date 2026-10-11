@@ -508,3 +508,104 @@ test("An accepted late Review apply updates its project receipt without replacin
     release();
   }
 });
+
+for (const olderRead of [false, true])
+  test(`An observed external dismissal rejects a late proposal despite failed reread${olderRead ? " and an older GET" : ""}`, async ({
+    page,
+  }) => {
+    const f = await prepared(page, `Observed dismissal ${olderRead}`);
+    let releaseProposal!: () => void, proposalEntered!: () => void;
+    const proposalHeld = new Promise<void>((r) => (releaseProposal = r)),
+      proposalStarted = new Promise<void>((r) => (proposalEntered = r));
+    await page.route(
+      `**${f.base}/reviews/${f.review.id}/proposals`,
+      async (route) => {
+        const response = await route.fetch();
+        proposalEntered();
+        await proposalHeld;
+        await route.fulfill({ response });
+      },
+    );
+    let failReads = false,
+      holdOldRead = olderRead;
+    let releaseRead!: () => void,
+      readEntered!: () => void,
+      oldDelivered!: () => void;
+    const readHeld = new Promise<void>((r) => (releaseRead = r)),
+      readStarted = new Promise<void>((r) => (readEntered = r)),
+      readFinished = new Promise<void>((r) => (oldDelivered = r));
+    await page.route(`**${f.base}/reviews`, async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      if (failReads)
+        return route.fulfill({
+          status: 503,
+          json: { message: "OBSERVED_DISMISSAL_READ_FAILURE" },
+        });
+      const response = await route.fetch();
+      if (holdOldRead) {
+        holdOldRead = false;
+        readEntered();
+        await readHeld;
+        await route.fulfill({ response });
+        oldDelivered();
+      } else await route.fulfill({ response });
+    });
+    await generate(page).click();
+    await proposalStarted;
+    try {
+      if (olderRead) await readStarted;
+      const dismissed = await page.request.post(
+        `${f.base}/reviews/${f.review.id}/dismiss`,
+        {
+          data: {
+            baseRevision: 1,
+            findingId: f.review.findings[0].id,
+            reason: "別画面で確定した見送り",
+          },
+        },
+      );
+      expect(dismissed.ok()).toBe(true);
+      await nav(page, "Export");
+      await nav(page, "AI Review");
+      await expect(
+        page.getByText("見送り済み: 別画面で確定した見送り", { exact: true }),
+      ).toBeVisible();
+      await expect(choices(page)).toHaveCount(0);
+      if (olderRead) {
+        releaseRead();
+        await readFinished;
+        await page.evaluate(
+          () =>
+            new Promise<void>((r) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => r())),
+            ),
+        );
+        await expect(
+          page.getByText("見送り済み: 別画面で確定した見送り", { exact: true }),
+        ).toBeVisible();
+      }
+      failReads = true;
+      releaseProposal();
+      await expect(
+        page.getByRole("button", {
+          name: "3画面を撮影してレビュー",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await expect(
+        page
+          .getByRole("alert")
+          .filter({ hasText: "OBSERVED_DISMISSAL_READ_FAILURE" }),
+      ).toBeVisible();
+      await expect(choices(page)).toHaveCount(0);
+      await expect(apply(page)).toHaveCount(0);
+      await expect(reason(page, f.review, 1)).toHaveValue("未送信の理由 B");
+      expect(f.count("/proposals")).toBe(2);
+      expect(f.count("/apply")).toBe(0);
+      expect((await f.read()).revision).toBe(1);
+      await f.check();
+    } finally {
+      releaseRead();
+      releaseProposal();
+    }
+  });

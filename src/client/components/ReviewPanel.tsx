@@ -15,6 +15,8 @@ type ReviewContext = {
 };
 const emptyContext: ReviewContext = { candidates: [], reasons: {} };
 const contextKey = (review: Review) => `${review.id}:${review.baseRevision}`;
+const unresolvedFindings = (review: Review) =>
+  review.findings.filter((f) => f.dismissal === undefined).map((f) => f.id);
 async function reviewRequest<T>(
   base: string,
   path = "",
@@ -54,6 +56,7 @@ export function ReviewPanel({
   const [busy, setBusy] = useState(false);
   // This component lives with its project Workspace, even while not displayed.
   const [contexts, setContexts] = useState<Record<string, ReviewContext>>({});
+  const observedFindings = useRef<Record<string, string[]>>({});
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -80,6 +83,8 @@ export function ReviewPanel({
     }));
   }
   function reconcileContexts(data: Review[]) {
+    for (const review of data)
+      observedFindings.current[contextKey(review)] = unresolvedFindings(review);
     setContexts((previous) => {
       let next = previous;
       for (const r of data) {
@@ -91,9 +96,7 @@ export function ReviewPanel({
             r.findings.some((f) => f.id === id && f.dismissal === undefined),
           ),
         );
-        const findingIds = r.findings
-          .filter((f) => f.dismissal === undefined)
-          .map((f) => f.id);
+        const findingIds = unresolvedFindings(r);
         const changedFindings =
           context.candidates.length > 0 &&
           JSON.stringify(context.findingIds) !== JSON.stringify(findingIds);
@@ -135,7 +138,7 @@ export function ReviewPanel({
   }
   async function refresh(preserveSelection = false) {
     if (!mounted.current) return;
-    const version = readVersion.current;
+    const version = ++readVersion.current;
     setReading((count) => count + 1);
     try {
       const data = await request<Review[]>();
@@ -351,18 +354,26 @@ export function ReviewPanel({
             }
             onClick={() =>
               action(async () => {
+                const findingIds = unresolvedFindings(review);
                 const data = await request<{ candidates: Candidate[] }>(
                   `/${review.id}/proposals`,
                   {},
                 );
-                updateContext(key, (context) => ({
-                  ...context,
-                  candidates: data.candidates,
-                  selectedId: undefined,
-                  findingIds: review.findings
-                    .filter((f) => f.dismissal === undefined)
-                    .map((f) => f.id),
-                }));
+                // A known dismissal cannot be undone by this older proposal reply.
+                if (
+                  JSON.stringify(observedFindings.current[key]) ===
+                  JSON.stringify(findingIds)
+                )
+                  updateContext(key, (context) => ({
+                    ...context,
+                    candidates: data.candidates,
+                    selectedId: undefined,
+                    findingIds,
+                  }));
+                else if (mounted.current)
+                  setError(
+                    "指摘の状態が更新されたため、修正案を作成し直してください。",
+                  );
                 await refresh(true);
               })
             }
