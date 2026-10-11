@@ -7,6 +7,16 @@ import {
 } from "../foundation-api";
 import { PreviewFrame } from "./PreviewFrame";
 import { Link, useScope } from "../scope";
+type ReviewContext = {
+  candidates: Candidate[];
+  findingIds?: string[];
+  selectedId?: string;
+  reasons: Record<string, string>;
+};
+const emptyContext: ReviewContext = { candidates: [], reasons: {} };
+const contextKey = (review: Review) => `${review.id}:${review.baseRevision}`;
+const unresolvedFindings = (review: Review) =>
+  review.findings.filter((f) => f.dismissal === undefined).map((f) => f.id);
 async function reviewRequest<T>(
   base: string,
   path = "",
@@ -22,11 +32,13 @@ async function reviewRequest<T>(
   return data;
 }
 export function ReviewPanel({
+  active,
   saved,
   applied,
   hasUnsavedDesign,
   onApplyingChange,
 }: {
+  active: boolean;
   saved: Revision | null;
   applied: (r: Revision) => void | Promise<void>;
   hasUnsavedDesign: boolean;
@@ -42,11 +54,77 @@ export function ReviewPanel({
   const [readError, setReadError] = useState("");
   const [reading, setReading] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [candidate, setCandidate] = useState<Candidate>();
-  const [reasons, setReasons] = useState<Record<string, string>>({});
+  // This component lives with its project Workspace, even while not displayed.
+  const [contexts, setContexts] = useState<Record<string, ReviewContext>>({});
+  const observedFindings = useRef<Record<string, string[]>>({});
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const review = reviews[0];
+  const key = review ? contextKey(review) : "";
+  const context = contexts[key] ?? emptyContext;
+  const reasons = context.reasons;
+  const candidates = context.candidates.filter(
+    (c) => c.baseRevision === review?.baseRevision,
+  );
+  const candidate = candidates.find((c) => c.id === context.selectedId);
+  function updateContext(
+    key: string,
+    update: (context: ReviewContext) => ReviewContext,
+  ) {
+    if (!mounted.current) return;
+    setContexts((previous) => ({
+      ...previous,
+      [key]: update(previous[key] ?? emptyContext),
+    }));
+  }
+  function reconcileContexts(data: Review[]) {
+    for (const review of data)
+      observedFindings.current[contextKey(review)] = unresolvedFindings(review);
+    setContexts((previous) => {
+      let next = previous;
+      for (const r of data) {
+        const k = contextKey(r),
+          context = previous[k];
+        if (!context) continue;
+        const reasons = Object.fromEntries(
+          Object.entries(context.reasons).filter(([id]) =>
+            r.findings.some((f) => f.id === id && f.dismissal === undefined),
+          ),
+        );
+        const findingIds = unresolvedFindings(r);
+        const changedFindings =
+          context.candidates.length > 0 &&
+          JSON.stringify(context.findingIds) !== JSON.stringify(findingIds);
+        if (
+          changedFindings ||
+          Object.keys(reasons).length !== Object.keys(context.reasons).length
+        )
+          next = {
+            ...next,
+            [k]: {
+              ...context,
+              reasons,
+              ...(changedFindings
+                ? {
+                    candidates: [],
+                    selectedId: undefined,
+                    findingIds: undefined,
+                  }
+                : {}),
+            },
+          };
+      }
+      return next;
+    });
+  }
   const readVersion = useRef(0);
   function commitReview(savedReview: Review, select = false) {
+    if (!mounted.current) return;
     readVersion.current++;
     setReviews((previous) =>
       select
@@ -55,14 +133,16 @@ export function ReviewPanel({
           ? previous.map((r) => (r.id === savedReview.id ? savedReview : r))
           : [...previous, savedReview],
     );
+    reconcileContexts([savedReview]);
     setReadError("");
   }
   async function refresh(preserveSelection = false) {
-    const version = readVersion.current;
+    if (!mounted.current) return;
+    const version = ++readVersion.current;
     setReading((count) => count + 1);
     try {
       const data = await request<Review[]>();
-      if (version !== readVersion.current) return;
+      if (!mounted.current || version !== readVersion.current) return;
       setReviews((previous) => {
         const selected =
           preserveSelection && data.find((r) => r.id === previous[0]?.id);
@@ -70,43 +150,48 @@ export function ReviewPanel({
           ? [selected, ...data.filter((r) => r.id !== selected.id)]
           : data;
       });
+      reconcileContexts(data);
       setReadError("");
     } catch (e) {
-      if (version === readVersion.current)
+      if (mounted.current && version === readVersion.current)
         setReadError(e instanceof Error ? e.message : "結果を取得できません。");
     } finally {
-      setReading((count) => count - 1);
+      if (mounted.current) setReading((count) => count - 1);
     }
   }
   useEffect(() => {
-    void refresh();
-  }, [saved?.revision]);
+    if (active) void refresh(true);
+  }, [active, saved?.revision]);
   useEffect(() => {
-    if (reading) return;
+    if (!active || reading) return;
     const timer = window.setInterval(() => {
       void refresh(true);
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [saved?.revision, reading]);
+  }, [active, saved?.revision, reading]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "処理に失敗しました");
+      if (mounted.current)
+        setError(e instanceof Error ? e.message : "処理に失敗しました");
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
-  const review = reviews[0];
   const stale =
     review && (review.stale || review.baseRevision !== saved?.revision);
+  if (!active) return null;
   return (
     <section className="review-results">
       <h2>実画面レビュー</h2>
       <p>
         保存済みrevisionのFoundation方針・ルール・設定と一覧／設定／フォームの画像を使用します。画像と設定をOpenAIへ送信します。未保存の編集・未確定のTaste回答は含みません。
+      </p>
+      <p>
+        修正案の選択と未送信の見送り理由は、Inspiration〜Exportを移動しても保持します。概要・プロジェクト一覧・自分の好みへの移動、プロジェクト切替、再読込で解除されます。見送りを確定した結果の修正案は解除します。
       </p>
       {hasUnsavedDesign && (
         <p role="status">
@@ -122,8 +207,6 @@ export function ReviewPanel({
         disabled={!saved || busy}
         onClick={() =>
           action(async () => {
-            setCandidates([]);
-            setCandidate(undefined);
             commitReview(
               await request<Review>("", { baseRevision: saved!.revision }),
               true,
@@ -228,9 +311,16 @@ export function ReviewPanel({
                       placeholder="見送り理由（任意）"
                       disabled={busy}
                       value={reasons[f.id] || ""}
-                      onChange={(e) =>
-                        setReasons({ ...reasons, [f.id]: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        updateContext(key, (context) => ({
+                          ...context,
+                          reasons: {
+                            ...context.reasons,
+                            [f.id]: value,
+                          },
+                        }));
+                      }}
                     />
                     <button
                       className="button"
@@ -264,12 +354,27 @@ export function ReviewPanel({
             }
             onClick={() =>
               action(async () => {
+                const findingIds = unresolvedFindings(review);
                 const data = await request<{ candidates: Candidate[] }>(
                   `/${review.id}/proposals`,
                   {},
                 );
-                setCandidates(data.candidates);
-                setCandidate(undefined);
+                // A known dismissal cannot be undone by this older proposal reply.
+                if (
+                  JSON.stringify(observedFindings.current[key]) ===
+                  JSON.stringify(findingIds)
+                )
+                  updateContext(key, (context) => ({
+                    ...context,
+                    candidates: data.candidates,
+                    selectedId: undefined,
+                    findingIds,
+                  }));
+                else if (mounted.current)
+                  setError(
+                    "指摘の状態が更新されたため、修正案を作成し直してください。",
+                  );
+                await refresh(true);
               })
             }
           >
@@ -280,7 +385,13 @@ export function ReviewPanel({
               className="button"
               key={c.id}
               disabled={busy || !!stale}
-              onClick={() => setCandidate(c)}
+              aria-pressed={candidate?.id === c.id}
+              onClick={() =>
+                updateContext(key, (context) => ({
+                  ...context,
+                  selectedId: c.id,
+                }))
+              }
             >
               仮Preview: {c.explanation}
             </button>
@@ -323,11 +434,15 @@ export function ReviewPanel({
                         { id: candidate.id },
                       );
                       await applied(revision);
-                      setCandidate(undefined);
-                      setCandidates([]);
+                      updateContext(key, (context) => ({
+                        ...context,
+                        candidates: [],
+                        selectedId: undefined,
+                        findingIds: undefined,
+                      }));
                       await refresh();
                     } finally {
-                      onApplyingChange(false);
+                      if (mounted.current) onApplyingChange(false);
                     }
                   })
                 }
@@ -348,8 +463,6 @@ export function ReviewPanel({
               disabled={busy}
               onClick={() => {
                 setReviews([r, ...reviews.filter((v) => v.id !== r.id)]);
-                setCandidates([]);
-                setCandidate(undefined);
               }}
             >
               revision {r.baseRevision} · {r.createdAt}
