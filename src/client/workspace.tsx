@@ -141,11 +141,11 @@ export function Workspace({
     useState<ReferenceAdoptionAttempt>();
   const [policyNotice, setPolicyNotice] = useState("");
   const [policyReadError, setPolicyReadError] = useState("");
-  const policyMounted = useRef(true);
+  const workspaceMounted = useRef(true);
   useEffect(() => {
-    policyMounted.current = true;
+    workspaceMounted.current = true;
     return () => {
-      policyMounted.current = false;
+      workspaceMounted.current = false;
     };
   }, []);
   const policyNavigation = useBlocker({
@@ -566,7 +566,7 @@ export function Workspace({
       attempt.referenceId,
       receipt.reference,
     );
-    if (policyMounted.current) {
+    if (workspaceMounted.current) {
       const latest = Math.max(
         policyLatest.current.saved?.revision ?? 0,
         queryClient.getQueryData<{ current: Revision }>(["project", scope.id])
@@ -631,7 +631,7 @@ export function Workspace({
       throw e;
     } finally {
       policyWriting.current = false;
-      if (policyMounted.current) setPolicySaving(false);
+      if (workspaceMounted.current) setPolicySaving(false);
     }
   }
   async function adoptProjectReference(
@@ -707,7 +707,7 @@ export function Workspace({
         e instanceof Error ? e.message : "採用結果を確認できません。",
       );
     } finally {
-      if (policyMounted.current) setPolicySaving(false);
+      if (workspaceMounted.current) setPolicySaving(false);
     }
   }
   const saveDisabledReason = !saved
@@ -1280,31 +1280,33 @@ export function Workspace({
                 </details>
               </section>
             )}
-            {current.id === "review" && (
-              <ReviewPanel
-                saved={saved}
-                hasUnsavedDesign={dirty || draftRecovery.blocked}
-                onApplyingChange={(applying) => {
-                  foundationReadVersion.current++;
-                  setReviewApplying(applying);
-                }}
-                applied={async (r) => {
-                  foundationReadVersion.current++;
+            <ReviewPanel
+              active={current.id === "review"}
+              saved={saved}
+              hasUnsavedDesign={dirty || draftRecovery.blocked}
+              onApplyingChange={(applying) => {
+                foundationReadVersion.current++;
+                setReviewApplying(applying);
+              }}
+              applied={async (r) => {
+                foundationReadVersion.current++;
+                if (workspaceMounted.current) {
                   setSaved(r);
                   setDraftBase(r.revision);
                   setState((s) => ({ ...s, design: r.design }));
                   resetDraftContext();
                   setRevisions((v) => [...v, r]);
-                  await commitProjectRevision(queryClient, scope.id, r);
-                  void queryClient.invalidateQueries({
-                    queryKey: ["project", scope.id],
-                  });
-                  void queryClient.invalidateQueries({
-                    queryKey: ["projects"],
-                  });
-                }}
-              />
-            )}
+                }
+                // A committed receipt still belongs to this project after navigation.
+                await commitProjectRevision(queryClient, scope.id, r);
+                void queryClient.invalidateQueries({
+                  queryKey: ["project", scope.id],
+                });
+                void queryClient.invalidateQueries({
+                  queryKey: ["projects"],
+                });
+              }}
+            />
             {current.id === "export" && (
               <>
                 <div className="export-banner">
