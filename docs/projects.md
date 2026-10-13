@@ -72,6 +72,10 @@ Foundationのrevisionを設計revisionとして拡張しました。各行の `d
 - `GET /api/projects/:id/exports/:exportId/:filename`: 所有関係を検証した過去成果物のダウンロード。
 - `POST /api/migration/browser`: 一度きりのブラウザ移行。
 
+Project応答の `archiveVersion` はアーカイブ状態の保存順です。設計revisionや時刻とは独立し、`archived_at` の更新ごとにSQLiteのtriggerがプロジェクト別の版を増やします。補助テーブルに記録がない旧行は版0です。既存 `projects` テーブルの列構成、旧SQLによる作成・更新、保存設計とExportは保持します。状態と版は同じSQLite更新内で確定し、rollback時は版も戻ります。
+
+遅いアーカイブ応答の反映時は、一覧・Project cacheで観測済みの高いarchive版を両方へ投影します。設計revisionとExport sequenceもそれぞれの新しい値を保持します。受理後に別の状態更新を観測した場合は、その最新状態を案内します。未観測の外部更新を排他する機能ではなく、確認GETは引き続き必要です。旧応答にarchive版がない場合は0として既存の操作順・設計版保護を使います。
+
 ブラウザ移行の旧回答は、未知の旧質問キーも元JSONバックアップとProject snapshotに保持します。共通Tasteが未確認なら現行質問キーの回答だけを転送し、未知回答のみの場合は共通Tasteを未確認のまま移行を完了します。確認済みの共通Tasteと既存revisionは変更しません。Projectの移行checkpointと、共通Taste・完了記録の保存は既存の2段階処理です。共通側で失敗した場合、そのトランザクションをrollbackし、同payloadの再送は保存済みProject checkpointから再開します。再起動後も参考・revisionを重複作成しません。
 
 共通・プロジェクトの古いbase版は409、未知の所有IDは404です。Foundation候補の適用は候補に保存したbaseRevisionを検証します。

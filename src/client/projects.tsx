@@ -449,8 +449,14 @@ function ProjectList({
                       exact: true,
                     });
                     await client.invalidateQueries({ queryKey: ["projects"] });
+                    const latest = client
+                      .getQueryData<Project[]>(["projects"])
+                      ?.find((project) => project.id === p.id);
                     setNotice(
-                      `${p.brief.name}を${p.archivedAt ? "進行中に戻しました" : "アーカイブしました"}。${p.archivedAt ? "進行中" : "アーカイブ"}タブから確認できます。`,
+                      (latest?.archiveVersion ?? 0) >
+                        (saved.archiveVersion ?? 0)
+                        ? `${p.brief.name}の変更は受理されました。別の更新を反映した最新状態を表示しています。`
+                        : `${p.brief.name}を${p.archivedAt ? "進行中に戻しました" : "アーカイブしました"}。${p.archivedAt ? "進行中" : "アーカイブ"}タブから確認できます。`,
                     );
                   })
                 }

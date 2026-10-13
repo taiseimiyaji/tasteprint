@@ -104,30 +104,58 @@ export async function commitProject(
   isCurrent: () => boolean,
 ) {
   if (!isCurrent()) return;
-  const merge = (previous: Project): Project => ({
-    ...reply,
-    latestExport:
-      previous.latestExport &&
-      (!reply.latestExport ||
-        previous.latestExport.sequence > reply.latestExport.sequence)
-        ? previous.latestExport
-        : reply.latestExport,
-  });
+  const merge = (previous: Project, retainRevision = false): Project => {
+    let status =
+      (previous.archiveVersion ?? 0) > (reply.archiveVersion ?? 0) ||
+      ((previous.archiveVersion ?? 0) === (reply.archiveVersion ?? 0) &&
+        (retainRevision || previous.activeRevision > reply.activeRevision))
+        ? previous
+        : reply;
+    // A collection GET and a project GET can observe different status versions.
+    // Reconcile both shared caches after cancellation, before projecting a reply.
+    const observed = [
+      client
+        .getQueryData<Project[]>(["projects"])
+        ?.find((project) => project.id === reply.id),
+      client.getQueryData<ProjectData>(["project", reply.id])?.project,
+    ];
+    for (const project of observed)
+      if (
+        project?.id === reply.id &&
+        (project.archiveVersion ?? 0) > (status.archiveVersion ?? 0)
+      )
+        status = project;
+    return {
+      ...(retainRevision || previous.activeRevision > reply.activeRevision
+        ? previous
+        : reply),
+      archivedAt: status.archivedAt,
+      archiveVersion: status.archiveVersion ?? 0,
+      latestExport:
+        previous.latestExport &&
+        (!reply.latestExport ||
+          previous.latestExport.sequence > reply.latestExport.sequence)
+          ? previous.latestExport
+          : reply.latestExport,
+    };
+  };
   await Promise.all([
     commitQuery<Project[]>(client, ["projects"], (projects) =>
       !isCurrent()
         ? projects
         : projects?.some((p) => p.id === reply.id)
-          ? projects.map((p) =>
-              p.id === reply.id && p.activeRevision <= reply.activeRevision
-                ? merge(p)
-                : p,
-            )
+          ? projects.map((p) => (p.id === reply.id ? merge(p) : p))
           : [...(projects ?? []), reply],
     ),
     commitQuery<ProjectData>(client, ["project", reply.id], (data) =>
-      isCurrent() && data && data.current.revision === reply.activeRevision
-        ? { ...data, project: merge(data.project) }
+      isCurrent() && data
+        ? {
+            ...data,
+            project: merge(
+              data.project,
+              data.current.revision !== reply.activeRevision,
+            ),
+          }
         : data,
     ),
   ]);
