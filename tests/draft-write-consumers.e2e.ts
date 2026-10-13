@@ -248,3 +248,77 @@ test("Unsent request blocks project exit and can leave after browser retry", asy
     (await (await page.request.get("/api/health")).json()).codexCalls,
   ).toBe(0);
 });
+
+for (const editedAfterRecovery of [false, true] as const) {
+  test(`request reread with a failed rewrite ${editedAfterRecovery ? "protects a new edit" : "allows exit without a new edit"}`, async ({
+    page,
+  }) => {
+    const p = await project(page, "Prompt read recovery and failed rewrite");
+    const key = `tasteprint.${p.id}.prompt`;
+    const savedPrompt = "保存済みのリクエスト";
+    await page.addInitScript(
+      ({ key, savedPrompt }) => {
+        const fixture = window as typeof window & {
+          promptReadBlocked: boolean;
+        };
+        const get = Storage.prototype.getItem;
+        const set = Storage.prototype.setItem;
+        set.call(localStorage, key, savedPrompt);
+        fixture.promptReadBlocked = true;
+        Storage.prototype.getItem = function (candidate) {
+          if (candidate === key && fixture.promptReadBlocked)
+            throw new DOMException("fixture read denied", "SecurityError");
+          return get.call(this, candidate);
+        };
+        Storage.prototype.setItem = function (candidate, value) {
+          if (candidate === key)
+            throw new DOMException("fixture full", "QuotaExceededError");
+          return set.call(this, candidate, value);
+        };
+      },
+      { key, savedPrompt },
+    );
+    await page.goto(`/projects/${p.id}/foundation`);
+    const prompt = page.getByRole("textbox", {
+      name: "デザインへのリクエスト",
+      exact: true,
+    });
+    await expect(
+      page
+        .getByRole("alert")
+        .filter({ hasText: "保存済みのリクエストを読み込めません" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as typeof window & { promptReadBlocked: boolean }
+      ).promptReadBlocked = false;
+    });
+    await page
+      .getByRole("button", { name: "リクエスト下書きを再読込", exact: true })
+      .click();
+    await expect(prompt).toHaveValue(savedPrompt);
+    await expect(
+      page
+        .getByRole("alert")
+        .filter({ hasText: "リクエストの下書きを保存できません" }),
+    ).toBeVisible();
+    if (editedAfterRecovery)
+      await prompt.fill("再読込後に書いた新しいリクエスト");
+    await page.getByRole("link", { name: "プロジェクト", exact: true }).click();
+    if (editedAfterRecovery) {
+      await expect(page).toHaveURL(new RegExp(`/projects/${p.id}/foundation$`));
+      await expect(prompt).toHaveValue("再読込後に書いた新しいリクエスト");
+      await expect(
+        page.getByText("移動を中止しました", { exact: false }),
+      ).toBeVisible();
+    } else {
+      await expect(page).toHaveURL(/\/projects$/);
+      expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(
+        savedPrompt,
+      );
+    }
+    expect(
+      (await (await page.request.get("/api/health")).json()).codexCalls,
+    ).toBe(0);
+  });
+}

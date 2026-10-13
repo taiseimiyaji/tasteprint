@@ -1406,7 +1406,12 @@ export function Workspace({
                     </p>
                     <button
                       className="button"
-                      onClick={() => setPromptDraft(readPrompt())}
+                      onClick={() => {
+                        const recovered = readPrompt();
+                        if (!recovered.readError)
+                          lastStoredPrompt.current = recovered.value;
+                        setPromptDraft(recovered);
+                      }}
                     >
                       リクエスト下書きを再読込
                     </button>
