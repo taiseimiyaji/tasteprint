@@ -28,6 +28,7 @@ const project: Project = {
   slug: "one",
   createdAt: "2026-10-04T00:00:00Z",
   archivedAt: null,
+  archiveVersion: 0,
   activeRevision: 1,
   updatedAt: "2026-10-04T00:00:01Z",
   brief: { name: "One", purpose: "", audience: "", desired: "", avoid: "" },
@@ -280,6 +281,162 @@ describe("accepted mutation replies remain authoritative in shared queries", () 
     expect(
       client.getQueryData<Project[]>(["projects"])?.[0].archivedAt,
     ).toBeNull();
+    client.clear();
+  });
+  for (const archived of [false, true]) {
+    it(`retains an externally observed archive version with archived=${archived}`, async () => {
+      const client = new QueryClient();
+      const observed = {
+        ...project,
+        archivedAt: archived ? "external" : null,
+        archiveVersion: 2,
+      };
+      client.setQueryData(["projects"], [observed]);
+      client.setQueryData<ProjectData>(["project", project.id], {
+        project: observed,
+        current: revision(1),
+      });
+      await commitProject(
+        client,
+        {
+          ...project,
+          archivedAt: archived ? null : "old",
+          archiveVersion: 1,
+        },
+        beginProjectStatusWrite(client, project.id),
+      );
+      expect(client.getQueryData<Project[]>(["projects"])?.[0]).toEqual(
+        observed,
+      );
+      expect(
+        client.getQueryData<ProjectData>(["project", project.id])?.project,
+      ).toEqual(observed);
+      client.clear();
+    });
+  }
+  it("checks the observed archive version after asynchronous cancellation", async () => {
+    const client = new QueryClient();
+    client.setQueryData(["projects"], [project]);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    vi.spyOn(client, "cancelQueries").mockImplementationOnce(() => gate);
+    const pending = commitProject(
+      client,
+      { ...project, archivedAt: "old", archiveVersion: 1 },
+      beginProjectStatusWrite(client, project.id),
+    );
+    const observed = { ...project, archiveVersion: 2 };
+    client.setQueryData(["projects"], [observed]);
+    release();
+    await pending;
+    expect(client.getQueryData<Project[]>(["projects"])?.[0]).toEqual(observed);
+    client.clear();
+  });
+  for (const missingCollection of [true, false]) {
+    it(`uses known detail status when appending to a ${missingCollection ? "missing" : "nonmatching"} list`, async () => {
+      const client = new QueryClient();
+      const observed = {
+        ...project,
+        archiveVersion: 2,
+        activeRevision: 3,
+        brief: { ...project.brief, name: "Known detail" },
+        latestExport: record("newest", 5),
+      };
+      const other = { ...project, id: "other", archiveVersion: 50 };
+      if (!missingCollection) client.setQueryData(["projects"], [other]);
+      client.setQueryData<ProjectData>(["project", project.id], {
+        project: observed,
+        current: revision(3),
+      });
+      await commitProject(
+        client,
+        {
+          ...project,
+          archiveVersion: 1,
+          archivedAt: "old",
+          latestExport: record("old", 1),
+        },
+        beginProjectStatusWrite(client, project.id),
+      );
+      expect(client.getQueryData(["projects"])).toEqual(
+        missingCollection ? [observed] : [other, observed],
+      );
+      client.clear();
+    });
+  }
+  for (const observedInList of [true, false]) {
+    it(`shares the newest observed archive version from the ${observedInList ? "list" : "project"} cache`, async () => {
+      const client = new QueryClient();
+      const observed = { ...project, archiveVersion: 2 };
+      client.setQueryData(["projects"], [observedInList ? observed : project]);
+      client.setQueryData<ProjectData>(["project", project.id], {
+        project: observedInList ? project : observed,
+        current: revision(1),
+      });
+      await commitProject(
+        client,
+        { ...project, archivedAt: "old", archiveVersion: 1 },
+        beginProjectStatusWrite(client, project.id),
+      );
+      expect(client.getQueryData(["projects"])).toEqual([observed]);
+      expect(
+        client.getQueryData<ProjectData>(["project", project.id])?.project,
+      ).toEqual(observed);
+      client.clear();
+    });
+  }
+  it("advances archive version independently without replacing newer design or Export data", async () => {
+    const client = new QueryClient();
+    const newest = {
+      ...project,
+      activeRevision: 3,
+      archiveVersion: 2,
+      updatedAt: "2026-10-04T00:00:03Z",
+      brief: { ...project.brief, name: "Third revision" },
+      latestExport: record("newest", 5),
+    };
+    const current = revision(3);
+    const other = { ...project, id: "other", archiveVersion: 50 };
+    client.setQueryData(["projects"], [newest, other]);
+    client.setQueryData<ProjectData>(["project", project.id], {
+      project: newest,
+      current,
+    });
+    await commitProject(
+      client,
+      {
+        ...project,
+        archiveVersion: 3,
+        archivedAt: "latest-status",
+        latestExport: record("older", 1),
+      },
+      beginProjectStatusWrite(client, project.id),
+    );
+    const expected = {
+      ...newest,
+      archiveVersion: 3,
+      archivedAt: "latest-status",
+    };
+    expect(client.getQueryData(["projects"])).toEqual([expected, other]);
+    expect(client.getQueryData(["project", project.id])).toEqual({
+      project: expected,
+      current,
+    });
+    client.clear();
+  });
+  it("does not let an old unversioned DTO replace an observed archive version", async () => {
+    const client = new QueryClient();
+    const observed = { ...project, archiveVersion: 2 };
+    client.setQueryData(["projects"], [observed]);
+    const legacy = JSON.parse(JSON.stringify(project));
+    delete legacy.archiveVersion;
+    legacy.archivedAt = "old";
+    await commitProject(
+      client,
+      legacy,
+      beginProjectStatusWrite(client, project.id),
+    );
+    expect(client.getQueryData(["projects"])).toEqual([observed]);
     client.clear();
   });
   it("a delayed Project status reply retains an Export accepted in the meantime", async () => {

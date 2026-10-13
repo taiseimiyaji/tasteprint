@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { ProjectService } from "../src/server/projects/service";
 import { ReferenceService } from "../src/server/references/service";
 import { FoundationService } from "../src/server/foundation/service";
@@ -45,6 +46,119 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 describe("project scope and immutable snapshots", () => {
+  it("keeps old project SQL writers compatible and tracks their archive updates", () => {
+    const s = setup(),
+      a = create(s);
+    const id = randomUUID();
+    s.db
+      .prepare("INSERT INTO projects VALUES (?,?,?,NULL)")
+      .run(id, "old-writer", "2026-10-13T00:00:00Z");
+    expect(
+      s.db
+        .prepare("PRAGMA table_info(projects)")
+        .all()
+        .map((column) => column.name),
+    ).toEqual(["id", "slug", "created_at", "archived_at"]);
+    s.db
+      .prepare("UPDATE projects SET archived_at=? WHERE id=?")
+      .run("from-old-writer", a.id);
+    expect(s.project(a.id).archiveVersion).toBe(1);
+    s.db.prepare("UPDATE projects SET archived_at=NULL WHERE id=?").run(a.id);
+    expect(s.project(a.id).archiveVersion).toBe(2);
+    expect(s.project(a.id).archivedAt).toBeNull();
+    expect(s.project(a.id).activeRevision).toBe(1);
+  });
+  it("rolls back archive version with an aborted status transaction", () => {
+    const s = setup(),
+      a = create(s);
+    s.db.exec("BEGIN IMMEDIATE");
+    s.db
+      .prepare("UPDATE projects SET archived_at=? WHERE id=?")
+      .run("rolled-back", a.id);
+    expect(s.project(a.id).archiveVersion).toBe(1);
+    s.db.exec("ROLLBACK");
+    expect(s.project(a.id).archiveVersion).toBe(0);
+    expect(s.project(a.id).archivedAt).toBeNull();
+  });
+  it("uses project-local archive versions even when clocks agree or reverse", () => {
+    const s = setup(),
+      a = create(s),
+      b = create(s, "Other");
+    const before = s
+      .scope(a.id)
+      .references.db.prepare("SELECT revision,data FROM foundation_revisions")
+      .all();
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-13T00:00:00Z"));
+      const first = s.archive(a.id, 1, true);
+      expect(first.archiveVersion).toBe(1);
+      expect(s.archive(a.id, 1, true).archiveVersion).toBe(2);
+      vi.setSystemTime(new Date("2025-10-13T00:00:00Z"));
+      expect(s.archive(a.id, 1, false).archiveVersion).toBe(3);
+      expect(s.archive(b.id, 1, true).archiveVersion).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(s.project(a.id).archivedAt).toBeNull();
+    expect(s.project(a.id).activeRevision).toBe(1);
+    expect(
+      s
+        .scope(a.id)
+        .references.db.prepare("SELECT revision,data FROM foundation_revisions")
+        .all(),
+    ).toEqual(before);
+  });
+  it("rejects a stale design base without advancing archive version", () => {
+    const s = setup(),
+      a = create(s);
+    expect(() => s.archive(a.id, 2, true)).toThrow("古いrevision");
+    expect(s.project(a.id).archiveVersion).toBe(0);
+    expect(s.project(a.id).archivedAt).toBeNull();
+  });
+  it("adds metadata to old schema while retaining rows, frozen exports and restart order", async () => {
+    const s = setup(),
+      a = create(s);
+    const exported = s.export(a.id, 1);
+    const archived = s.archive(a.id, 1, true);
+    const foundationRows = s
+      .scope(a.id)
+      .references.db.prepare("SELECT revision,data FROM foundation_revisions")
+      .all();
+    await s.close();
+    services.splice(services.indexOf(s), 1);
+    const db = new DatabaseSync(join(s.directory, "workspace.sqlite"));
+    db.exec(
+      "DROP TRIGGER projects_archive_version; DROP TABLE project_archive_versions",
+    );
+    const oldRows = db
+      .prepare("SELECT id,slug,created_at,archived_at FROM projects")
+      .all();
+    db.close();
+    const reopened = new ProjectService(s.directory);
+    services.push(reopened);
+    expect(reopened.project(a.id)).toEqual({ ...archived, archiveVersion: 0 });
+    expect(
+      reopened.db
+        .prepare("SELECT id,slug,created_at,archived_at FROM projects")
+        .all(),
+    ).toEqual(oldRows);
+    expect(
+      reopened
+        .scope(a.id)
+        .references.db.prepare("SELECT revision,data FROM foundation_revisions")
+        .all(),
+    ).toEqual(foundationRows);
+    expect(reopened.exports(a.id)).toEqual([exported]);
+    expect(reopened.archive(a.id, 1, false).archiveVersion).toBe(1);
+    await reopened.close();
+    services.splice(services.indexOf(reopened), 1);
+    const restarted = new ProjectService(s.directory);
+    services.push(restarted);
+    expect(restarted.project(a.id).archiveVersion).toBe(1);
+    expect(restarted.project(a.id).archivedAt).toBeNull();
+    expect(create(restarted, "New").archiveVersion).toBe(0);
+  });
   it("rejects duplicate new policy IDs in the service and HTTP route without changing revision rows", async () => {
     const s = setup(),
       p = create(s),
@@ -590,16 +704,14 @@ it("reviews shared reference deletion separately and retains old adopted evidenc
       evidence: "unadopted evidence",
     },
   ];
-  s.shared.db
-    .prepare("UPDATE refs SET data=? WHERE id=?")
-    .run(
-      JSON.stringify({
-        ...ref,
-        analysis: { referenceId: ref.id, findings },
-        accepted: [0],
-      }),
-      ref.id,
-    );
+  s.shared.db.prepare("UPDATE refs SET data=? WHERE id=?").run(
+    JSON.stringify({
+      ...ref,
+      analysis: { referenceId: ref.id, findings },
+      accepted: [0],
+    }),
+    ref.id,
+  );
   taste(s);
   const a = create(s);
   const before = s.export(a.id, 1);

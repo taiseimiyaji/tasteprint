@@ -37,6 +37,7 @@ import {
 } from "../../domain/projects";
 import { stateSchema } from "../../client/state";
 import { aspects } from "../../domain/reference";
+import { installArchiveVersionSchema } from "./archive-schema";
 
 type Scope = {
   references: ReferenceService;
@@ -48,6 +49,7 @@ export type Project = {
   slug: string;
   createdAt: string;
   archivedAt: string | null;
+  archiveVersion: number;
   activeRevision: number;
   updatedAt: string;
   brief: Brief;
@@ -107,10 +109,20 @@ export class ProjectService {
       );
     }
     this.db = new DatabaseSync(join(directory, "workspace.sqlite"));
-    this.db.exec(`PRAGMA journal_mode=WAL;
+    try {
+      this.db.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, slug TEXT NOT NULL, created_at TEXT NOT NULL, archived_at TEXT);
       CREATE TABLE IF NOT EXISTS taste_revisions(revision INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS migrations(id TEXT PRIMARY KEY, data TEXT NOT NULL);`);
+      installArchiveVersionSchema(this.db);
+    } catch (error) {
+      try {
+        this.db.close();
+      } catch {
+        // Cleanup must not replace the original setup or installation failure.
+      }
+      throw error;
+    }
     this.shared = this.makeReferences(join(directory, "profile"));
     if (!this.profileHistory().length)
       this.db.prepare("INSERT INTO taste_revisions(data) VALUES (?)").run(
@@ -220,7 +232,13 @@ export class ProjectService {
   private row(id: string) {
     if (!/^(legacy|[a-f0-9-]{36})$/.test(id))
       throw new ServiceError(404, "プロジェクトが見つかりません。");
-    const row = this.db.prepare("SELECT * FROM projects WHERE id=?").get(id);
+    const row = this.db
+      .prepare(
+        `SELECT projects.*, COALESCE(project_archive_versions.version,0) AS archive_version
+         FROM projects LEFT JOIN project_archive_versions ON project_archive_versions.project_id=projects.id
+         WHERE projects.id=?`,
+      )
+      .get(id);
     if (!row) throw new ServiceError(404, "プロジェクトが見つかりません。");
     return row;
   }
@@ -390,6 +408,7 @@ export class ProjectService {
       slug: String(row.slug),
       createdAt: String(row.created_at),
       archivedAt: row.archived_at as string | null,
+      archiveVersion: Number(row.archive_version),
       activeRevision: r.revision,
       updatedAt: r.createdAt,
       brief: r.snapshot.brief,
