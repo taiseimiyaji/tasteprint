@@ -37,6 +37,7 @@ import {
 } from "../../domain/projects";
 import { stateSchema } from "../../client/state";
 import { aspects } from "../../domain/reference";
+import { installArchiveVersionSchema } from "./archive-schema";
 
 type Scope = {
   references: ReferenceService;
@@ -108,15 +109,20 @@ export class ProjectService {
       );
     }
     this.db = new DatabaseSync(join(directory, "workspace.sqlite"));
-    this.db.exec(`PRAGMA journal_mode=WAL;
+    try {
+      this.db.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, slug TEXT NOT NULL, created_at TEXT NOT NULL, archived_at TEXT);
-      CREATE TABLE IF NOT EXISTS project_archive_versions(project_id TEXT PRIMARY KEY, version INTEGER NOT NULL);
-      CREATE TRIGGER IF NOT EXISTS projects_archive_version AFTER UPDATE OF archived_at ON projects BEGIN
-        INSERT INTO project_archive_versions(project_id,version) VALUES (NEW.id,1)
-        ON CONFLICT(project_id) DO UPDATE SET version=project_archive_versions.version+1;
-      END;
       CREATE TABLE IF NOT EXISTS taste_revisions(revision INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS migrations(id TEXT PRIMARY KEY, data TEXT NOT NULL);`);
+      installArchiveVersionSchema(this.db);
+    } catch (error) {
+      try {
+        this.db.close();
+      } catch {
+        // Cleanup must not replace the original setup or installation failure.
+      }
+      throw error;
+    }
     this.shared = this.makeReferences(join(directory, "profile"));
     if (!this.profileHistory().length)
       this.db.prepare("INSERT INTO taste_revisions(data) VALUES (?)").run(

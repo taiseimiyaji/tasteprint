@@ -140,13 +140,19 @@ export async function commitProject(
     };
   };
   await Promise.all([
-    commitQuery<Project[]>(client, ["projects"], (projects) =>
-      !isCurrent()
-        ? projects
-        : projects?.some((p) => p.id === reply.id)
-          ? projects.map((p) => (p.id === reply.id ? merge(p) : p))
-          : [...(projects ?? []), reply],
-    ),
+    commitQuery<Project[]>(client, ["projects"], (projects) => {
+      if (!isCurrent()) return projects;
+      const detail = client.getQueryData<ProjectData>([
+        "project",
+        reply.id,
+      ])?.project;
+      return projects?.some((p) => p.id === reply.id)
+        ? projects.map((p) => (p.id === reply.id ? merge(p) : p))
+        : [
+            ...(projects ?? []),
+            merge(detail?.id === reply.id ? detail : reply),
+          ];
+    }),
     commitQuery<ProjectData>(client, ["project", reply.id], (data) =>
       isCurrent() && data
         ? {

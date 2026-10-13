@@ -332,6 +332,38 @@ describe("accepted mutation replies remain authoritative in shared queries", () 
     expect(client.getQueryData<Project[]>(["projects"])?.[0]).toEqual(observed);
     client.clear();
   });
+  for (const missingCollection of [true, false]) {
+    it(`uses known detail status when appending to a ${missingCollection ? "missing" : "nonmatching"} list`, async () => {
+      const client = new QueryClient();
+      const observed = {
+        ...project,
+        archiveVersion: 2,
+        activeRevision: 3,
+        brief: { ...project.brief, name: "Known detail" },
+        latestExport: record("newest", 5),
+      };
+      const other = { ...project, id: "other", archiveVersion: 50 };
+      if (!missingCollection) client.setQueryData(["projects"], [other]);
+      client.setQueryData<ProjectData>(["project", project.id], {
+        project: observed,
+        current: revision(3),
+      });
+      await commitProject(
+        client,
+        {
+          ...project,
+          archiveVersion: 1,
+          archivedAt: "old",
+          latestExport: record("old", 1),
+        },
+        beginProjectStatusWrite(client, project.id),
+      );
+      expect(client.getQueryData(["projects"])).toEqual(
+        missingCollection ? [observed] : [other, observed],
+      );
+      client.clear();
+    });
+  }
   for (const observedInList of [true, false]) {
     it(`shares the newest observed archive version from the ${observedInList ? "list" : "project"} cache`, async () => {
       const client = new QueryClient();
