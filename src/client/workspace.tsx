@@ -129,6 +129,9 @@ export function Workspace({
     setWorkspaceDraft((d) => ({ ...d, baseRevision }));
   const [history, setHistory] = useState<Design[]>([]);
   const [saved, setSaved] = useState<Revision | null>(initial);
+  const dirty =
+    !!saved && JSON.stringify(saved.design) !== JSON.stringify(state.design);
+  const unpersistedDesign = dirty && draftRecovery.writeFailed;
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [foundationError, setFoundationError] = useState("");
   const [historyError, setHistoryError] = useState("");
@@ -140,6 +143,7 @@ export function Workspace({
   const [policyAttempt, setPolicyAttempt] =
     useState<ReferenceAdoptionAttempt>();
   const [policyNotice, setPolicyNotice] = useState("");
+  const [navigationNotice, setNavigationNotice] = useState("");
   const [policyReadError, setPolicyReadError] = useState("");
   const workspaceMounted = useRef(true);
   useEffect(() => {
@@ -149,16 +153,27 @@ export function Workspace({
     };
   }, []);
   const policyNavigation = useBlocker({
-    shouldBlockFn: () => policyWriting.current,
+    shouldBlockFn: ({ next }) =>
+      policyWriting.current ||
+      (unpersistedDesign &&
+        !steps.some((step) => next.pathname === `${scope.route}/${step.id}`)),
     withResolver: true,
-    enableBeforeUnload: policySaving,
+    enableBeforeUnload: policySaving || unpersistedDesign,
   });
   useEffect(() => {
     if (policyNavigation.status === "blocked") {
       policyNavigation.reset();
-      setPolicyNotice("方針の保存が完了してから移動してください。");
+      if (policyWriting.current)
+        setPolicyNotice("方針の保存が完了してから移動してください。");
+      else
+        setNavigationNotice(
+          "下書きを保存できなかったため、移動を中止しました。入力はこの画面に保持しています。",
+        );
     }
   }, [policyNavigation.status]);
+  useEffect(() => {
+    if (!unpersistedDesign) setNavigationNotice("");
+  }, [unpersistedDesign]);
   const foundationReadVersion = useRef(0);
   const busy =
     saving ||
@@ -414,8 +429,6 @@ export function Workspace({
     proposal.mutate(text);
   };
 
-  const dirty =
-    !!saved && JSON.stringify(saved.design) !== JSON.stringify(state.design);
   const stale = !!saved && draftBase !== saved.revision;
   const editable = ["foundation", "components", "patterns", "preview"].includes(
     current.id,
@@ -795,6 +808,7 @@ export function Workspace({
               }}
               disabled={saving || historyLoading || reviewApplying || !saved}
             />
+            {navigationNotice && <p role="status">{navigationNotice}</p>}
             {editable && (
               <EditorActions
                 scope={projectName}
