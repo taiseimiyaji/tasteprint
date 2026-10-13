@@ -54,6 +54,7 @@ import { profile, type Design } from "../domain/design";
 
 import { steps } from "./navigation";
 import { useStoredDraft, DraftReadRecovery } from "./draft-storage";
+import { useDraftWriteExitGuard } from "./draft-navigation";
 type ReferenceAdoptionAttempt = {
   referenceId: string;
   version: number;
@@ -320,6 +321,8 @@ export function Workspace({
   };
   const [promptDraft, setPromptDraft] = useState(readPrompt);
   const prompt = promptDraft.value;
+  const lastStoredPrompt = useRef(promptDraft.readError ? null : prompt);
+  const [committedPrompt, setCommittedPrompt] = useState<string | null>(null);
   const setPrompt = (value: string) =>
     setPromptDraft({ value, readError: false });
   const [promptSaveError, setPromptSaveError] = useState(false);
@@ -329,11 +332,23 @@ export function Workspace({
     if (promptDraft.readError) return;
     try {
       localStorage.setItem(promptKey, promptDraft.value);
+      lastStoredPrompt.current = promptDraft.value;
       setPromptSaveError(false);
     } catch {
       setPromptSaveError(true);
     }
   }, [promptDraft, promptKey]);
+  const promptNavigationNotice = useDraftWriteExitGuard(
+    promptSaveError &&
+      !promptDraft.readError &&
+      prompt !== lastStoredPrompt.current &&
+      prompt !== committedPrompt,
+    "リクエストの下書きを保存できなかったため、移動を中止しました。対話パネルで保存を再試行してください。",
+    {
+      remainsMounted: (nextPath) =>
+        steps.some((step) => nextPath === `${scope.route}/${step.id}`),
+    },
+  );
   const conversation = useQuery({
     queryKey: ["conversations", scope.id],
     queryFn: () => jsonRequest<Conversation[]>(`${scope.api}/conversations`),
@@ -375,6 +390,7 @@ export function Workspace({
         },
       );
       await commitConversation(queryClient, message);
+      setCommittedPrompt(text);
       await conversation.refetch();
       const data = await foundationRequest<{ candidates: Candidate[] }>(
         "/proposals",
@@ -809,6 +825,9 @@ export function Workspace({
               disabled={saving || historyLoading || reviewApplying || !saved}
             />
             {navigationNotice && <p role="status">{navigationNotice}</p>}
+            {promptNavigationNotice && (
+              <p role="alert">{promptNavigationNotice}</p>
+            )}
             {editable && (
               <EditorActions
                 scope={projectName}

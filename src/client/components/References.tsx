@@ -8,6 +8,7 @@ import {
   type ReferenceInput,
 } from "../../domain/reference";
 import { useStoredDraft, DraftReadRecovery } from "../draft-storage";
+import { useDraftWriteExitGuard } from "../draft-navigation";
 import { parseReferenceInputDraft } from "../draft-shapes";
 import { useScope } from "../scope";
 import type { Principle } from "../../domain/projects";
@@ -648,6 +649,10 @@ function ReferenceCard({
   );
   const updateBlocked = busy || draftRecovery.blocked;
   const dirty = !sameInput(draft, r);
+  const navigationNotice = useDraftWriteExitGuard(
+    dirty && draftRecovery.unwritten,
+    "参考の下書きを保存できなかったため、移動を中止しました。メモを保存するか、最新の保存内容を読み込んでください。",
+  );
   const stale = draft.baseVersion !== r.version;
   const start = (type: Job["type"]) =>
     run(() =>
@@ -681,6 +686,7 @@ function ReferenceCard({
           recovery={draftRecovery}
           disabled={busy || active}
         />
+        {navigationNotice && <p role="alert">{navigationNotice}</p>}
         {draftError && (
           <p role="alert" className="error-text">
             {draftError}
