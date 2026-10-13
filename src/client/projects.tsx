@@ -31,6 +31,7 @@ import {
   type ProjectData,
 } from "./query-cache";
 import { useStoredDraft as useDraft, DraftReadRecovery } from "./draft-storage";
+import { useDraftWriteExitGuard } from "./draft-navigation";
 import {
   parseBriefDraft,
   parseProfileDraft,
@@ -283,6 +284,7 @@ function ProjectList({
     [allowSeparateCreation, setAllowSeparateCreation] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const mounted = useRef(false);
+  const created = useRef(false);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -291,6 +293,13 @@ function ProjectList({
   }, []);
   const action = useAction(),
     client = useQueryClient();
+  const unpersistedCreation =
+    briefRecovery.unwritten || tasteRecovery.unwritten;
+  const navigationNotice = useDraftWriteExitGuard(
+    unpersistedCreation,
+    "下書きを保存できなかったため、移動を中止しました。新規プロジェクトを開き、保存を再試行するか作成してください。",
+    { exitAllowed: () => created.current },
+  );
   const visible = projects
     .filter(
       (p) =>
@@ -303,6 +312,7 @@ function ProjectList({
   return (
     <main className="projects-page">
       <div className="eyebrow">YOUR PROJECTS</div>
+      {navigationNotice && <p role="alert">{navigationNotice}</p>}
       <div className="project-list-heading">
         <div>
           <h1>
@@ -539,6 +549,7 @@ function ProjectList({
                     localStorage.removeItem(key);
                 } catch {}
               }
+              created.current = true;
               location.href = `/projects/${p.id}/overview`;
             });
           }}
@@ -720,6 +731,22 @@ function ProjectList({
                 {e}。入力は保持しています。
               </p>
             ))}
+          {(briefRecovery.writeFailed || tasteRecovery.writeFailed) && (
+            <button
+              type="button"
+              className="button"
+              disabled={
+                action.busy || briefRecovery.blocked || tasteRecovery.blocked
+              }
+              onClick={() => {
+                if (briefRecovery.writeFailed)
+                  setBrief((value) => ({ ...value }));
+                if (tasteRecovery.writeFailed) setUseTaste((value) => value);
+              }}
+            >
+              下書きの保存を再試行
+            </button>
+          )}
           <div className="project-create-actions">
             <button
               type="button"
@@ -1204,6 +1231,10 @@ function Overview({
   const dirty =
     JSON.stringify([draft.brief, draft.policies]) !==
     JSON.stringify([current.snapshot.brief, current.snapshot.policies]);
+  const navigationNotice = useDraftWriteExitGuard(
+    dirty && draftRecovery.unwritten,
+    "下書きを保存できなかったため、移動を中止しました。入力を保存するか、未保存の変更を取り消してください。",
+  );
   const stale = draft.baseRevision !== current.revision;
   const sync = async () => {
     await refresh();
@@ -1212,6 +1243,7 @@ function Overview({
   return (
     <main className="projects-page">
       <div className="eyebrow">PROJECT OVERVIEW</div>
+      {navigationNotice && <p role="alert">{navigationNotice}</p>}
       <h1>{current.snapshot.brief.name}</h1>
       <p>概要・設計方針 · 確定 r{current.revision}</p>
       <EditorActions

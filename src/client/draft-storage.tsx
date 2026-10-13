@@ -8,6 +8,7 @@ import {
 export type DraftRecovery<T> = {
   blocked: boolean;
   writeFailed: boolean;
+  unwritten: boolean;
   conflict?: boolean;
   retainedInput?: boolean;
   storedRaw: () => string | null;
@@ -43,6 +44,7 @@ export function useStoredDraft<T>(
   };
   const [draft, setDraft] = useState(read);
   const lastStored = useRef(draft.raw);
+  const lastStoredValue = useRef(draft.value);
   const overwrite = useRef(false);
   const [error, setError] = useState("");
   const [writeFailed, setWriteFailed] = useState(false);
@@ -94,6 +96,7 @@ export function useStoredDraft<T>(
       const raw = JSON.stringify(encode(draft.value));
       localStorage.setItem(key, raw);
       lastStored.current = raw;
+      lastStoredValue.current = draft.value;
       setError("");
       setWriteFailed(false);
     } catch {
@@ -112,6 +115,10 @@ export function useStoredDraft<T>(
   const recovery: DraftRecovery<T> = {
     blocked: draft.blocked,
     writeFailed,
+    // Compare decoded values so legacy byte formats do not look like lost input.
+    unwritten:
+      writeFailed &&
+      JSON.stringify(draft.value) !== JSON.stringify(lastStoredValue.current),
     conflict: draft.conflict,
     retainedInput: draft.retainedInput,
     storedRaw: () => lastStored.current,
@@ -124,6 +131,7 @@ export function useStoredDraft<T>(
         return false;
       }
       lastStored.current = next.raw;
+      lastStoredValue.current = next.value;
       overwrite.current = false;
       setDraft(next);
       return true;
