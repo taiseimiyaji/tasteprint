@@ -7,6 +7,7 @@ import {
 } from "react";
 export type DraftRecovery<T> = {
   blocked: boolean;
+  writeFailed: boolean;
   conflict?: boolean;
   retainedInput?: boolean;
   storedRaw: () => string | null;
@@ -44,6 +45,7 @@ export function useStoredDraft<T>(
   const lastStored = useRef(draft.raw);
   const overwrite = useRef(false);
   const [error, setError] = useState("");
+  const [writeFailed, setWriteFailed] = useState(false);
   const block = (conflict = false) => {
     setDraft((d) => ({
       ...d,
@@ -93,8 +95,10 @@ export function useStoredDraft<T>(
       localStorage.setItem(key, raw);
       lastStored.current = raw;
       setError("");
+      setWriteFailed(false);
     } catch {
       setError("下書きを保存できません。空き容量を確認してください。");
+      setWriteFailed(true);
     }
   }, [key, draft]);
   const setValue: Dispatch<SetStateAction<T>> = (update) =>
@@ -107,6 +111,7 @@ export function useStoredDraft<T>(
     }));
   const recovery: DraftRecovery<T> = {
     blocked: draft.blocked,
+    writeFailed,
     conflict: draft.conflict,
     retainedInput: draft.retainedInput,
     storedRaw: () => lastStored.current,
