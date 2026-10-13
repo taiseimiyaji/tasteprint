@@ -876,14 +876,16 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
         })
         .sort(),
     );
+  const changedInput =
+    JSON.stringify([draft.answers, draft.reasons, draft.principles]) !==
+    JSON.stringify([
+      current.snapshot.answers,
+      current.snapshot.reasons,
+      current.snapshot.principles,
+    ]);
   const dirty =
     !current.snapshot.confirmed ||
-    JSON.stringify([draft.answers, draft.reasons, draft.principles]) !==
-      JSON.stringify([
-        current.snapshot.answers,
-        current.snapshot.reasons,
-        current.snapshot.principles,
-      ]) ||
+    changedInput ||
     (references !== null &&
       signature(references) !== signature(current.snapshot.references));
   const stale = draft.baseProfileRevision !== current.revision;
@@ -893,13 +895,17 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
   const [navigationNotice, setNavigationNotice] = useState("");
   const pending = action.busy || referencesBusy;
   const unread = draftRecovery.blocked || positionRecovery.blocked;
+  const unpersistedInput = changedInput && draftRecovery.writeFailed;
   const updateError =
     action.error || referenceError || draftError || positionError;
-  const shouldWaitForUpdate = useCallback(() => pending, [pending]);
+  const shouldWaitForUpdate = useCallback(
+    () => pending || unpersistedInput,
+    [pending, unpersistedInput],
+  );
   const navigation = useBlocker({
     shouldBlockFn: shouldWaitForUpdate,
     withResolver: true,
-    enableBeforeUnload: pending,
+    enableBeforeUnload: pending || unpersistedInput,
   });
   useEffect(() => {
     if (pending) setNavigationNotice("");
