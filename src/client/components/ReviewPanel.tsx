@@ -168,7 +168,18 @@ export function ReviewPanel({
       setReadError(e instanceof Error ? e.message : "レビュー結果が不正です。");
       return;
     }
-    if (!chosen.accepted) return;
+    if (!chosen.accepted) {
+      if (select) {
+        // A run may finish after a GET already observed a newer version of
+        // that same Review. Honor its explicit selection using the known row.
+        readVersion.current++;
+        updateReviews((previous) => [
+          chosen.review,
+          ...previous.filter((r) => r.id !== chosen.review.id),
+        ]);
+      }
+      return;
+    }
     readVersion.current++;
     const merged = chosen.review;
     updateReviews((previous) =>

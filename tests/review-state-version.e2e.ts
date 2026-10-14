@@ -365,3 +365,153 @@ test("a pre-run delayed empty list cannot remove the new Review", async ({
     release();
   }
 });
+
+test("a delayed run receipt selects its already observed newer Review without applying old content", async ({
+  page,
+}) => {
+  const {
+    base,
+    project,
+    review: a,
+  } = await ready(page, "Run selection after newer Review GET");
+  let release!: () => void;
+  let committed!: () => void;
+  const hold = new Promise<void>((r) => (release = r));
+  const started = new Promise<void>((r) => (committed = r));
+  let b!: Review;
+  await page.route(`**${base}/reviews`, async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    b = await response.json();
+    committed();
+    await hold;
+    await route.fulfill({ response });
+  });
+  const aImage = page.locator(
+    `a[href="${base}/reviews/images/${a.images[0]}"]`,
+  );
+  try {
+    await page
+      .getByRole("button", { name: "3画面を撮影してレビュー", exact: true })
+      .click();
+    await started;
+    expect(b.stateVersion).toBe(0);
+    const changed = await page.request.post(`${base}/reviews/${b.id}/dismiss`, {
+      data: {
+        baseRevision: b.baseRevision,
+        findingId: b.findings[0].id,
+        reason: "新しいBの理由",
+      },
+    });
+    expect(changed.ok()).toBe(true);
+    expect(((await changed.json()) as Review).stateVersion).toBe(1);
+    await page
+      .getByRole("navigation", { name: "プロジェクトの設計" })
+      .getByRole("link", { name: "Export", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "プロジェクトの設計" })
+      .getByRole("link", { name: "AI Review", exact: true })
+      .click();
+    await expect(aImage).toHaveCount(1);
+    await expect(
+      page.getByText("過去のレビュー", { exact: true }),
+    ).toBeVisible();
+    release();
+    const bImage = page.locator(
+      `a[href="${base}/reviews/images/${b.images[0]}"]`,
+    );
+    await expect(bImage).toHaveCount(1);
+    await expect(
+      page
+        .locator(".review-row")
+        .first()
+        .getByText("見送り済み: 新しいBの理由"),
+    ).toBeVisible();
+    await expect(aImage).toHaveCount(0);
+  } finally {
+    release();
+  }
+  expect((await (await page.request.get(`${base}/reviews`)).json())[0].id).toBe(
+    b.id,
+  );
+  await page.goto(`/projects/${project.id}/review`);
+});
+
+test("a delayed lower-version dismissal keeps the selected historical Review and its newer reason", async ({
+  page,
+}) => {
+  const { base, review: a } = await ready(
+    page,
+    "Historical lower version dismissal",
+  );
+  const created = await page.request.post(`${base}/reviews`, {
+    data: { baseRevision: 1 },
+  });
+  expect(created.ok()).toBe(true);
+  const b = (await created.json()) as Review;
+  await page.reload();
+  await page.getByText("過去のレビュー", { exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: `revision ${a.baseRevision} · ${a.createdAt}`,
+      exact: true,
+    })
+    .click();
+  const aImage = page.locator(
+    `a[href="${base}/reviews/images/${a.images[0]}"]`,
+  );
+  const bImage = page.locator(
+    `a[href="${base}/reviews/images/${b.images[0]}"]`,
+  );
+  await expect(aImage).toHaveCount(1);
+  let release!: () => void;
+  let committed!: () => void;
+  const hold = new Promise<void>((r) => (release = r));
+  const started = new Promise<void>((r) => (committed = r));
+  await page.route(`**${base}/reviews/${a.id}/dismiss`, async (route) => {
+    const response = await route.fetch();
+    expect((await response.json()).stateVersion).toBe(1);
+    committed();
+    await hold;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.getByLabel(`見送り理由 ${a.findings[0].id}`).fill("古い理由");
+    await page
+      .locator(".review-row")
+      .first()
+      .getByRole("button", { name: "見送る" })
+      .click();
+    await started;
+    const changed = await page.request.post(`${base}/reviews/${a.id}/dismiss`, {
+      data: {
+        baseRevision: a.baseRevision,
+        findingId: a.findings[0].id,
+        reason: "新しい理由",
+      },
+    });
+    expect(changed.ok()).toBe(true);
+    expect(((await changed.json()) as Review).stateVersion).toBe(2);
+    await page
+      .getByRole("navigation", { name: "プロジェクトの設計" })
+      .getByRole("link", { name: "Export", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "プロジェクトの設計" })
+      .getByRole("link", { name: "AI Review", exact: true })
+      .click();
+    await expect(aImage).toHaveCount(1);
+    await expect(
+      page.locator(".review-row").first().getByText("見送り済み: 新しい理由"),
+    ).toBeVisible();
+    release();
+    await expect(aImage).toHaveCount(1);
+    await expect(bImage).toHaveCount(0);
+    await expect(
+      page.locator(".review-row").first().getByText("見送り済み: 新しい理由"),
+    ).toBeVisible();
+  } finally {
+    release();
+  }
+});
