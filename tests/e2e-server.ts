@@ -119,6 +119,26 @@ const service = new ProjectService(dir, {
     };
   },
 });
+const failedExportDownloads = new Map<string, number>();
+app.post("/api/e2e-fail-export-download/:id", (c) => {
+  failedExportDownloads.set(c.req.param("id"), 0);
+  return c.json({ ready: true });
+});
+app.delete("/api/e2e-fail-export-download/:id", (c) => {
+  failedExportDownloads.delete(c.req.param("id"));
+  return c.json({ ready: true });
+});
+app.get("/api/e2e-fail-export-download/:id", (c) =>
+  c.json({ count: failedExportDownloads.get(c.req.param("id")) ?? 0 }),
+);
+app.use("/api/projects/:id/exports/:exportId/:filename", async (c, next) => {
+  const id = c.req.param("id");
+  if (failedExportDownloads.has(id)) {
+    failedExportDownloads.set(id, failedExportDownloads.get(id)! + 1);
+    return c.json({ message: "isolated download failure" }, 503);
+  }
+  await next();
+});
 app.route("/api", projectRoutes(service, "e2e-pair-code", [3100, 3101]));
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 3101 });
 for (const signal of ["SIGTERM", "SIGINT"])
