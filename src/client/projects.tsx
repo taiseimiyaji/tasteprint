@@ -1513,12 +1513,64 @@ export function ExportHistory({
     queryFn: () => req<ExportRecord[]>(`${scope.api}/exports`),
     enabled: active,
   });
-  const download = (r: ExportRecord, extension: string) => {
-    const name = Object.keys(r.files).find((n) => n.endsWith(extension))!;
+  const downloadFile = async (r: ExportRecord, name: string) => {
+    const failure =
+      "成果物のダウンロードに失敗しました。Export履歴から再試行してください。";
+    let response: Response;
+    try {
+      response = await fetch(
+        `${scope.api}/exports/${r.id}/${encodeURIComponent(name)}`,
+      );
+    } catch {
+      throw new Error(failure);
+    }
+    if (!response.ok) {
+      const body: unknown = await response.json().catch(() => null);
+      const detail =
+        body &&
+        typeof body === "object" &&
+        "message" in body &&
+        typeof body.message === "string"
+          ? body.message
+          : "";
+      throw new Error(`${failure}${detail ? ` ${detail}` : ""}`);
+    }
+    let blob: Blob;
+    try {
+      blob = await response.blob();
+    } catch {
+      throw new Error(failure);
+    }
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `${scope.api}/exports/${r.id}/${encodeURIComponent(name)}`;
+    a.href = url;
     a.download = name;
+    document.body.append(a);
     a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+  const download = (r: ExportRecord, extension: string) => {
+    const name = Object.keys(r.files).find((n) => n.endsWith(extension));
+    if (!name)
+      throw new Error("成果物が見つかりません。Export履歴を確認してください。");
+    return downloadFile(r, name);
+  };
+  const createAndDownload = async (
+    body: {
+      baseRevision: number;
+      bundle?: boolean;
+      imageMode?: "include" | "omit";
+    },
+    extension: string,
+  ) => {
+    const r = await req<ExportRecord>(`${scope.api}/exports`, body);
+    await commitExport(client, r);
+    try {
+      await download(r, extension);
+    } finally {
+      await query.refetch();
+    }
   };
   if (!active) return null;
   return (
@@ -1537,16 +1589,16 @@ export function ExportHistory({
           className="button"
           disabled={action.busy}
           onClick={() =>
-            void action.run(async () => {
-              const r = await req<ExportRecord>(`${scope.api}/exports`, {
-                baseRevision: revision,
-                bundle: true,
-                imageMode,
-              });
-              download(r, ".zip");
-              await commitExport(client, r);
-              await query.refetch();
-            })
+            void action.run(() =>
+              createAndDownload(
+                {
+                  baseRevision: revision,
+                  bundle: true,
+                  imageMode,
+                },
+                ".zip",
+              ),
+            )
           }
         >
           {action.busy
@@ -1566,14 +1618,9 @@ export function ExportHistory({
           className="button"
           disabled={action.busy}
           onClick={() =>
-            void action.run(async () => {
-              const r = await req<ExportRecord>(`${scope.api}/exports`, {
-                baseRevision: revision,
-              });
-              download(r, ext);
-              await commitExport(client, r);
-              await query.refetch();
-            })
+            void action.run(() =>
+              createAndDownload({ baseRevision: revision }, ext),
+            )
           }
         >
           {label}
@@ -1616,6 +1663,11 @@ export function ExportHistory({
               key={name}
               href={`${scope.api}/exports/${r.id}/${encodeURIComponent(name)}`}
               download={name}
+              aria-disabled={action.busy}
+              onClick={(event) => {
+                event.preventDefault();
+                if (!action.busy) void action.run(() => downloadFile(r, name));
+              }}
             >
               {name}
             </a>
