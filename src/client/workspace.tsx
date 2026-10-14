@@ -1353,7 +1353,16 @@ export function Workspace({
                   </div>
                   <Pill>Draft export</Pill>
                 </div>
-                {saved && <ExportHistory revision={saved.revision} />}
+              </>
+            )}
+            {saved && (
+              <ExportHistory
+                revision={saved.revision}
+                active={current.id === "export"}
+              />
+            )}
+            {current.id === "export" && (
+              <>
                 <div className="code-preview">
                   <div>
                     <span className="local-dot" /> DESIGN.md{" "}
