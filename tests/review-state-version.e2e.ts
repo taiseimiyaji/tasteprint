@@ -505,7 +505,19 @@ test("a delayed lower-version dismissal keeps the selected historical Review and
     await expect(
       page.locator(".review-row").first().getByText("見送り済み: 新しい理由"),
     ).toBeVisible();
+    await expect(
+      page.locator(".review-results").getByRole("button", {
+        name: "処理中…",
+        exact: true,
+      }),
+    ).toBeDisabled();
     release();
+    await expect(
+      page.getByRole("button", {
+        name: "3画面を撮影してレビュー",
+        exact: true,
+      }),
+    ).toBeEnabled();
     await expect(aImage).toHaveCount(1);
     await expect(bImage).toHaveCount(0);
     await expect(
