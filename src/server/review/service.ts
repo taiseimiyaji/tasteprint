@@ -2,13 +2,18 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { machineRules, reviewOutput, type Review } from "../../domain/review";
+import {
+  machineRules,
+  reviewOutput,
+  type Review,
+  type StoredReview,
+} from "../../domain/review";
 import { FoundationService } from "../foundation/service";
 import { ServiceError } from "../references/service";
 import { CodexGateway } from "../codex/gateway";
 import type { CaptureReview } from "./capture";
 export type ReviewAI = (
-  review: Review,
+  review: StoredReview,
   images: string[],
   signal: AbortSignal,
 ) => Promise<ReturnType<typeof reviewOutput.parse>>;
@@ -25,32 +30,73 @@ export class ReviewService {
         images,
       ),
   ) {
-    foundation.db.exec(
-      "CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS review_images (id TEXT PRIMARY KEY, data BLOB NOT NULL)",
-    );
+    const db = foundation.db;
+    let begun = false;
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      begun = true;
+      db.exec(
+        "CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, data TEXT NOT NULL); CREATE TABLE IF NOT EXISTS review_images (id TEXT PRIMARY KEY, data BLOB NOT NULL)",
+      );
+      if (
+        !db
+          .prepare("PRAGMA table_info(reviews)")
+          .all()
+          .some((column) => column.name === "state_version")
+      )
+        db.exec(
+          "ALTER TABLE reviews ADD COLUMN state_version INTEGER NOT NULL DEFAULT 0",
+        );
+      db.exec("COMMIT");
+      begun = false;
+    } catch (error) {
+      if (begun) {
+        try {
+          db.exec("ROLLBACK");
+        } catch {
+          // Keep the original migration error.
+        }
+      }
+      throw error;
+    }
+  }
+  private dto(row: Record<string, unknown>): Review {
+    // Older rows may contain a derived stale value; the SQLite column owns the version.
+    const {
+      stale: _stale,
+      stateVersion: _version,
+      ...stored
+    } = JSON.parse(String(row.data)) as StoredReview & {
+      stale?: boolean;
+      stateVersion?: number;
+    };
+    return {
+      ...stored,
+      stateVersion: Number(row.state_version),
+      stale: stored.baseRevision !== Number(row.current_revision),
+    };
   }
   list(): Review[] {
     return this.foundation.db
-      .prepare("SELECT data FROM reviews ORDER BY rowid DESC")
+      .prepare(
+        "SELECT data, state_version, (SELECT MAX(revision) FROM foundation_revisions) AS current_revision FROM reviews ORDER BY rowid DESC",
+      )
       .all()
-      .map((r) => {
-        const v = JSON.parse(String(r.data)) as Review;
-        return {
-          ...v,
-          stale: v.baseRevision !== this.foundation.current()?.revision,
-        };
-      });
+      .map((r) => this.dto(r));
   }
   get(id: string) {
-    const r = this.list().find((r) => r.id === id);
+    const row = this.foundation.db
+      .prepare(
+        "SELECT data, state_version, (SELECT MAX(revision) FROM foundation_revisions) AS current_revision FROM reviews WHERE id=?",
+      )
+      .get(id);
+    const r = row && this.dto(row);
     if (!r) throw new ServiceError(404, "レビューが見つかりません。");
     return r;
   }
-  private put(r: Review) {
+  private insert(r: StoredReview) {
     this.foundation.db
-      .prepare(
-        "INSERT INTO reviews VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data",
-      )
+      .prepare("INSERT INTO reviews(id,data) VALUES (?,?)")
       .run(r.id, JSON.stringify(r));
     return this.get(r.id);
   }
@@ -72,7 +118,7 @@ export class ReviewService {
     if (this.busy) throw new ServiceError(409, "レビューを実行中です。");
     this.busy = true;
     let dir: string | undefined;
-    const review: Review = {
+    const review: StoredReview = {
       id: randomUUID(),
       baseRevision: revision,
       createdAt: new Date().toISOString(),
@@ -161,7 +207,7 @@ export class ReviewService {
       this.busy = false;
       if (dir) await rm(dir, { recursive: true, force: true });
     }
-    return this.put(review);
+    return this.insert(review);
   }
   dismiss(
     id: string,
@@ -169,12 +215,34 @@ export class ReviewService {
     reason: string,
     baseRevision?: number,
   ) {
-    if (baseRevision !== undefined) this.current(baseRevision);
-    const review = this.get(id);
-    const f = review.findings.find((f) => f.id === findingId);
-    if (!f) throw new ServiceError(404, "指摘がありません。");
-    f.dismissal = reason;
-    return this.put(review);
+    const db = this.foundation.db;
+    let begun = false;
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      begun = true;
+      if (baseRevision !== undefined) this.current(baseRevision);
+      const review = this.get(id);
+      const f = review.findings.find((f) => f.id === findingId);
+      if (!f) throw new ServiceError(404, "指摘がありません。");
+      f.dismissal = reason;
+      const { stale: _stale, stateVersion: _version, ...stored } = review;
+      db.prepare(
+        "UPDATE reviews SET data=?, state_version=state_version+1 WHERE id=?",
+      ).run(JSON.stringify(stored), id);
+      const result = this.get(id);
+      db.exec("COMMIT");
+      begun = false;
+      return result;
+    } catch (error) {
+      if (begun) {
+        try {
+          db.exec("ROLLBACK");
+        } catch {
+          // Keep the original write error.
+        }
+      }
+      throw error;
+    }
   }
   async propose(id: string, signal: AbortSignal) {
     const review = this.get(id);

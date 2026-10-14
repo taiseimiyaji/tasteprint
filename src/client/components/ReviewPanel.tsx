@@ -17,6 +17,32 @@ const emptyContext: ReviewContext = { candidates: [], reasons: {} };
 const contextKey = (review: Review) => `${review.id}:${review.baseRevision}`;
 const unresolvedFindings = (review: Review) =>
   review.findings.filter((f) => f.dismissal === undefined).map((f) => f.id);
+function savedReviewContent(review: Review) {
+  const { stateVersion: _version, stale: _stale, ...stored } = review;
+  return JSON.stringify(stored);
+}
+function chooseReview(reply: Review, previous?: Review) {
+  if (!Number.isSafeInteger(reply?.stateVersion) || reply.stateVersion < 0)
+    throw new Error("レビュー結果の状態番号が不正です。再読込してください。");
+  if (!previous) return { review: reply, accepted: true };
+  if (reply.baseRevision !== previous.baseRevision)
+    throw new Error(
+      "同じレビューIDに異なる確定版があります。再読込してください。",
+    );
+  if (reply.stateVersion < previous.stateVersion)
+    return { review: previous, accepted: false };
+  if (
+    reply.stateVersion === previous.stateVersion &&
+    savedReviewContent(reply) !== savedReviewContent(previous)
+  )
+    throw new Error(
+      "同じ状態番号のレビュー内容が一致しません。再読込してください。",
+    );
+  return {
+    review: { ...reply, stale: previous.stale || reply.stale },
+    accepted: true,
+  };
+}
 async function reviewRequest<T>(
   base: string,
   path = "",
@@ -79,24 +105,6 @@ export function ReviewPanel({
     observedReviews.current = next;
     setReviews(next);
   }
-  function preserveObservedDismissals(reply: Review) {
-    const previous = observedReviews.current.find((r) => r.id === reply.id);
-    if (!previous) return reply;
-    // A dismissal cannot be undone; this reply may predate a newer GET.
-    const dismissals = new Map(
-      previous.findings
-        .filter((f) => f.dismissal !== undefined)
-        .map((f) => [f.id, f.dismissal!]),
-    );
-    return {
-      ...reply,
-      findings: reply.findings.map((f) =>
-        f.dismissal === undefined && dismissals.has(f.id)
-          ? { ...f, dismissal: dismissals.get(f.id)! }
-          : f,
-      ),
-    };
-  }
   function updateContext(
     key: string,
     update: (context: ReviewContext) => ReviewContext,
@@ -150,8 +158,30 @@ export function ReviewPanel({
   const readVersion = useRef(0);
   function commitReview(savedReview: Review, select = false) {
     if (!mounted.current) return;
+    let chosen: ReturnType<typeof chooseReview>;
+    try {
+      chosen = chooseReview(
+        savedReview,
+        observedReviews.current.find((r) => r.id === savedReview?.id),
+      );
+    } catch (e) {
+      setReadError(e instanceof Error ? e.message : "レビュー結果が不正です。");
+      return;
+    }
+    if (!chosen.accepted) {
+      if (select) {
+        // A run may finish after a GET already observed a newer version of
+        // that same Review. Honor its explicit selection using the known row.
+        readVersion.current++;
+        updateReviews((previous) => [
+          chosen.review,
+          ...previous.filter((r) => r.id !== chosen.review.id),
+        ]);
+      }
+      return;
+    }
     readVersion.current++;
-    const merged = preserveObservedDismissals(savedReview);
+    const merged = chosen.review;
     updateReviews((previous) =>
       select
         ? [merged, ...previous.filter((r) => r.id !== merged.id)]
@@ -169,15 +199,38 @@ export function ReviewPanel({
     try {
       const data = await request<Review[]>();
       if (!mounted.current || version !== readVersion.current) return;
-      updateReviews((previous) => {
-        const selected =
-          preserveSelection && data.find((r) => r.id === previous[0]?.id);
-        return selected
-          ? [selected, ...data.filter((r) => r.id !== selected.id)]
-          : data;
+      if (!Array.isArray(data))
+        throw new Error("レビュー一覧の形式が不正です。再読込してください。");
+      const previous = observedReviews.current;
+      const ids = new Set<string>();
+      const accepted: Review[] = [];
+      let rejected = false;
+      const ordered = data.map((reply) => {
+        if (ids.has(reply?.id))
+          throw new Error(
+            "レビュー一覧に重複したIDがあります。再読込してください。",
+          );
+        ids.add(reply.id);
+        const chosen = chooseReview(
+          reply,
+          previous.find((r) => r.id === reply.id),
+        );
+        if (chosen.accepted) accepted.push(chosen.review);
+        else rejected = true;
+        return chosen.review;
       });
-      reconcileContexts(data);
-      setReadError("");
+      // Reviews are never deleted. Preserve a newer locally known row missing
+      // from an older list, while retaining the server's rowid order.
+      const next = [...ordered, ...previous.filter((r) => !ids.has(r.id))];
+      const selected =
+        preserveSelection && next.find((r) => r.id === previous[0]?.id);
+      const visible = selected
+        ? [selected, ...next.filter((r) => r.id !== selected.id)]
+        : next;
+      updateReviews(() => visible);
+      reconcileContexts(accepted);
+      if (!rejected && (accepted.length > 0 || previous.length === 0))
+        setReadError("");
     } catch (e) {
       if (mounted.current && version === readVersion.current)
         setReadError(e instanceof Error ? e.message : "結果を取得できません。");
