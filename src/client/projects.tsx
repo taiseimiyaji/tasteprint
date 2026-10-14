@@ -1498,13 +1498,20 @@ function Overview({
     </main>
   );
 }
-export function ExportHistory({ revision }: { revision: number }) {
+export function ExportHistory({
+  revision,
+  active = true,
+}: {
+  revision: number;
+  active?: boolean;
+}) {
   const scope = useScope(),
     action = useAction(),
     client = useQueryClient();
   const query = useQuery({
     queryKey: ["exports", scope.id],
     queryFn: () => req<ExportRecord[]>(`${scope.api}/exports`),
+    enabled: active,
   });
   const download = (r: ExportRecord, extension: string) => {
     const name = Object.keys(r.files).find((n) => n.endsWith(extension))!;
@@ -1513,6 +1520,7 @@ export function ExportHistory({ revision }: { revision: number }) {
     a.download = name;
     a.click();
   };
+  if (!active) return null;
   return (
     <section>
       <p>
