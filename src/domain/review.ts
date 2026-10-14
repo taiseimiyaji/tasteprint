@@ -19,7 +19,7 @@ export type Finding = z.infer<typeof findingSchema> & {
   dismissal?: string;
 };
 export type ReviewRule = { id: string; description: string };
-export type Review = {
+export type StoredReview = {
   id: string;
   baseRevision: number;
   createdAt: string;
@@ -32,7 +32,10 @@ export type Review = {
   images: string[];
   status: "complete" | "partial";
   error?: string;
-  stale?: boolean;
+};
+export type Review = StoredReview & {
+  stateVersion: number;
+  stale: boolean;
 };
 export const machineRules: ReviewRule[] = [
   {

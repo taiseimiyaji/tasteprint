@@ -50,6 +50,8 @@ backup-before-projects/            # pre-migration SQLite/assets/browser JSON
 
 DBファイルそのものが所有境界です。APIは登録済みprojectIdを検証してからそのDBを選び、参考・ジョブ・候補・レビュー・画像・ExportのIDをそのDB内で解決します。任意のホストパスは受け取りません。同一revision番号・冪等キーでも他プロジェクトとは独立しています。共通参考からプロジェクト用のFoundation・Review APIへはアクセスできません。
 
+Reviewの見送り理由はReview行ごとの `state_version` で更新順を管理します。旧DBの行は版0として読み、保存済みReview JSONと作成順は書き換えません。GET・Review作成・見送りの応答は列由来の `stateVersion` を返します。旧サーバーは2列前提の `INSERT INTO reviews VALUES (?,?)` を使用するため、このschemaへの更新前に旧サーバーを停止し、更新後はブラウザを再読込してください。旧版と新版を同時に動かすrolling更新には対応しません。
+
 Foundationのrevisionを設計revisionとして拡張しました。各行の `design` と `snapshot`（brief、sourceTasteProfileRevision、採用した回答・比較条件・原則・根拠・参考画像、固有方針、維持結果）は一緒に不変保存します。Foundation保存、概要確定、共通差分の採用、復元はこの連番に新しい行を作ります。旧Foundation行は変更せず `project_snapshots` で当時の所有情報を補完します。Components / Patternsの設定も同じ確定designとrevisionに保存し、同梱部品・パターンの操作例で確認します。任意コンポーネントのコード生成や自由なパターンビルダーは提供していません。詳細は [Components / Patterns](components-patterns.md) を参照してください。
 
 ルートは `/profile` と `/projects/:projectId/:step`。Queryのキャッシュキーと下書きのlocalStorageキーにもprojectIdを含めます。異なるプロジェクトではコンポーネントを再作成し、リクエストは開始時のスコープに固定します。Foundation・概要の下書きは元revisionを保持し、古い入力の上書きを拒否します。参考の分析・撮影には既存の参考version検証も適用します。
