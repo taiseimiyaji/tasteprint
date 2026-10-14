@@ -50,6 +50,7 @@ export function ReviewPanel({
   const foundationRequest = <T,>(path: string, body?: unknown) =>
     requestFoundation<T>(path, body, `${scope.api}/foundation`);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const observedReviews = useRef<Review[]>([]);
   const [error, setError] = useState("");
   const [readError, setReadError] = useState("");
   const [reading, setReading] = useState(0);
@@ -72,6 +73,30 @@ export function ReviewPanel({
     (c) => c.baseRevision === review?.baseRevision,
   );
   const candidate = candidates.find((c) => c.id === context.selectedId);
+  function updateReviews(update: (previous: Review[]) => Review[]) {
+    // Async mutation handlers must see reads committed after their render.
+    const next = update(observedReviews.current);
+    observedReviews.current = next;
+    setReviews(next);
+  }
+  function preserveObservedDismissals(reply: Review) {
+    const previous = observedReviews.current.find((r) => r.id === reply.id);
+    if (!previous) return reply;
+    // A dismissal cannot be undone; this reply may predate a newer GET.
+    const dismissals = new Map(
+      previous.findings
+        .filter((f) => f.dismissal !== undefined)
+        .map((f) => [f.id, f.dismissal!]),
+    );
+    return {
+      ...reply,
+      findings: reply.findings.map((f) =>
+        f.dismissal === undefined && dismissals.has(f.id)
+          ? { ...f, dismissal: dismissals.get(f.id)! }
+          : f,
+      ),
+    };
+  }
   function updateContext(
     key: string,
     update: (context: ReviewContext) => ReviewContext,
@@ -126,14 +151,15 @@ export function ReviewPanel({
   function commitReview(savedReview: Review, select = false) {
     if (!mounted.current) return;
     readVersion.current++;
-    setReviews((previous) =>
+    const merged = preserveObservedDismissals(savedReview);
+    updateReviews((previous) =>
       select
-        ? [savedReview, ...previous.filter((r) => r.id !== savedReview.id)]
-        : previous.some((r) => r.id === savedReview.id)
-          ? previous.map((r) => (r.id === savedReview.id ? savedReview : r))
-          : [...previous, savedReview],
+        ? [merged, ...previous.filter((r) => r.id !== merged.id)]
+        : previous.some((r) => r.id === merged.id)
+          ? previous.map((r) => (r.id === merged.id ? merged : r))
+          : [...previous, merged],
     );
-    reconcileContexts([savedReview]);
+    reconcileContexts([merged]);
     setReadError("");
   }
   async function refresh(preserveSelection = false) {
@@ -143,7 +169,7 @@ export function ReviewPanel({
     try {
       const data = await request<Review[]>();
       if (!mounted.current || version !== readVersion.current) return;
-      setReviews((previous) => {
+      updateReviews((previous) => {
         const selected =
           preserveSelection && data.find((r) => r.id === previous[0]?.id);
         return selected
@@ -462,7 +488,10 @@ export function ReviewPanel({
               key={r.id}
               disabled={busy}
               onClick={() => {
-                setReviews([r, ...reviews.filter((v) => v.id !== r.id)]);
+                updateReviews((previous) => {
+                  const selected = previous.find((v) => v.id === r.id) ?? r;
+                  return [selected, ...previous.filter((v) => v.id !== r.id)];
+                });
               }}
             >
               revision {r.baseRevision} · {r.createdAt}
