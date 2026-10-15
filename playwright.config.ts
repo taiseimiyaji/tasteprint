@@ -3,6 +3,8 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: "**/*.e2e.ts",
   fullyParallel: false,
+  // Tests share one temporary SQLite server, including the mutable Profile.
+  workers: 1,
   globalSetup: "./tests/e2e-setup.ts",
   use: {
     baseURL: "http://127.0.0.1:3100",

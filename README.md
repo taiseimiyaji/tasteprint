@@ -50,6 +50,8 @@ npm run test:built
 
 PRとmain更新ではGitHub ActionsがNode.js 24.13.0で上記の検証を実行します。PRではhead commitをチェックアウトし、`test:built`に含まれるビルドと一時SQLiteでの起動・PNG/ZIP出力も確認します。E2EはモックAIと一時データを使用し、Codex認証や実AI送信は不要です。失敗時のPlaywrightレポート・traceは7日間保持します。
 
+E2Eは1回の実行で共通Profileを含む一時SQLiteを共有するため、ローカルの既定実行も1 workerで直列化します。CIの各shardも1 workerです。
+
 E2Eの接続状態もモックです。テストサーバーはホスト認証や実Codexへの呼び出しを拒否し、実行終了時に呼び出しが0件だったことを確認します。テスト用の接続は実行ごとに1回だけ行い、worker再起動後も同じ一時セッションを使用します。セッションファイルはGit無視対象の `test-results/.session.json` に作成し、終了時に削除します。
 
 ## ドキュメント
