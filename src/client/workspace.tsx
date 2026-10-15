@@ -261,7 +261,11 @@ export function Workspace({
         ),
       );
       foundationReadVersion.current++;
-      setSaved(result);
+      // A newer Foundation read may have completed while this save reply was
+      // delayed. Keep Export pinned to the newest revision already observed.
+      setSaved((previous) =>
+        previous && previous.revision > result.revision ? previous : result,
+      );
       setDraftBase(result.revision);
       setState((s) => ({ ...s, design: result.design }));
       resetDraftContext();
