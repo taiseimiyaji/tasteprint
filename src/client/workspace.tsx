@@ -1328,7 +1328,11 @@ export function Workspace({
               applied={async (r) => {
                 foundationReadVersion.current++;
                 if (workspaceMounted.current) {
-                  setSaved(r);
+                  // A newer Foundation read may have completed while this
+                  // Review apply reply was delayed.
+                  setSaved((previous) =>
+                    previous && previous.revision > r.revision ? previous : r,
+                  );
                   setDraftBase(r.revision);
                   setState((s) => ({ ...s, design: r.design }));
                   resetDraftContext();
