@@ -1508,12 +1508,20 @@ export function ExportHistory({
   const scope = useScope(),
     action = useAction(),
     client = useQueryClient();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const query = useQuery({
     queryKey: ["exports", scope.id],
     queryFn: () => req<ExportRecord[]>(`${scope.api}/exports`),
     enabled: active,
   });
   const downloadFile = async (r: ExportRecord, name: string) => {
+    if (!mounted.current) return;
     const failure =
       "成果物のダウンロードに失敗しました。Export履歴から再試行してください。";
     let response: Response;
@@ -1522,8 +1530,10 @@ export function ExportHistory({
         `${scope.api}/exports/${r.id}/${encodeURIComponent(name)}`,
       );
     } catch {
+      if (!mounted.current) return;
       throw new Error(failure);
     }
+    if (!mounted.current) return;
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => null);
       const detail =
@@ -1539,8 +1549,10 @@ export function ExportHistory({
     try {
       blob = await response.blob();
     } catch {
+      if (!mounted.current) return;
       throw new Error(failure);
     }
+    if (!mounted.current) return;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1566,10 +1578,11 @@ export function ExportHistory({
   ) => {
     const r = await req<ExportRecord>(`${scope.api}/exports`, body);
     await commitExport(client, r);
+    if (!mounted.current) return;
     try {
       await download(r, extension);
     } finally {
-      await query.refetch();
+      if (mounted.current) await query.refetch();
     }
   };
   if (!active) return null;
