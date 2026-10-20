@@ -6,7 +6,9 @@ import { unzipSync } from "fflate";
 import sharp from "sharp";
 
 test.use({ actionTimeout: 10000 });
-const evidence = "../evidence/export-edited-consumer";
+const evidence =
+  process.env.EXPORT_CONSUMER_EVIDENCE_DIR ??
+  "../evidence/export-edited-consumer";
 const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const first = {
   Colors: {
@@ -149,6 +151,41 @@ async function metrics(root: Locator) {
 }
 const rgb = (hex: string) =>
   `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+async function captureRoot(page: Page, root: Locator, width: number) {
+  if (width !== 390) return root.screenshot();
+  const viewport = page.viewportSize()!;
+  const box = (await root.boundingBox())!;
+  const height = Math.ceil(box.y + box.height);
+  expect(box.x).toBe(0);
+  expect(box.y).toBe(0);
+  expect(box.width).toBe(width);
+  try {
+    // Keep the rounded bottom edge within the viewport for the first capture.
+    await page.setViewportSize({
+      width,
+      height: Math.max(viewport.height, height + 1),
+    });
+    expect(await root.boundingBox()).toEqual(box);
+    await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          window.scrollTo(0, 0);
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        }),
+    );
+    expect(await root.boundingBox()).toEqual(box);
+    expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual({
+      x: 0,
+      y: 0,
+    });
+    const image = await root.screenshot();
+    const metadata = await sharp(image).metadata();
+    expect([metadata.width, metadata.height]).toEqual([width, height]);
+    return image;
+  } finally {
+    await page.setViewportSize(viewport);
+  }
+}
 async function verifyAppearance(
   page: Page,
   id: string,
@@ -252,7 +289,7 @@ async function verifyAppearance(
     const normalRect = await root.boundingBox(),
       normalScroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
     await page.mouse.move(0, 0);
-    const normal = await root.screenshot();
+    const normal = await captureRoot(page, root, width);
     writeFileSync(
       join(evidence, `${edition}-${screen}-normal-${width}.png`),
       normal,
@@ -326,7 +363,7 @@ async function verifyAppearance(
       normalScroll,
     );
     await page.mouse.move(0, 0);
-    const exported = await portable.screenshot();
+    const exported = await captureRoot(page, portable, width);
     writeFileSync(
       join(evidence, `${edition}-${screen}-portable-${width}.png`),
       exported,
