@@ -315,6 +315,11 @@ svg {
   overflow-wrap: anywhere;
   text-align: left;
 }
+.export-history-target:target,
+.export-history-target:focus {
+  outline: 2px solid var(--green);
+  outline-offset: 5px;
+}
 .export-history-details {
   margin-top: 12px;
 }
