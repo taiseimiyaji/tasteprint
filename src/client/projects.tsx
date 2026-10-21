@@ -10,7 +10,7 @@ import { AppShell } from "./navigation";
 import { EditorActions } from "./components/EditorActions";
 import { TasteComparison, TasteSummary } from "./components/TasteComparison";
 import { References } from "./components/References";
-import { ScopeContext, jsonRequest, useScope } from "./scope";
+import { ScopeContext, draftKey, jsonRequest, useScope } from "./scope";
 import {
   type Brief,
   type Principle,
@@ -38,6 +38,7 @@ import {
   parseOverviewDraft,
   parsePositionDraft,
   parseUseTasteDraft,
+  parseWorkspaceDraft,
 } from "./draft-shapes";
 const req = jsonRequest;
 function useAction() {
@@ -1163,6 +1164,19 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
     </>
   );
 }
+function hasUnsavedFoundationDraft(id: string, current: Revision) {
+  try {
+    const raw = localStorage.getItem(draftKey(id));
+    if (!raw) return false;
+    const draft = parseWorkspaceDraft(JSON.parse(raw), current.revision);
+    return (
+      JSON.stringify(draft.state.design) !== JSON.stringify(current.design)
+    );
+  } catch {
+    // The Foundation editor owns recovery of unreadable browser drafts.
+    return false;
+  }
+}
 function Overview({
   current,
   refresh,
@@ -1175,6 +1189,20 @@ function Overview({
   const scope = useScope(),
     client = useQueryClient(),
     action = useAction();
+  const [hasFoundationDraft, setHasFoundationDraft] = useState(() =>
+    hasUnsavedFoundationDraft(scope.id, current),
+  );
+  useEffect(() => {
+    const update = () =>
+      setHasFoundationDraft(hasUnsavedFoundationDraft(scope.id, current));
+    update();
+    const key = draftKey(scope.id);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key || event.key === null) update();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [scope.id, current]);
   const [draft, setDraft, error, draftRecovery] = useDraft(
     `tasteprint.${scope.id}.overview`,
     {
@@ -1296,6 +1324,14 @@ function Overview({
           概要・方針を保存
         </button>
       </EditorActions>
+      {hasFoundationDraft && (
+        <div className="project-summary" role="status">
+          <span>設計の下書きがあります。</span>
+          <RouterLink to={`${scope.route}/foundation` as "/"}>
+            Foundationで下書きを確認
+          </RouterLink>
+        </div>
+      )}
       <DraftReadRecovery
         label="概要・方針"
         recovery={draftRecovery}
