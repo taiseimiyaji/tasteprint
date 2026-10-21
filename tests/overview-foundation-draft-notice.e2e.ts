@@ -23,6 +23,9 @@ test("resuming Overview points to an unfinished Foundation draft", async ({
   );
   await page.goto(`/projects/${project.id}/overview`);
   await expect(
+    page.getByRole("heading", { name: "Resume draft notice" }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("link", { name: "Foundationで下書きを確認" }),
   ).toHaveCount(0);
 
@@ -53,6 +56,9 @@ test("resuming Overview points to an unfinished Foundation draft", async ({
   ).toBe(2);
   await page.goto(`/projects/${other.id}/overview`);
   await expect(
+    page.getByRole("heading", { name: "No draft notice" }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("link", { name: "Foundationで下書きを確認" }),
   ).toHaveCount(0);
   await page.evaluate(
@@ -60,6 +66,9 @@ test("resuming Overview points to an unfinished Foundation draft", async ({
     other.id,
   );
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "No draft notice" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Foundationで下書きを確認" }),
   ).toHaveCount(0);
