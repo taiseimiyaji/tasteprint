@@ -18,7 +18,19 @@ test("390px Review summary reaches the proposal action without requesting AI", a
     )
       proposalPosts++;
   });
-  await page.goto(`/projects/${project.id}/review`);
+  const unsent = "https://example.com/unsent-review-shortcut";
+  const url = page.getByRole("textbox", { name: "Reference URL", exact: true });
+  const navigate = async (step: string) => {
+    await page.getByRole("button", { name: "メニュー", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "プロジェクトの設計", exact: true })
+      .getByRole("link", { name: step, exact: true })
+      .click();
+  };
+  await page.goto(`/projects/${project.id}/inspiration`);
+  await url.fill(unsent);
+  await navigate("AI Review");
+  await expect(page).toHaveURL(`/projects/${project.id}/review`);
   await page.getByRole("button", { name: "3画面を撮影してレビュー" }).click();
   const shortcut = page.getByRole("link", {
     name: "修正案を作成する場所へ移動",
@@ -32,4 +44,13 @@ test("390px Review summary reaches the proposal action without requesting AI", a
   await shortcut.click();
   await expect(action).toBeInViewport();
   expect(proposalPosts).toBe(0);
+  await navigate("Inspiration");
+  await expect(url).toHaveValue(unsent);
+  expect(
+    (
+      await (
+        await page.request.get(`/api/projects/${project.id}/references`)
+      ).json()
+    ).references,
+  ).toHaveLength(0);
 });
