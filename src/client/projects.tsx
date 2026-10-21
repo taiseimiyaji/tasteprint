@@ -426,7 +426,10 @@ function ProjectList({
             </div>
             <div className="project-row-export">
               {p.latestExport ? (
-                <RouterLink to={`/projects/${p.id}/export` as "/"}>
+                <RouterLink
+                  to={`/projects/${p.id}/export` as "/"}
+                  hash={`export-${p.latestExport.id}`}
+                >
                   最新Export r{p.latestExport.revision}
                 </RouterLink>
               ) : (
@@ -1508,6 +1511,11 @@ export function ExportHistory({
   const scope = useScope(),
     action = useAction(),
     client = useQueryClient();
+  const hash = useRouterState({ select: (state) => state.location.hash });
+  const targetExportId = hash.startsWith("export-")
+    ? hash.slice("export-".length)
+    : null;
+  const focusedTarget = useRef<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -1520,6 +1528,45 @@ export function ExportHistory({
     queryFn: () => req<ExportRecord[]>(`${scope.api}/exports`),
     enabled: active,
   });
+  const targetMissing =
+    !!targetExportId &&
+    query.isSuccess &&
+    !query.isFetching &&
+    !query.data.some((record) => record.id === targetExportId);
+  useEffect(() => {
+    if (!active || !targetExportId) {
+      focusedTarget.current = null;
+      return;
+    }
+    if (!query.isSuccess || query.isFetching) return;
+    const focusKey = `${scope.id}:${targetExportId}:${targetMissing}`;
+    if (focusedTarget.current === focusKey) return;
+    const id = targetMissing
+      ? "export-target-missing"
+      : `export-${targetExportId}`;
+    const frame = requestAnimationFrame(() => {
+      if (
+        window.location.pathname !== `${scope.route}/export` ||
+        window.location.hash !== `#export-${targetExportId}`
+      )
+        return;
+      const target = document.getElementById(id);
+      if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: "center" });
+        focusedTarget.current = focusKey;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    active,
+    query.isSuccess,
+    query.isFetching,
+    query.data,
+    scope.route,
+    targetExportId,
+    targetMissing,
+  ]);
   const downloadFile = async (r: ExportRecord, name: string) => {
     if (!mounted.current) return;
     const failure =
@@ -1675,13 +1722,22 @@ export function ExportHistory({
         </div>
       )}
       <h2>Export履歴</h2>
+      {targetMissing && (
+        <p id="export-target-missing" role="status" tabIndex={-1}>
+          指定した保存済みExportは履歴にありません。現在の履歴を確認してください。
+        </p>
+      )}
       {query.data?.map((r) => {
         const names = Object.keys(r.files);
         const zip = names.find((name) => name.endsWith(".zip"));
         const individual = names.filter((name) => name !== zip);
         return (
           <article key={r.id}>
-            <h3>
+            <h3
+              id={`export-${r.id}`}
+              className="export-history-target"
+              tabIndex={-1}
+            >
               r{r.revision} · 共通の好み r
               {r.sourceTasteProfileRevision ?? "なし"}
             </h3>
