@@ -1111,6 +1111,9 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
       </main>
     );
   const data = q.data;
+  const sourceTasteRevision = data.current.snapshot.sourceTasteProfileRevision;
+  const hasTasteUpdate =
+    sourceTasteRevision !== null && taste.revision !== sourceTasteRevision;
   return (
     <>
       {q.error && (
@@ -1128,15 +1131,12 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
           </button>
         </div>
       )}
-      {(data.project.archivedAt ||
-        taste.revision !==
-          data.current.snapshot.sourceTasteProfileRevision) && (
+      {(data.project.archivedAt || hasTasteUpdate) && (
         <div className="project-summary" role="status">
           {data.project.archivedAt && (
             <span>アーカイブ中 · 変更するには一覧から解除してください</span>
           )}
-          {taste.revision !==
-            data.current.snapshot.sourceTasteProfileRevision && (
+          {hasTasteUpdate && (
             <RouterLink to={`${scope.route}/overview` as "/"}>
               共通の好みに更新があります · 差分を確認
             </RouterLink>
