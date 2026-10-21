@@ -129,6 +129,7 @@ export function Workspace({
   const setDraftBase = (baseRevision: number) =>
     setWorkspaceDraft((d) => ({ ...d, baseRevision }));
   const [history, setHistory] = useState<Design[]>([]);
+  const [newReferenceUrl, setNewReferenceUrl] = useState("");
   const [saved, setSaved] = useState<Revision | null>(initial);
   const dirty =
     !!saved && JSON.stringify(saved.design) !== JSON.stringify(state.design);
@@ -156,10 +157,10 @@ export function Workspace({
   const policyNavigation = useBlocker({
     shouldBlockFn: ({ next }) =>
       policyWriting.current ||
-      (unpersistedDesign &&
+      ((unpersistedDesign || !!newReferenceUrl) &&
         !steps.some((step) => next.pathname === `${scope.route}/${step.id}`)),
     withResolver: true,
-    enableBeforeUnload: policySaving || unpersistedDesign,
+    enableBeforeUnload: policySaving || unpersistedDesign || !!newReferenceUrl,
   });
   useEffect(() => {
     if (policyNavigation.status === "blocked") {
@@ -168,13 +169,15 @@ export function Workspace({
         setPolicyNotice("方針の保存が完了してから移動してください。");
       else
         setNavigationNotice(
-          "下書きを保存できなかったため、移動を中止しました。入力はこの画面に保持しています。",
+          newReferenceUrl
+            ? "未送信の参考URLを保持するため、移動を中止しました。Inspirationで参考を追加するか入力を消してください。"
+            : "下書きを保存できなかったため、移動を中止しました。入力はこの画面に保持しています。",
         );
     }
   }, [policyNavigation.status]);
   useEffect(() => {
-    if (!unpersistedDesign) setNavigationNotice("");
-  }, [unpersistedDesign]);
+    if (!unpersistedDesign && !newReferenceUrl) setNavigationNotice("");
+  }, [unpersistedDesign, newReferenceUrl]);
   const foundationReadVersion = useRef(0);
   const busy =
     saving ||
@@ -1105,6 +1108,10 @@ export function Workspace({
                   </div>
                 )}
                 <References
+                  newUrlDraft={{
+                    value: newReferenceUrl,
+                    onChange: setNewReferenceUrl,
+                  }}
                   projectAdoption={{
                     disabledReason: policyDisabledReason,
                     hasPolicy: (id, index) =>

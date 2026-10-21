@@ -139,11 +139,13 @@ export function References({
   onAdopt,
   onBusyChange,
   projectAdoption,
+  newUrlDraft,
 }: {
   onChange: (references: SavedReference[]) => void;
   onAdopt?: (principle: Principle) => void;
   onBusyChange?: (busy: boolean, error?: string) => void;
   projectAdoption?: ProjectReferenceAdoption;
+  newUrlDraft?: { value: string; onChange: (value: string) => void };
 }) {
   const scope = useScope(),
     base = `${scope.api}/references`;
@@ -237,7 +239,9 @@ export function References({
   const removeReference = async (id: string) => {
     await commitReferenceReply(client, scope.id, id, null);
   };
-  const [url, setUrl] = useState("");
+  const [localUrl, setLocalUrl] = useState("");
+  const url = newUrlDraft?.value ?? localUrl;
+  const setUrl = newUrlDraft?.onChange ?? setLocalUrl;
   const [imageFile, setImageFile] = useState<File>();
   const [imageName, setImageName] = useState("");
   const [imageNameEdited, setImageNameEdited] = useState(false);
@@ -253,6 +257,12 @@ export function References({
   };
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const urlNavigationNotice = useDraftWriteExitGuard(
+    !!url && (!newUrlDraft || busy || !!unknownCreation?.input.url),
+    busy || unknownCreation?.input.url
+      ? "参考URLの追加結果を確認するまで、移動を中止しました。"
+      : "未送信の参考URLを保持するため、移動を中止しました。参考を追加するか入力を消してください。",
+  );
   const query = useQuery({
     queryKey,
     queryFn: () => request<ReferenceData>(),
@@ -352,6 +362,10 @@ export function References({
           参考を追加
         </button>
       </form>
+      {urlNavigationNotice && <p role="alert">{urlNavigationNotice}</p>}
+      <p>
+        入力中の参考URLは画面移動で失わないように保護します。再読み込みすると消えます。
+      </p>
       <form
         className="reference-form reference-image-form"
         aria-label="画像から参考を追加"

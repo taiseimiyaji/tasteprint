@@ -4,7 +4,7 @@ import type { SavedReference } from "../src/domain/reference";
 
 for (const width of [1440, 390])
   for (const kind of ["URL", "image"] as const)
-    test(`Project ${width} delayed initial ${kind} reply preserves a normally deleted Reference`, async ({
+    test(`Project ${width} delayed initial ${kind} reply ${kind === "URL" ? "blocks navigation until receipt" : "preserves a normally deleted Reference"}`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 1000 });
@@ -74,8 +74,8 @@ for (const width of [1440, 390])
       });
       page.on("response", (response) => {
         if (
-          new URL(response.url()).pathname ===
-          `${base}/${receipt?.id}/${kind === "URL" ? "jobs" : "image"}`
+          kind === "image" &&
+          new URL(response.url()).pathname === `${base}/${receipt?.id}/image`
         ) {
           expect(response.status()).toBe(404);
           followupDone();
@@ -104,22 +104,18 @@ for (const width of [1440, 390])
           .click();
       }
       await started;
-      const card = page
-        .locator(".reference-card")
-        .filter({
-          has: page.getByRole("heading", { name, level: 3, exact: true }),
-        });
-      const otherCard = page
-        .locator(".reference-card")
-        .filter({
-          has: page.getByRole("heading", {
-            name: other.name,
-            level: 3,
-            exact: true,
-          }),
-        });
+      const card = page.locator(".reference-card").filter({
+        has: page.getByRole("heading", { name, level: 3, exact: true }),
+      });
+      const otherCard = page.locator(".reference-card").filter({
+        has: page.getByRole("heading", {
+          name: other.name,
+          level: 3,
+          exact: true,
+        }),
+      });
       const key = `tasteprint.${project.id}.reference.${receipt.id}`;
-      const navigate = async (step: string) => {
+      const navigate = async (step: string, blocked = false) => {
         const link = page
           .getByRole("navigation", { name: "プロジェクトの設計", exact: true })
           .getByRole("link", { name: step, exact: true });
@@ -129,12 +125,30 @@ for (const width of [1440, 390])
             .click();
         await link.click();
         await expect(page).toHaveURL(
-          `/projects/${project.id}/${step.toLowerCase()}`,
+          `/projects/${project.id}/${blocked ? "inspiration" : step.toLowerCase()}`,
         );
       };
       try {
         // The first receipt is pending; a genuine collection read reveals its committed ID.
         await expect(card).toBeVisible({ timeout: 10000 });
+        if (kind === "URL") {
+          // The pending URL protects its create from step navigation. Once the
+          // receipt arrives, the input clears and the saved card remains.
+          await navigate("Foundation", true);
+          expect(posts).toBe(1);
+          release();
+          await expect(
+            page.getByRole("textbox", { name: "Reference URL", exact: true }),
+          ).toHaveValue("");
+          await expect(
+            page.getByRole("button", { name: "参考を追加", exact: true }),
+          ).toBeEnabled();
+          await navigate("Foundation");
+          await navigate("Inspiration");
+          await expect(card).toBeVisible();
+          expect(posts).toBe(1);
+          return;
+        }
         await navigate("Foundation");
         await navigate("Inspiration");
         await card
