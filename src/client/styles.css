@@ -309,6 +309,24 @@ svg {
   padding: 6px 10px;
   font-size: 12px;
 }
+.export-history-file {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.export-history-details {
+  margin-top: 12px;
+}
+.export-history-details summary {
+  cursor: pointer;
+}
+.export-history-file-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 292px;

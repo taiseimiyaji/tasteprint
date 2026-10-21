@@ -1585,6 +1585,21 @@ export function ExportHistory({
       if (mounted.current) await query.refetch();
     }
   };
+  const fileLink = (r: ExportRecord, name: string, primary = false) => (
+    <a
+      className={`button export-history-file${primary ? " primary" : ""}`}
+      key={name}
+      href={`${scope.api}/exports/${r.id}/${encodeURIComponent(name)}`}
+      download={name}
+      aria-disabled={action.busy}
+      onClick={(event) => {
+        event.preventDefault();
+        if (!action.busy) void action.run(() => downloadFile(r, name));
+      }}
+    >
+      {primary ? `保存済みZIPを再ダウンロード · ${name}` : name}
+    </a>
+  );
   if (!active) return null;
   return (
     <section>
@@ -1660,33 +1675,39 @@ export function ExportHistory({
         </div>
       )}
       <h2>Export履歴</h2>
-      {query.data?.map((r) => (
-        <article key={r.id}>
-          <h3>
-            r{r.revision} · 共通の好み r{r.sourceTasteProfileRevision ?? "なし"}
-          </h3>
-          <p>
-            {r.createdAt}{" "}
-            {r.templateVersion &&
-              `· Draft · ${r.imageMode === "omit" ? "画像なし" : "PNG 3画面"}`}
-          </p>
-          {Object.keys(r.files).map((name) => (
-            <a
-              className="button"
-              key={name}
-              href={`${scope.api}/exports/${r.id}/${encodeURIComponent(name)}`}
-              download={name}
-              aria-disabled={action.busy}
-              onClick={(event) => {
-                event.preventDefault();
-                if (!action.busy) void action.run(() => downloadFile(r, name));
-              }}
-            >
-              {name}
-            </a>
-          ))}
-        </article>
-      ))}
+      {query.data?.map((r) => {
+        const names = Object.keys(r.files);
+        const zip = names.find((name) => name.endsWith(".zip"));
+        const individual = names.filter((name) => name !== zip);
+        return (
+          <article key={r.id}>
+            <h3>
+              r{r.revision} · 共通の好み r
+              {r.sourceTasteProfileRevision ?? "なし"}
+            </h3>
+            <p>
+              {r.createdAt}{" "}
+              {r.templateVersion &&
+                `· Draft · ${r.imageMode === "omit" ? "画像なし" : "PNG 3画面"}`}
+            </p>
+            {zip && fileLink(r, zip, true)}
+            {zip ? (
+              individual.length > 0 && (
+                <details className="export-history-details">
+                  <summary>個別ファイルを表示（{individual.length}件）</summary>
+                  <div className="export-history-file-links">
+                    {individual.map((name) => fileLink(r, name))}
+                  </div>
+                </details>
+              )
+            ) : (
+              <div className="export-history-file-links">
+                {individual.map((name) => fileLink(r, name))}
+              </div>
+            )}
+          </article>
+        );
+      })}
     </section>
   );
 }
