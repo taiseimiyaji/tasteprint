@@ -151,16 +151,11 @@ test("late history from another project does not take the target focus", async (
   const firstReadGate = new Promise<void>(
     (resolve) => (releaseFirstRead = resolve),
   );
-  let finishFirstRead!: () => void;
-  const firstReadDone = new Promise<void>(
-    (resolve) => (finishFirstRead = resolve),
-  );
   await page.route(`**/api/projects/${first.id}/exports`, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     beginFirstRead();
     await firstReadGate;
     await route.continue();
-    finishFirstRead();
   });
   await page.goto("/projects");
   await page
@@ -180,8 +175,20 @@ test("late history from another project does not take the target focus", async (
     .click();
   const secondHeading = page.locator(`#export-${secondExport.id}`);
   await expect(secondHeading).toBeFocused();
+  const lateResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/projects/${first.id}/exports` &&
+      response.request().method() === "GET",
+  );
   releaseFirstRead();
-  await firstReadDone;
+  await (await lateResponse).finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   await expect(secondHeading).toBeFocused();
   await expect(page.locator(`#export-${firstExport.id}`)).toHaveCount(0);
   await expect(page).toHaveURL(
