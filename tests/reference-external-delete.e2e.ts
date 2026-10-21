@@ -29,7 +29,13 @@ test("a deleted URL Reference is removed after its delayed create receipt", asyn
   const gate = new Promise<void>((resolve) => (release = resolve));
   let receipt!: { id: string; version: number };
   let posts = 0;
+  let failRead = false;
   await page.route(`**${base}`, async (route) => {
+    if (route.request().method() === "GET" && failRead)
+      return route.fulfill({
+        status: 503,
+        json: { message: "List read failed" },
+      });
     if (route.request().method() !== "POST") return route.continue();
     posts++;
     const response = await route.fetch();
@@ -52,6 +58,15 @@ test("a deleted URL Reference is removed after its delayed create receipt", asyn
     has: page.getByRole("heading", { name: other.name, exact: true }),
   });
   await expect(card).toBeVisible();
+  const failedRead = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === base &&
+      response.request().method() === "GET" &&
+      response.status() === 503,
+  );
+  failRead = true;
+  await failedRead;
+  await expect(card).toBeVisible();
   const deleted = await page.request.delete(`${base}/${receipt.id}`, {
     data: { version: receipt.version },
   });
@@ -70,6 +85,7 @@ test("a deleted URL Reference is removed after its delayed create receipt", asyn
   await expect(card).toHaveCount(0);
   await expect(otherCard).toBeVisible();
   expect(posts).toBe(1);
+  failRead = false;
   await page.reload();
   await expect(card).toHaveCount(0);
   await expect(otherCard).toBeVisible();
