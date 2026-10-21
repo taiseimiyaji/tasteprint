@@ -36,7 +36,7 @@ npm start
 - 部品・パターンの操作例、3画面の実画像AIレビュー・アクセシビリティ検査・修正案の仮Previewと明示適用
 - 確定revisionに固定したMarkdown / JSON / CSS、DTCG / React / 3画面PNGを含むZIPと、プロジェクト別のExport履歴
 
-共通プロフィールとプロジェクトの確定データはSQLite、未保存の入力はスコープ別のlocalStorageに保存します。初回は起動ターミナルの接続コードを入力します。共通の好みを更新しても既存設計は変わらず、差分の明示採用で新revisionを作ります。旧SQLiteとブラウザ保存はバックアップ後、一度だけ既定プロジェクトへ移行します。[移行・保存・復旧の詳細](./docs/projects.md)を参照してください。DTCG / React / PNG / ZIP一括出力は実装済みです（下記参照）。Named Tunnel + Cloudflare Accessの実環境接続は未検証です（Issue #6）。
+共通プロフィールとプロジェクトの確定データはSQLite、未保存の入力はスコープ別のlocalStorageに保存します。追加前の参考URLはメモリにのみ保持し、再読み込み時には消去します。初回は起動ターミナルの接続コードを入力します。共通の好みを更新しても既存設計は変わらず、差分の明示採用で新revisionを作ります。旧SQLiteとブラウザ保存はバックアップ後、一度だけ既定プロジェクトへ移行します。[移行・保存・復旧の詳細](./docs/projects.md)を参照してください。DTCG / React / PNG / ZIP一括出力は実装済みです（下記参照）。Named Tunnel + Cloudflare Accessの実環境接続は未検証です（Issue #6）。
 
 ## 検証
 
