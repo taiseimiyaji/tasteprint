@@ -323,11 +323,19 @@ export function References({
               defaults(parsed.hostname, parsed.href),
             );
             setUrl("");
-            await saveJob(`/${ref.id}/jobs`, {
-              version: ref.version,
-              type: "capture",
-              key: crypto.randomUUID(),
-            });
+            try {
+              await saveJob(`/${ref.id}/jobs`, {
+                version: ref.version,
+                type: "capture",
+                key: crypto.randomUUID(),
+              });
+            } catch (error) {
+              // Another client can delete the accepted Reference before its
+              // capture job starts. A known 404 must not leave its card behind.
+              if (error instanceof ApiError && error.status === 404)
+                await commitReferenceReply(client, scope.id, ref.id, null);
+              throw error;
+            }
           });
         }}
       >
