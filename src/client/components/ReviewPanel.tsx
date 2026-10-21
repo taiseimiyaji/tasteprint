@@ -324,6 +324,11 @@ export function ReviewPanel({
             要判断の指摘数:{" "}
             {review.findings.filter((f) => f.source === "ai").length}
           </p>
+          {!stale && unresolvedFindings(review).length > 0 && (
+            <p>
+              <a href="#review-proposal-action">修正案を作成する場所へ移動</a>
+            </p>
+          )}
           {review.status === "partial" && (
             <p role="alert">検証未完了: {review.error} 再実行してください。</p>
           )}
@@ -425,6 +430,7 @@ export function ReviewPanel({
             </article>
           ))}
           <button
+            id="review-proposal-action"
             className="button"
             disabled={
               busy ||
