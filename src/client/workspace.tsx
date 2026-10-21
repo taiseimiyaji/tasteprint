@@ -93,9 +93,11 @@ import type { Conversation } from "../domain/projects";
 export function Workspace({
   initial,
   projectName,
+  archived,
 }: {
   initial: Revision;
   projectName: string;
+  archived: boolean;
 }) {
   const scope = useScope();
   const queryClient = useQueryClient();
@@ -1374,6 +1376,7 @@ export function Workspace({
               <ExportHistory
                 revision={saved.revision}
                 active={current.id === "export"}
+                archived={archived}
               />
             )}
             {current.id === "export" && (

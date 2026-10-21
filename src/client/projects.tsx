@@ -1159,6 +1159,7 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
           key={scope.id}
           initial={data.current}
           projectName={data.project.brief.name}
+          archived={!!data.project.archivedAt}
         />
       )}
     </>
@@ -1540,9 +1541,11 @@ function Overview({
 export function ExportHistory({
   revision,
   active = true,
+  archived,
 }: {
   revision: number;
   active?: boolean;
+  archived: boolean;
 }) {
   const scope = useScope(),
     action = useAction(),
@@ -1694,11 +1697,16 @@ export function ExportHistory({
         Draft · 未確認: Components / Patterns
         の個別仕様・全状態、実アプリでの設計とアクセシビリティ。
       </p>
+      {archived && (
+        <p role="status">
+          アーカイブ中は新しいExportを生成できません。保存済みファイルは下の履歴から取得できます。
+        </p>
+      )}
       {(["include", "omit"] as const).map((imageMode) => (
         <button
           key={imageMode}
           className="button"
-          disabled={action.busy}
+          disabled={action.busy || archived}
           onClick={() =>
             void action.run(() =>
               createAndDownload(
@@ -1727,7 +1735,7 @@ export function ExportHistory({
         <button
           key={label}
           className="button"
-          disabled={action.busy}
+          disabled={action.busy || archived}
           onClick={() =>
             void action.run(() =>
               createAndDownload({ baseRevision: revision }, ext),
