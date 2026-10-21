@@ -20,6 +20,7 @@ test("a failed file GET shows an error and history retries the saved ZIP without
       posts++;
   });
   expect((await page.request.post(probe)).ok()).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/projects/${project.id}/export`);
   await page
     .getByRole("button", { name: "画像なし ZIP を生成", exact: true })
@@ -36,6 +37,17 @@ test("a failed file GET shows an error and history retries the saved ZIP without
     .filter({ has: page.getByRole("heading", { name: "Export履歴" }) });
   const zip = history.getByRole("link", { name: /\.zip$/ });
   await expect(zip).toBeVisible();
+  await expect(
+    history.locator("article").first().locator("a").first(),
+  ).toHaveAttribute("download", /\.zip$/);
+  const individual = history.getByRole("link", {
+    name: "DESIGN.md",
+    exact: true,
+    includeHidden: true,
+  });
+  await expect(individual).toBeHidden();
+  await history.getByText(/個別ファイルを表示/).click();
+  await expect(individual).toBeVisible();
   expect(posts).toBe(1);
   expect(await (await page.request.get(`${base}/exports`)).json()).toHaveLength(
     1,
@@ -62,4 +74,27 @@ test("a failed file GET shows an error and history retries the saved ZIP without
   expect(
     (await (await page.request.get("/api/health")).json()).codexCalls,
   ).toBe(0);
+});
+
+test("standalone exports keep a direct download link in history", async ({
+  page,
+}) => {
+  const project = await (
+    await page.request.post("/api/projects", {
+      data: { brief: { name: "Standalone export history" }, useTaste: false },
+    })
+  ).json();
+  await page.goto(`/projects/${project.id}/export`);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "DESIGN.md", exact: true }).click();
+  await download;
+  const record = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Export履歴" }) })
+    .locator("article")
+    .first();
+  await expect(record.locator("details")).toHaveCount(0);
+  await expect(
+    record.getByRole("link", { name: /-DESIGN\.md$/ }),
+  ).toBeVisible();
 });
