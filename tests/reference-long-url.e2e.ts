@@ -3,11 +3,12 @@ import { initialState } from "../src/client/state";
 
 test("maximum saved Reference URL keeps mobile actions reachable and full URL editable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const prefix = "https://example.invalid/";
+  const suffix = crypto.randomUUID();
+  const prefix = `https://example.invalid/${suffix}/`;
   const longUrl = prefix + "a".repeat(2048 - prefix.length);
-  const referenceName = `Long URL reference ${crypto.randomUUID()}`;
+  const referenceName = `Long URL reference ${suffix}`;
   expect(longUrl.length).toBe(2048);
-  let base = "";
+  const base = "/api/projects/legacy/references";
   try {
     const imported = await page.request.post("/api/migration/browser", {
       data: {
@@ -24,7 +25,7 @@ test("maximum saved Reference URL keeps mobile actions reachable and full URL ed
     });
     expect(imported.ok()).toBe(true);
     const projectId = (await imported.json()).projectId as string;
-    base = `/api/projects/${projectId}/references`;
+    expect(projectId).toBe("legacy");
     await page.goto(`/projects/${projectId}/inspiration`);
     const card = page.locator(".reference-card").filter({ hasText: referenceName });
     await expect(card).toHaveCount(1);
@@ -70,21 +71,19 @@ test("maximum saved Reference URL keeps mobile actions reachable and full URL ed
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect((await (await page.request.get("/api/health")).json()).codexCalls).toBe(0);
   } finally {
-    if (base) {
-      const current = await page.request.get(base);
-      if (current.ok()) {
-        const reference = (await current.json()).references.find(
-          (row: { name: string }) => row.name === referenceName,
-        ) as { id: string; version: number } | undefined;
-        if (reference)
-          expect(
-            (
-              await page.request.delete(`${base}/${reference.id}`, {
-                data: { version: reference.version },
-              })
-            ).ok(),
-          ).toBe(true);
-      }
+    const current = await page.request.get(base);
+    if (current.ok()) {
+      const reference = (await current.json()).references.find(
+        (row: { name: string }) => row.name === referenceName,
+      ) as { id: string; version: number } | undefined;
+      if (reference)
+        expect(
+          (
+            await page.request.delete(`${base}/${reference.id}`, {
+              data: { version: reference.version },
+            })
+          ).ok(),
+        ).toBe(true);
     }
   }
 });
