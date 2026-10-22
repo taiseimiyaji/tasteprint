@@ -286,7 +286,7 @@ export function ComponentSpecimen({
         </label>
         <div className="specimen-control" data-state={state}>
           {name === "Button" ? (
-            <button {...attrs}>
+            <button type="button" {...attrs}>
               {state === "loading" ? "Saving…" : "Save changes"}
             </button>
           ) : name === "Input" ? (
