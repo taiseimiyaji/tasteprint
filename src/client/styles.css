@@ -3351,6 +3351,12 @@ svg {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
 }
+.project-row-title .project-purpose-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .project-meta,
 .project-row-export {
   font-size: 12px;

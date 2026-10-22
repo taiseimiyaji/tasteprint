@@ -418,7 +418,9 @@ function ProjectList({
           <article key={p.id}>
             <div className="project-row-title">
               <h2>{p.brief.name}</h2>
-              <p>{p.brief.purpose || "用途未設定"}</p>
+              <p className="project-purpose-preview">
+                {p.brief.purpose || "用途未設定"}
+              </p>
               <p className="project-meta">
                 {p.archivedAt ? "アーカイブ中" : "進行中"} · 設計 r
                 {p.activeRevision} · 更新{" "}
