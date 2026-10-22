@@ -245,6 +245,7 @@ function BriefFields({
             />
           ) : (
             <textarea
+              aria-label={label}
               rows={3}
               maxLength={2000}
               value={value[key]}
@@ -610,6 +611,7 @@ function ProjectList({
                   <label key={key}>
                     {label}
                     <textarea
+                      aria-label={label}
                       rows={3}
                       maxLength={2000}
                       value={brief[key]}

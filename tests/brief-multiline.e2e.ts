@@ -24,6 +24,9 @@ test("multiline brief fields survive creation and Overview edits", async ({
       await expect(field).toHaveJSProperty("tagName", "TEXTAREA");
       await field.fill(value);
       await expect(field).toHaveValue(value);
+      await expect(dialog.getByLabel(label, { exact: true })).toHaveValue(
+        value,
+      );
     }
     await dialog.getByLabel("共通の好みを使う", { exact: true }).uncheck();
     await dialog
@@ -41,9 +44,7 @@ test("multiline brief fields survive creation and Overview edits", async ({
     });
     await page.reload();
     for (const [label, value] of Object.entries(fields))
-      await expect(
-        page.getByRole("textbox", { name: label, exact: true }),
-      ).toHaveValue(value);
+      await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
     await expect(
       page.getByLabel("プロジェクト名", { exact: true }),
     ).toHaveJSProperty("tagName", "INPUT");
