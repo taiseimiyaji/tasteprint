@@ -814,17 +814,33 @@ function Principles({
           ).map(([key, label]) => (
             <label key={key}>
               {label}
-              <input
-                maxLength={key === "target" ? 100 : 2000}
-                value={p[key]}
-                onChange={(e) =>
-                  onChange(
-                    values.map((v) =>
-                      v.id === p.id ? { ...v, [key]: e.target.value } : v,
-                    ),
-                  )
-                }
-              />
+              {key === "target" ? (
+                <input
+                  maxLength={100}
+                  value={p.target}
+                  onChange={(e) =>
+                    onChange(
+                      values.map((v) =>
+                        v.id === p.id ? { ...v, target: e.target.value } : v,
+                      ),
+                    )
+                  }
+                />
+              ) : (
+                <textarea
+                  aria-label={label}
+                  rows={3}
+                  maxLength={2000}
+                  value={p[key]}
+                  onChange={(e) =>
+                    onChange(
+                      values.map((v) =>
+                        v.id === p.id ? { ...v, [key]: e.target.value } : v,
+                      ),
+                    )
+                  }
+                />
+              )}
             </label>
           ))}
           <label>
