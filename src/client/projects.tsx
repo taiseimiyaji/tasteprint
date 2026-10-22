@@ -453,11 +453,13 @@ function ProjectList({
               <RouterLink
                 className="button primary"
                 to={`/projects/${p.id}/overview` as "/"}
+                aria-label={`${p.brief.name}を再開`}
               >
                 再開
               </RouterLink>
               <button
                 className="button"
+                aria-label={`${p.brief.name}を${p.archivedAt ? "アーカイブ解除" : "アーカイブ"}`}
                 disabled={action.busy}
                 onClick={() =>
                   void action.run(async () => {

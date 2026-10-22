@@ -437,7 +437,7 @@ test("Workspace expiration drops Review context and rejects a late old-project r
         exact: true,
       }),
     });
-    await card.getByRole("link", { name: "再開", exact: true }).click();
+    await card.getByRole("link", { name: /を再開$/ }).click();
     await nav(page, "AI Review");
     await expect(reason(page, a.review)).toHaveValue("");
     await expect(choices(page)).toHaveCount(0);
@@ -495,7 +495,7 @@ test("An accepted late Review apply updates its project receipt without replacin
       }),
     });
     await expect(card).toContainText("設計 r2");
-    await card.getByRole("link", { name: "再開", exact: true }).click();
+    await card.getByRole("link", { name: /を再開$/ }).click();
     await expect(
       page.getByText("概要・設計方針 · 確定 r2", { exact: true }),
     ).toBeVisible();

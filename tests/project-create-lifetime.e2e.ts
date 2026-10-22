@@ -192,7 +192,7 @@ for (const [width, readFails, initialReadPending] of [
         has: page.getByRole("heading", { name: firstName, exact: true }),
       });
       await expect(row).toHaveCount(1);
-      await row.getByRole("link", { name: "再開", exact: true }).click();
+      await row.getByRole("link", { name: /を再開$/ }).click();
       await expect(page).toHaveURL(
         new RegExp(`/projects/${accepted!.id}/overview$`),
       );

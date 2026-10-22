@@ -202,7 +202,7 @@ test("archive successful reply changes the list even if GET fails", async ({
     fail = true;
     await route.fulfill({ response });
   });
-  await card.getByRole("button", { name: "アーカイブ", exact: true }).click();
+  await card.getByRole("button", { name: /をアーカイブ$/ }).click();
   await expect(page.getByRole("alert")).toContainText("一覧補助GET失敗");
   expect(
     (await (await page.request.get(`/api/projects/${project.id}`)).json())
@@ -211,11 +211,9 @@ test("archive successful reply changes the list even if GET fails", async ({
   await expect(card).toHaveCount(0);
   await page.getByRole("button", { name: /^アーカイブ \(/ }).click();
   await expect(
-    card.getByRole("button", { name: "アーカイブ解除", exact: true }),
+    card.getByRole("button", { name: /をアーカイブ解除$/ }),
   ).toBeEnabled();
-  await card
-    .getByRole("button", { name: "アーカイブ解除", exact: true })
-    .click();
+  await card.getByRole("button", { name: /をアーカイブ解除$/ }).click();
   await expect(card).toHaveCount(0);
   await expect(page.getByRole("alert")).toContainText("一覧補助GET失敗");
   fail = false;
@@ -665,7 +663,7 @@ test("a delayed archive from an unmounted list cannot undo a later unarchive", a
   });
   try {
     await card("Archive pending A")
-      .getByRole("button", { name: "アーカイブ", exact: true })
+      .getByRole("button", { name: /をアーカイブ$/ })
       .click();
     await started;
     await page
@@ -677,12 +675,12 @@ test("a delayed archive from an unmounted list cannot undo a later unarchive", a
       .getByRole("link", { name: "プロジェクト", exact: true })
       .click();
     await card("Archive refresh B")
-      .getByRole("button", { name: "アーカイブ", exact: true })
+      .getByRole("button", { name: /をアーカイブ$/ })
       .click();
     await expect(card("Archive pending A")).toHaveCount(0);
     await page.getByRole("button", { name: /^アーカイブ \(/ }).click();
     await card("Archive pending A")
-      .getByRole("button", { name: "アーカイブ解除", exact: true })
+      .getByRole("button", { name: /をアーカイブ解除$/ })
       .click();
     await expect(card("Archive pending A")).toHaveCount(0);
     failReads = true;
