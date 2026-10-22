@@ -40,6 +40,7 @@ import {
   parseUseTasteDraft,
   parseWorkspaceDraft,
 } from "./draft-shapes";
+import { duplicateProjectLabels, projectChoiceName } from "./project-labels";
 const req = jsonRequest;
 function useAction() {
   const [error, setError] = useState(""),
@@ -320,6 +321,7 @@ function ProjectList({
           .includes(search.trim().toLocaleLowerCase()),
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const duplicateLabels = duplicateProjectLabels(projects);
   return (
     <main className="projects-page">
       <div className="eyebrow">YOUR PROJECTS</div>
@@ -427,7 +429,14 @@ function ProjectList({
         {visible.map((p) => (
           <article key={p.id}>
             <div className="project-row-title">
-              <h2>{p.brief.name}</h2>
+              <h2>
+                {p.brief.name}
+                {duplicateLabels.get(p.id) && (
+                  <small className="project-duplicate-label">
+                    （{duplicateLabels.get(p.id)}）
+                  </small>
+                )}
+              </h2>
               <p className="project-purpose-preview">
                 {p.brief.purpose || "用途未設定"}
               </p>
@@ -453,13 +462,13 @@ function ProjectList({
               <RouterLink
                 className="button primary"
                 to={`/projects/${p.id}/overview` as "/"}
-                aria-label={`${p.brief.name}を再開`}
+                aria-label={`${projectChoiceName(p, duplicateLabels)}を再開`}
               >
                 再開
               </RouterLink>
               <button
                 className="button"
-                aria-label={`${p.brief.name}を${p.archivedAt ? "アーカイブ解除" : "アーカイブ"}`}
+                aria-label={`${projectChoiceName(p, duplicateLabels)}を${p.archivedAt ? "アーカイブ解除" : "アーカイブ"}`}
                 disabled={action.busy}
                 onClick={() =>
                   void action.run(async () => {
