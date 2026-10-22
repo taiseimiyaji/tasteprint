@@ -15,6 +15,7 @@ import {
   FileText,
 } from "lucide-react";
 import type { Project } from "../server/projects/service";
+import { duplicateProjectLabels, projectChoiceName } from "./project-labels";
 
 export const steps = [
   {
@@ -85,6 +86,7 @@ export function AppShell({
   const parts = path.split("/");
   const projectId = parts[1] === "projects" ? parts[2] : undefined;
   const project = projects.find((p) => p.id === projectId);
+  const duplicateLabels = duplicateProjectLabels(projects);
   const inProfile = parts[1] === "profile";
   const currentStep = parts[3] || "overview";
   useEffect(() => {
@@ -185,7 +187,7 @@ export function AppShell({
                 .filter((p) => !p.archivedAt || p.id === projectId)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.brief.name}
+                    {projectChoiceName(p, duplicateLabels)}
                     {p.archivedAt ? "（アーカイブ）" : ""}
                   </option>
                 ))}
