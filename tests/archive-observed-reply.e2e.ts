@@ -87,7 +87,7 @@ for (const width of [1440, 390])
       );
       await row
         .getByRole("button", {
-          name: externalArchived ? "アーカイブ解除" : "アーカイブ",
+          name: `Observed archive ${externalArchived} ${width}を${externalArchived ? "アーカイブ解除" : "アーカイブ"}`,
           exact: true,
         })
         .click();
@@ -137,7 +137,7 @@ for (const width of [1440, 390])
         expect(canonical.activeRevision).toBe(1);
         expect(canonical.archiveVersion).toBe(initialVersion + 2);
         expect(browserPosts).toBe(1);
-        await row.getByRole("link", { name: "再開", exact: true }).click();
+        await row.getByRole("link", { name: /を再開$/ }).click();
         await expect(
           page.getByRole("alert").filter({ hasText: "PROJECT_READ_FAILED" }),
         ).toBeVisible();

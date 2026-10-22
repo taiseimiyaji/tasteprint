@@ -39,7 +39,7 @@ test("resuming Overview points to an unfinished Foundation draft", async ({
   await page
     .locator(".project-list article")
     .filter({ has: page.getByRole("heading", { name: "Resume draft notice" }) })
-    .getByRole("link", { name: "再開", exact: true })
+    .getByRole("link", { name: /を再開$/ })
     .click();
   await expect(page).toHaveURL(`/projects/${project.id}/overview`);
   await expect(page.locator(".editor-actions")).toContainText(

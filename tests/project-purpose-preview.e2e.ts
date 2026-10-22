@@ -57,6 +57,6 @@ test("long project purpose stays searchable without burying mobile resume action
   await expect(rows.nth(1).locator(".project-purpose-preview")).toHaveText("短い説明");
   await page.getByLabel("プロジェクトを検索", { exact: true }).fill(tail);
   await expect(rows).toHaveCount(1);
-  await expect(long.getByRole("link", { name: "再開", exact: true })).toBeVisible();
+  await expect(long.getByRole("link", { name: /を再開$/ })).toBeVisible();
   expect((await (await page.request.get("/api/health")).json()).codexCalls).toBe(0);
 });

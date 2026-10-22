@@ -353,7 +353,7 @@ test("late saves and stale drafts cannot overwrite the next project's screen", a
     .filter({
       has: page.getByRole("heading", { name: "Delayed B", exact: true }),
     })
-    .getByRole("link", { name: "再開", exact: true })
+    .getByRole("link", { name: /を再開$/ })
     .click();
   await page
     .getByRole("navigation", { name: "プロジェクトの設計" })
@@ -755,14 +755,12 @@ test("project list supports resume, search, archive, creation drafts and recover
     .fill("検索と再開");
   const row = page.locator(".project-list article");
   await expect(row).toHaveCount(1);
-  await row.getByRole("button", { name: "アーカイブ", exact: true }).click();
+  await row.getByRole("button", { name: /をアーカイブ$/ }).click();
   await expect(page.getByRole("status")).toContainText("アーカイブしました");
   await expect(row).toHaveCount(0);
   await page.getByRole("button", { name: /^アーカイブ \(/ }).click();
   await expect(row).toHaveCount(1);
-  await row
-    .getByRole("button", { name: "アーカイブ解除", exact: true })
-    .click();
+  await row.getByRole("button", { name: /をアーカイブ解除$/ }).click();
   await page.getByRole("button", { name: /^進行中 \(/ }).click();
   await expect(row).toHaveCount(1);
   await page
@@ -2207,11 +2205,9 @@ test("Profile keeps an adopted principle and cancels pending navigation when ano
       raw,
     });
     await expect(
-      page
-        .getByRole("alert")
-        .filter({
-          hasText: "共通の好みの下書きが別タブ・別画面で変更されています",
-        }),
+      page.getByRole("alert").filter({
+        hasText: "共通の好みの下書きが別タブ・別画面で変更されています",
+      }),
     ).toBeVisible();
     await page.getByRole("link", { name: "プロジェクト", exact: true }).click();
     await expect(

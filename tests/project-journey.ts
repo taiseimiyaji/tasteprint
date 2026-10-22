@@ -130,16 +130,14 @@ export async function projectJourney(page: import("@playwright/test").Page) {
   const card = page.locator(".project-list article").filter({
     has: page.getByRole("heading", { name: "個人サイト", exact: true }),
   });
-  await card.getByRole("button", { name: "アーカイブ", exact: true }).click();
+  await card.getByRole("button", { name: /をアーカイブ$/ }).click();
   await page.getByRole("button", { name: /^アーカイブ \(/ }).click();
   await expect(
-    card.getByRole("button", { name: "アーカイブ解除", exact: true }),
+    card.getByRole("button", { name: /をアーカイブ解除$/ }),
   ).toBeVisible();
-  await card
-    .getByRole("button", { name: "アーカイブ解除", exact: true })
-    .click();
+  await card.getByRole("button", { name: /をアーカイブ解除$/ }).click();
   await page.getByRole("button", { name: /^進行中 \(/ }).click();
-  await card.getByRole("link", { name: "再開", exact: true }).click();
+  await card.getByRole("link", { name: /を再開$/ }).click();
   await expect(
     page.getByRole("heading", { name: "個人サイト", exact: true }),
   ).toBeVisible();
