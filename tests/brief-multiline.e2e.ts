@@ -30,6 +30,15 @@ test("multiline brief fields survive creation and Overview edits", async ({
       .getByRole("button", { name: "プロジェクトを作成", exact: true })
       .click();
     await page.waitForURL(/\/projects\/[^/]+\/overview/);
+    const projectId = new URL(page.url()).pathname.split("/")[2];
+    const created = await page.request.get(`/api/projects/${projectId}`);
+    expect(created.ok()).toBe(true);
+    expect((await created.json()).current.snapshot.brief).toMatchObject({
+      purpose: fields.用途,
+      audience: fields.対象ユーザー,
+      desired: fields.目指す印象,
+      avoid: fields.避けたい印象,
+    });
     await page.reload();
     for (const [label, value] of Object.entries(fields))
       await expect(
@@ -55,6 +64,9 @@ test("multiline brief fields survive creation and Overview edits", async ({
     await expect(page.locator(".editor-actions")).toContainText(
       "保存済み · 設計 r2",
     );
+    const saved = await page.request.get(`/api/projects/${projectId}`);
+    expect(saved.ok()).toBe(true);
+    expect((await saved.json()).current.snapshot.brief.purpose).toBe(revised);
     await page.reload();
     await expect(
       page.getByRole("textbox", { name: "用途", exact: true }),
