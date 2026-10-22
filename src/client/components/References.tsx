@@ -715,7 +715,7 @@ function ReferenceCard({
           </p>
         )}
         <h3>{r.name}</h3>
-        <p>{r.url || "Uploaded image"}</p>
+        <p className="reference-url-preview">{r.url || "Uploaded image"}</p>
         {r.capture && (
           <details>
             <summary>取得情報・構造情報</summary>
