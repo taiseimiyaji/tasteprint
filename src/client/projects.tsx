@@ -1194,6 +1194,7 @@ function ProjectArea({ step, taste }: { step: string; taste: TasteRevision }) {
           current={data.current}
           refresh={() => q.refetch()}
           taste={taste}
+          archived={!!data.project.archivedAt}
         />
       ) : (
         <Workspace
@@ -1223,10 +1224,12 @@ function Overview({
   current,
   refresh,
   taste,
+  archived,
 }: {
   current: Revision & { snapshot: ProjectSnapshot };
   refresh: () => Promise<unknown>;
   taste: TasteRevision;
+  archived: boolean;
 }) {
   const scope = useScope(),
     client = useQueryClient(),
@@ -1329,13 +1332,15 @@ function Overview({
         error={action.error || error}
         notice={notice}
         disabledReason={
-          stale
-            ? "下書きの版が古くなっています。最新の確定版を読み込んでください。"
-            : !dirty
-              ? "保存する変更はありません。"
-              : !draft.brief.name.trim()
-                ? "プロジェクト名を入力してください。"
-                : undefined
+          archived
+            ? "アーカイブ中です。一覧から解除してから保存してください。"
+            : stale
+              ? "下書きの版が古くなっています。最新の確定版を読み込んでください。"
+              : !dirty
+                ? "保存する変更はありません。"
+                : !draft.brief.name.trim()
+                  ? "プロジェクト名を入力してください。"
+                  : undefined
         }
       >
         <button
@@ -1357,6 +1362,7 @@ function Overview({
           className="button primary"
           disabled={
             action.busy ||
+            archived ||
             draftRecovery.blocked ||
             stale ||
             !dirty ||
@@ -1383,6 +1389,7 @@ function Overview({
         id="overview-form"
         onSubmit={(e) => {
           e.preventDefault();
+          if (archived) return;
           void action.run(async () => {
             let r: ProjectData["current"];
             try {

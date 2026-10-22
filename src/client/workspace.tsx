@@ -748,17 +748,19 @@ export function Workspace({
       if (workspaceMounted.current) setPolicySaving(false);
     }
   }
-  const saveDisabledReason = !saved
-    ? "確定版の読み込みを待ってください。"
-    : stale
-      ? "下書きの版が古くなっています。内容を確認し、最新の確定版を読み込んでください。"
-      : !validInput
-        ? "入力欄のエラーを修正すると保存できます。"
-        : staged
-          ? "AI候補を採用するか見送ってから手動の変更を保存してください。"
-          : !dirty
-            ? "保存する変更はありません。"
-            : undefined;
+  const saveDisabledReason = archived
+    ? "アーカイブ中です。一覧から解除してから保存してください。"
+    : !saved
+      ? "確定版の読み込みを待ってください。"
+      : stale
+        ? "下書きの版が古くなっています。内容を確認し、最新の確定版を読み込んでください。"
+        : !validInput
+          ? "入力欄のエラーを修正すると保存できます。"
+          : staged
+            ? "AI候補を採用するか見送ってから手動の変更を保存してください。"
+            : !dirty
+              ? "保存する変更はありません。"
+              : undefined;
   return (
     <div className={`workspace ${chatOpen ? "" : "chat-closed"}`}>
       <div className="workspace-body">
@@ -864,7 +866,7 @@ export function Workspace({
                     </button>
                     <button
                       className="button primary"
-                      disabled={busy}
+                      disabled={busy || archived}
                       onClick={() => {
                         if (proposal.data?.supported)
                           void commit("/apply", {
