@@ -236,12 +236,22 @@ function BriefFields({
       ).map(([key, label]) => (
         <label key={key}>
           {label}
-          <input
-            required={key === "name"}
-            maxLength={key === "name" ? 100 : 2000}
-            value={value[key]}
-            onChange={(e) => onChange({ ...value, [key]: e.target.value })}
-          />
+          {key === "name" ? (
+            <input
+              required
+              maxLength={100}
+              value={value.name}
+              onChange={(e) => onChange({ ...value, name: e.target.value })}
+            />
+          ) : (
+            <textarea
+              aria-label={label}
+              rows={3}
+              maxLength={2000}
+              value={value[key]}
+              onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+            />
+          )}
         </label>
       ))}
     </div>
@@ -600,7 +610,9 @@ function ProjectList({
                 ).map(([key, label]) => (
                   <label key={key}>
                     {label}
-                    <input
+                    <textarea
+                      aria-label={label}
+                      rows={3}
                       maxLength={2000}
                       value={brief[key]}
                       onChange={(e) =>
