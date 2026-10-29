@@ -1549,6 +1549,10 @@ svg {
 .review-results {
   margin-top: 20px;
 }
+.review-dna {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .review-row {
   display: flex;
   gap: 15px;
