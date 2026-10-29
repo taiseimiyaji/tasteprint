@@ -6,7 +6,7 @@ for (const screen of ["settings", "form"]) {
     page,
   }) => {
     const { record } = await openExportConsumer(page, screen);
-    expect(record.templateVersion).toBe("preview-15");
+    expect(record.templateVersion).toBe("preview-16");
     await page.clock.install();
     const first = page.locator("input[required]").first();
     const second = page.locator("input[required]").nth(1);
