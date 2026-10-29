@@ -763,8 +763,9 @@ export function Workspace({
     <div className={`workspace ${chatOpen ? "" : "chat-closed"}`}>
       <div className="workspace-body">
         <header className="topbar">
-          <div>
-            Workspace <ChevronRight size={13} />
+          <div className="topbar-location">
+            <span className="topbar-prefix">Workspace</span>
+            <ChevronRight size={13} />
             <span>{current.name}</span>
           </div>
           <div className="topbar-actions">

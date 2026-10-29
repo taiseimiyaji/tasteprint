@@ -255,6 +255,9 @@ svg {
 .topbar > div > span {
   color: #51594c;
 }
+.topbar .topbar-prefix {
+  color: inherit;
+}
 .topbar-actions {
   gap: 15px !important;
 }
@@ -2382,6 +2385,12 @@ svg {
   }
   .intro-strip small {
     font-size: 9px;
+  }
+}
+@media (max-width: 359px) {
+  .topbar-location .topbar-prefix,
+  .topbar-location > svg {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
