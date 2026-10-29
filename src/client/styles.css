@@ -2813,6 +2813,10 @@ svg {
   max-height: 420px;
   overflow: auto;
 }
+.taste-snapshot {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .brief-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

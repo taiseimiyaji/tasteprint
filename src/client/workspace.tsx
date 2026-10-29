@@ -1156,7 +1156,9 @@ export function Workspace({
                 <p>
                   このプロジェクトの確定版を使用しています。共通の回答変更は「自分の好み」で保存し、概要から差分を取り込んでください。
                 </p>
-                <pre>{JSON.stringify(saved?.snapshot?.taste, null, 2)}</pre>
+                <pre className="taste-snapshot">
+                  {JSON.stringify(saved?.snapshot?.taste, null, 2)}
+                </pre>
                 <Link to="/$step" params={{ step: "taste" }}>
                   自分の好みを見直す
                 </Link>
