@@ -139,10 +139,12 @@ function dialogControls(dialog: HTMLDialogElement) {
 export function RuntimeDialog({
   open,
   close,
+  onConfirm,
   children,
 }: {
   open: boolean;
   close: () => void;
+  onConfirm?: () => void;
   children?: ReactNode;
 }) {
   const titleId = useId(),
@@ -186,7 +188,11 @@ export function RuntimeDialog({
       <button type="button" data-component="Button" autoFocus onClick={close}>
         Cancel
       </button>
-      <button type="button" data-component="Button" onClick={close}>
+      <button
+        type="button"
+        data-component="Button"
+        onClick={onConfirm ?? close}
+      >
         Confirm
       </button>
     </dialog>

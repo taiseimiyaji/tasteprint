@@ -66,11 +66,14 @@ export function Preview({
     [archived, setArchived] = useState(false);
   const [rows, setRows] = useState(previewRows),
     [open, setOpen] = useState(false),
-    [name, setName] = useState("");
+    [name, setName] = useState(""),
+    [nameError, setNameError] = useState("");
   const [saved, setSaved] = useState(false),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const editSequence = useRef(0);
+  const projectForm = useRef<HTMLFormElement>(null);
+  const projectNameInput = useRef<HTMLInputElement>(null);
   const filtered = rows.filter(
     (r) =>
       !archived &&
@@ -310,12 +313,25 @@ export function Preview({
               )}
             </Pattern>
           )}
-          <RuntimeDialog open={open} close={() => setOpen(false)}>
+          <RuntimeDialog
+            open={open}
+            close={() => setOpen(false)}
+            onConfirm={
+              screen === "list"
+                ? () => projectForm.current?.requestSubmit()
+                : undefined
+            }
+          >
             {screen === "list" ? (
               <form
+                ref={projectForm}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!name.trim()) return;
+                  if (!name.trim()) {
+                    setNameError("名前を入力してください。");
+                    projectNameInput.current?.focus();
+                    return;
+                  }
                   setRows([
                     ...rows,
                     {
@@ -328,18 +344,24 @@ export function Preview({
                     },
                   ]);
                   setName("");
+                  setNameError("");
                   setOpen(false);
                 }}
               >
                 <label>
                   New project name
                   <Input
+                    ref={projectNameInput}
                     data-component="Input"
                     required
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setNameError("");
+                    }}
                   />
                 </label>
+                {nameError && <p role="alert">{nameError}</p>}
                 <Button data-component="Button">Create</Button>
               </form>
             ) : (
