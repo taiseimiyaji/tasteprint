@@ -342,7 +342,9 @@ export function ReviewPanel({
           </details>
           <details>
             <summary>入力画像・DNA・関連ルール</summary>
-            <pre>{JSON.stringify(review.dna, null, 2)}</pre>
+            <pre className="review-dna">
+              {JSON.stringify(review.dna, null, 2)}
+            </pre>
             {review.images.map((id, i) => (
               <a
                 key={id}
