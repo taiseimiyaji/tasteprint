@@ -1,5 +1,5 @@
 import { Button, Input, Select } from "./TemplateControls";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Design } from "../../domain/design";
 import type { PatternName } from "../../domain/library";
 import {
@@ -70,6 +70,7 @@ export function Preview({
   const [saved, setSaved] = useState(false),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
+  const editSequence = useRef(0);
   const filtered = rows.filter(
     (r) =>
       !archived &&
@@ -221,14 +222,16 @@ export function Preview({
               name={screen === "settings" ? "SettingsSection" : "FormSection"}
               onSubmit={(e) => {
                 e.preventDefault();
+                const submittedEditSequence = editSequence.current;
                 setLoading(true);
                 setSaved(false);
                 setTimeout(() => {
                   setLoading(false);
-                  setSaved(true);
+                  setSaved(editSequence.current === submittedEditSequence);
                 }, 300);
               }}
               onChange={() => {
+                editSequence.current += 1;
                 setSaved(false);
                 setError("");
               }}
