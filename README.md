@@ -48,7 +48,7 @@ npm run test:e2e
 npm run test:built
 ```
 
-PRとmain更新ではGitHub ActionsがNode.js 24.13.0で上記の検証を実行します。PRではhead commitをチェックアウトし、`test:built`に含まれるビルドと一時SQLiteでの起動・PNG/ZIP出力も確認します。E2EはモックAIと一時データを使用し、Codex認証や実AI送信は不要です。失敗時のPlaywrightレポート・traceは7日間保持します。
+PRとmain更新ではGitHub ActionsがNode.js 22.13.0（最低サポート版）と24.13.0で型検査・単体テスト・`test:built`を実行し、ブラウザーE2E全体は24.13.0で実行します。PRではhead commitをチェックアウトし、`test:built`に含まれるビルドと一時SQLiteでの起動・PNG/ZIP出力も確認します。E2EはモックAIと一時データを使用し、Codex認証や実AI送信は不要です。失敗時のPlaywrightレポート・traceは7日間保持します。
 
 E2Eは1回の実行で共通Profileを含む一時SQLiteを共有するため、ローカルの既定実行も1 workerで直列化します。CIの各shardも1 workerです。
 

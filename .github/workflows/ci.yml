@@ -16,6 +16,10 @@ jobs:
   validation:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.13.0, 24.13.0]
     env:
       CI: true
     steps:
@@ -27,7 +31,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 24.13.0
+          node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
       - name: Install Chromium and system dependencies
@@ -39,7 +43,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: validation-failures-${{ github.event.pull_request.head.sha || github.sha }}
+          name: validation-failures-node-${{ matrix.node-version }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             playwright-report/
             test-results/
