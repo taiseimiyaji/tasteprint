@@ -8,8 +8,10 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { ProjectService } from "./projects/service";
 import { projectRoutes } from "./projects/routes";
+import { publicOrigin } from "./request-origin";
 const built = import.meta.url.includes("/dist/");
 const port = Number(process.env.PORT || (built ? 3000 : 3001));
+const externalOrigin = publicOrigin(process.env.TASTEPRINT_PUBLIC_ORIGIN);
 const references = new ProjectService(
   process.env.TASTEPRINT_DATA_DIR || join(homedir(), ".tasteprint"),
   { previewOrigin: `http://127.0.0.1:${built ? port : 3000}` },
@@ -17,7 +19,12 @@ const references = new ProjectService(
 const pairingCode = randomBytes(16).toString("hex");
 app.route(
   "/api",
-  projectRoutes(references, pairingCode, [port, ...(built ? [] : [3000])]),
+  projectRoutes(
+    references,
+    pairingCode,
+    [port, ...(built ? [] : [3000])],
+    externalOrigin,
+  ),
 );
 console.log(`Tasteprint 接続コード: ${pairingCode}`);
 if (built) {
@@ -27,9 +34,7 @@ if (built) {
   app.get("*", serveStatic({ path: `${root}index.html` }));
 }
 const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, () =>
-  console.log(
-    `Tasteprint ${built ? "app" : "API"}: http://127.0.0.1:${port}`,
-  ),
+  console.log(`Tasteprint ${built ? "app" : "API"}: http://127.0.0.1:${port}`),
 );
 for (const signal of ["SIGTERM", "SIGINT"])
   process.on(signal, () =>

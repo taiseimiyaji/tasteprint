@@ -15,12 +15,15 @@ import {
   tasteSchema,
 } from "../../domain/projects";
 import { CodexGateway } from "../codex/gateway";
+import { requestOrigin } from "../request-origin";
 const revision = z.number().int().positive();
 export function projectRoutes(
   service: ProjectService,
   code: string,
   ports = [3000, 3001],
+  externalOrigin?: string,
 ) {
+  const validateOrigin = requestOrigin(ports, externalOrigin);
   const sessions = new Set<string>();
   let paired = false;
   const apps = new Map<string, Hono>();
@@ -43,19 +46,12 @@ export function projectRoutes(
             );
   const routes = new Hono()
     .use("*", async (c, next) => {
-      const host = c.req.header("host") || new URL(c.req.url).host,
-        origin = c.req.header("origin");
-      if (
-        !ports.some(
-          (p) => host === `localhost:${p}` || host === `127.0.0.1:${p}`,
-        ) ||
-        (origin && origin !== `http://${host}`)
-      )
+      if (!validateOrigin(c))
         return c.json({ message: "許可されていないHost・Originです。" }, 403);
       c.header("Cache-Control", "no-store");
       c.header("X-Content-Type-Options", "nosniff");
       if (
-        !c.req.path.endsWith("/pair") &&
+        c.req.path !== "/api/pair" &&
         !sessions.has(getCookie(c, "tasteprint_session") || "")
       )
         return c.json(
@@ -90,6 +86,7 @@ export function projectRoutes(
       sessions.add(session);
       setCookie(c, "tasteprint_session", session, {
         httpOnly: true,
+        secure: validateOrigin(c)!.secure,
         sameSite: "Strict",
         path: "/",
         maxAge: 86400,

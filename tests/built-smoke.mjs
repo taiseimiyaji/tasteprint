@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import net from "node:net";
+import { request as httpRequest } from "node:http";
 import { unzipSync } from "fflate";
 import sharp from "sharp";
 const probe = net.createServer();
@@ -12,11 +13,30 @@ const port = probe.address().port;
 await new Promise((resolve) => probe.close(resolve));
 const directory = await mkdtemp(join(tmpdir(), "tasteprint-built-smoke-"));
 const child = spawn(process.execPath, ["dist/server/index.js"], {
-  env: { ...process.env, PORT: String(port), TASTEPRINT_DATA_DIR: directory },
+  env: {
+    ...process.env,
+    PORT: String(port),
+    TASTEPRINT_DATA_DIR: directory,
+    TASTEPRINT_PUBLIC_ORIGIN: "https://tasteprint.aromarevo.com",
+  },
   stdio: ["ignore", "pipe", "pipe"],
 });
 const exited = new Promise((resolve) => child.once("exit", resolve));
 const base = `http://127.0.0.1:${port}`;
+// Node fetch may discard Host overrides. Use the real HTTP transport to model cloudflared.
+const publicRequest = (headers = {}, method = "GET") =>
+  new Promise((resolve, reject) => {
+    const req = httpRequest(
+      base + "/api/projects",
+      { method, headers: { Host: "tasteprint.aromarevo.com", ...headers } },
+      (response) => {
+        response.resume();
+        response.on("end", () => resolve(response.statusCode));
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
 let code = "",
   logs = "",
   ready = false;
@@ -32,6 +52,18 @@ try {
   for (let i = 0; i < 50 && !ready && child.exitCode === null; i++)
     await new Promise((resolve) => setTimeout(resolve, 100));
   assert(ready, `Built server did not start: ${logs}`);
+  assert.equal(
+    await publicRequest({ Origin: "https://tasteprint.aromarevo.com" }),
+    401,
+    "Configured public Host must still require session pairing",
+  );
+  assert.equal(
+    await publicRequest({}, "POST"),
+    403,
+    "Public state changes must require the exact HTTPS Origin",
+  );
+  assert.equal(await publicRequest({ Origin: "https://evil.test" }), 403);
+  assert.equal(await publicRequest({ Host: "evil.test" }), 403);
   assert.equal((await fetch(base + "/api/profile/references")).status, 401);
   const pair = await fetch(base + "/api/pair", {
     method: "POST",
@@ -44,6 +76,14 @@ try {
     "Content-Type": "application/json",
     Cookie: pair.headers.get("set-cookie").split(";")[0],
   };
+  assert.equal(
+    await publicRequest({
+      Origin: "https://tasteprint.aromarevo.com",
+      Cookie: headers.Cookie,
+    }),
+    200,
+    "Public Host must accept a paired session through the HTTP origin transport",
+  );
   const created = await fetch(base + "/api/projects", {
     method: "POST",
     headers,
