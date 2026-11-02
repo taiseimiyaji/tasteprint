@@ -12,7 +12,12 @@ const port = probe.address().port;
 await new Promise((resolve) => probe.close(resolve));
 const directory = await mkdtemp(join(tmpdir(), "tasteprint-built-smoke-"));
 const child = spawn(process.execPath, ["dist/server/index.js"], {
-  env: { ...process.env, PORT: String(port), TASTEPRINT_DATA_DIR: directory },
+  env: {
+    ...process.env,
+    PORT: String(port),
+    TASTEPRINT_DATA_DIR: directory,
+    TASTEPRINT_PUBLIC_ORIGIN: "https://tasteprint.aromarevo.com",
+  },
   stdio: ["ignore", "pipe", "pipe"],
 });
 const exited = new Promise((resolve) => child.once("exit", resolve));
@@ -32,6 +37,22 @@ try {
   for (let i = 0; i < 50 && !ready && child.exitCode === null; i++)
     await new Promise((resolve) => setTimeout(resolve, 100));
   assert(ready, `Built server did not start: ${logs}`);
+  const publicHeaders = { Host: "tasteprint.aromarevo.com" };
+  assert.equal(
+    (await fetch(base + "/api/projects", { headers: publicHeaders })).status,
+    401,
+    "Configured public Host must still require session pairing",
+  );
+  assert.equal(
+    (
+      await fetch(base + "/api/projects", {
+        method: "POST",
+        headers: publicHeaders,
+      })
+    ).status,
+    403,
+    "Public state changes must require the exact HTTPS Origin",
+  );
   assert.equal((await fetch(base + "/api/profile/references")).status, 401);
   const pair = await fetch(base + "/api/pair", {
     method: "POST",

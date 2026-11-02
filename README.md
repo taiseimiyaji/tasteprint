@@ -25,6 +25,10 @@ npm start
 
 通常実行も初期ポートは3000です。開発サーバーを終了してから起動してください。通常実行のポートは `PORT` で変更できます。
 
+既存のNamed TunnelとCloudflare Accessを併用する場合は、公開hostname全体を本人限定のAccessポリシーで保護し、当該TunnelルートでAccess JWTの検証を必須にしてから、`TASTEPRINT_PUBLIC_ORIGIN=https://tasteprint.aromarevo.com` を指定して起動します。末尾の `/` を含めない正確なHTTPS Originを指定してください。未指定時はlocalhostのみを許可します。アプリは引き続き `127.0.0.1` で待ち受け、接続コードが必要です。この設定自体はAccess認証を提供しません。ヘッダーを書き換えてHost・Origin検証を回避しないでください。
+
+公開OriginではセッションCookieにSecure属性を付け、状態変更APIは一致するOriginヘッダーを必須にします。localhostのHTTP接続も利用できます。接続コードは従来通り起動ごとに一度だけ使用できるため、別のブラウザーや公開URLから新しく接続する場合はアプリを再起動してください。再起動すると既存セッションは失効します。公開URLでの接続状態、ブラウザーの未保存入力はlocalhostとは共有されません。
+
 ## 試せること
 
 - 共通の「自分の好み」と、用途ごとの複数プロジェクトの作成・切り替え・再開・アーカイブ／解除

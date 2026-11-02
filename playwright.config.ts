@@ -8,6 +8,8 @@ export default defineConfig({
   globalSetup: "./tests/e2e-setup.ts",
   use: {
     baseURL: "http://127.0.0.1:3100",
+    // APIRequestContext does not add a browser Origin to mutation requests.
+    extraHTTPHeaders: { Origin: "http://127.0.0.1:3100" },
     viewport: { width: 1440, height: 1050 },
     trace: "retain-on-failure",
     storageState: "test-results/.session.json",
