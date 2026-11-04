@@ -1724,7 +1724,9 @@ export function ExportHistory({
     try {
       await download(r, extension);
     } finally {
-      if (mounted.current) await query.refetch();
+      // The receipt already committed history. Optional revalidation must not
+      // delay a file error or prevent retrying that saved file.
+      if (mounted.current) void query.refetch().catch(() => {});
     }
   };
   const fileLink = (r: ExportRecord, name: string, primary = false) => (
