@@ -1,4 +1,10 @@
-import { expect, test, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Page,
+  type Route,
+  type Request,
+} from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { unzipSync } from "fflate";
 
@@ -310,3 +316,81 @@ test("an aborted Export receipt on another project recovers the source history o
     release();
   }
 });
+
+for (const pending of ["history", "projects"] as const) {
+  test(`Export pending recovery ${pending} does not delay the original error or explicit retry`, async ({
+    page,
+  }) => {
+    const f = await fixture(page, `Pending recovery ${pending}`, 390);
+    let enter!: () => void, release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let recovering = false,
+      captured = false,
+      posts = 0;
+    const path = pending === "history" ? `${f.base}/exports` : "/api/projects";
+    let heldRequest: Request | undefined;
+    const holdRead = async (route: Route) => {
+      if (!recovering || captured) return route.continue();
+      captured = true;
+      heldRequest = route.request();
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      enter();
+      await held;
+      await route.fulfill({ response });
+    };
+    await page.route(`**${f.base}/exports`, async (route) => {
+      if (route.request().method() === "GET") {
+        return pending === "history" ? holdRead(route) : route.continue();
+      }
+      posts++;
+      if (posts > 1) return route.continue();
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      recovering = true;
+      return route.fulfill({
+        status: 503,
+        json: { message: "RECEIPT_UNAVAILABLE" },
+      });
+    });
+    if (pending === "projects") {
+      await page.route("**/api/projects", (route) =>
+        route.request().method() === "GET" ? holdRead(route) : route.continue(),
+      );
+    }
+    try {
+      await f.generate.click();
+      await entered;
+      await expect(
+        page.getByRole("alert").filter({ hasText: "RECEIPT_UNAVAILABLE" }),
+      ).toBeVisible({ timeout: 3000 });
+      await expect(f.generate).toBeEnabled();
+      expect(posts).toBe(1);
+      expect(f.downloads).toEqual([]);
+      const downloaded = page.waitForEvent("download");
+      await f.generate.click();
+      verifyZip(await readFile((await (await downloaded).path())!), f.a.id);
+      expect(posts).toBe(2);
+      expect(
+        await (await page.request.get(`${f.base}/exports`)).json(),
+      ).toHaveLength(1);
+      const delivered = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === path &&
+          response.request() === heldRequest,
+      );
+      release();
+      await (await delivered).finished();
+      await expect(f.zip).toBeVisible();
+      expect(f.downloads).toHaveLength(1);
+      await verifyDraft(page, f.base);
+    } finally {
+      release();
+    }
+  });
+}
