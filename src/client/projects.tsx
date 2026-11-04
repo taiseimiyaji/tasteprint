@@ -1703,7 +1703,21 @@ export function ExportHistory({
     },
     extension: string,
   ) => {
-    const r = await req<ExportRecord>(`${scope.api}/exports`, body);
+    let r: ExportRecord;
+    try {
+      r = await req<ExportRecord>(`${scope.api}/exports`, body);
+    } catch (error) {
+      // The server may have committed an Export whose receipt was lost.
+      // Recover with reads, including when this project's history is inactive.
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: ["exports", scope.id],
+          exact: true,
+        }),
+        client.invalidateQueries({ queryKey: ["projects"], exact: true }),
+      ]);
+      throw error;
+    }
     await commitExport(client, r);
     if (!mounted.current) return;
     try {
