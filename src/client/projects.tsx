@@ -1399,7 +1399,9 @@ function Overview({
               policies: r.snapshot.policies,
             });
             await commitProjectRevision(client, scope.id, r);
-            await sync();
+            // The reply committed the revision and list metadata. Background
+            // reads must not keep editing waiting for this completed save.
+            void sync();
             setNotice("概要・方針を保存しました");
           });
         }}
