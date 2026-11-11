@@ -312,10 +312,39 @@ export function Workspace({
   const [chatOpen, setChatOpen] = useState(
     () => window.matchMedia("(min-width: 1051px)").matches,
   );
+  const chatToggle = useRef<HTMLButtonElement>(null);
+  const chatClose = useRef<HTMLButtonElement>(null);
+  const focusChatOnOpen = useRef(false);
+  function closeChat() {
+    focusChatOnOpen.current = false;
+    setChatOpen(false);
+    chatToggle.current?.focus();
+  }
+  function toggleChat() {
+    if (chatOpen) closeChat();
+    else {
+      focusChatOnOpen.current = true;
+      setChatOpen(true);
+    }
+  }
+  useEffect(() => {
+    // Initial desktop visibility must not take focus from navigation or editing.
+    if (chatOpen && focusChatOnOpen.current) {
+      focusChatOnOpen.current = false;
+      chatClose.current?.focus();
+    }
+  }, [chatOpen]);
   useEffect(() => {
     const compact = window.matchMedia("(max-width: 1050px)");
     const closeOnCompact = () => {
-      if (compact.matches) setChatOpen(false);
+      if (compact.matches) {
+        if (
+          chatClose.current?.closest("aside")?.contains(document.activeElement)
+        )
+          chatToggle.current?.focus();
+        focusChatOnOpen.current = false;
+        setChatOpen(false);
+      }
     };
     compact.addEventListener("change", closeOnCompact);
     return () => compact.removeEventListener("change", closeOnCompact);
@@ -789,9 +818,12 @@ export function Workspace({
               <ArrowDownToLine size={14} /> Export
             </Link>
             <button
+              ref={chatToggle}
               className="icon-button chat-toggle"
               aria-label="対話パネルを切り替え"
-              onClick={() => setChatOpen((v) => !v)}
+              aria-expanded={chatOpen}
+              aria-controls="workspace-conversation"
+              onClick={toggleChat}
             >
               <Sparkles size={17} />
             </button>
@@ -1403,16 +1435,17 @@ export function Workspace({
             </footer>
           </main>
           {chatOpen && (
-            <aside className="conversation">
+            <aside className="conversation" id="workspace-conversation">
               <div className="conversation-header">
                 <div>
                   <Sparkles size={17} />
                   <strong>Design companion</strong>
                 </div>
                 <button
+                  ref={chatClose}
                   className="icon-button"
                   aria-label="対話パネルを閉じる"
-                  onClick={() => setChatOpen(false)}
+                  onClick={closeChat}
                 >
                   <PanelRightClose size={16} />
                 </button>
