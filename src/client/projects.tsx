@@ -1086,7 +1086,9 @@ function ProfileEditor({ current }: { current: TasteRevision }) {
             );
             setDraft({ baseProfileRevision: r.revision, ...r.snapshot });
             await commitProfile(client, r);
-            await client.invalidateQueries({ queryKey: ["profile"] });
+            // The accepted revision is committed. A background read must not
+            // keep editing and navigation waiting for this completed save.
+            void client.invalidateQueries({ queryKey: ["profile"] });
             setNotice("共通の好みを保存しました");
           });
         }}
