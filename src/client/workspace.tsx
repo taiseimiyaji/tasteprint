@@ -360,7 +360,11 @@ export function Workspace({
   const [promptDraft, setPromptDraft] = useState(readPrompt);
   const prompt = promptDraft.value;
   const lastStoredPrompt = useRef(promptDraft.readError ? null : prompt);
-  const [committedPrompt, setCommittedPrompt] = useState<string | null>(null);
+  // Saved conversations remain in history. A late receipt must not revoke
+  // another request's acknowledgement in this Workspace.
+  const [committedPrompts, setCommittedPrompts] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const setPrompt = (value: string) =>
     setPromptDraft({ value, readError: false });
   const [promptSaveError, setPromptSaveError] = useState(false);
@@ -380,7 +384,7 @@ export function Workspace({
     promptSaveError &&
       !promptDraft.readError &&
       prompt !== lastStoredPrompt.current &&
-      prompt !== committedPrompt,
+      !committedPrompts.has(prompt),
     "リクエストの下書きを保存できなかったため、移動を中止しました。対話パネルで保存を再試行してください。",
     {
       remainsMounted: (nextPath) =>
@@ -428,7 +432,7 @@ export function Workspace({
         },
       );
       await commitConversation(queryClient, message);
-      setCommittedPrompt(text);
+      setCommittedPrompts((previous) => new Set([...previous, text]));
       await conversation.refetch();
       const data = await foundationRequest<{ candidates: Candidate[] }>(
         "/proposals",
