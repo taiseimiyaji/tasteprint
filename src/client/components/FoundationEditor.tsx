@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { designSchema, type Design } from "../../domain/design";
 import {
   emptyDecision,
@@ -74,6 +74,23 @@ export function FoundationEditor({
 }) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const fieldInputs = useRef<
+    Record<string, HTMLInputElement | HTMLSelectElement | null>
+  >({});
+  const recoveryTarget = useRef<string | null>(null);
+  const fieldRef =
+    (key: string) => (input: HTMLInputElement | HTMLSelectElement | null) => {
+      fieldInputs.current[key] = input;
+    };
+  useEffect(() => {
+    const key = recoveryTarget.current;
+    recoveryTarget.current = null;
+    if (!key) return;
+    // Only explicit error recovery moves focus; ordinary category keys keep it.
+    const input = fieldInputs.current[key];
+    input?.focus({ preventScroll: true });
+    input?.closest(".foundation-field")?.scrollIntoView({ block: "center" });
+  }, [tab]);
   useEffect(() => {
     onValidityChange(Object.keys(errors).length === 0);
   }, [errors, onValidityChange]);
@@ -158,7 +175,10 @@ export function FoundationEditor({
               <button
                 className="button small"
                 key={key}
-                onClick={() => onTabChange(category)}
+                onClick={() => {
+                  recoveryTarget.current = key;
+                  onTabChange(category);
+                }}
               >
                 {category}の{labels[key] || key}を修正
               </button>
@@ -194,6 +214,7 @@ export function FoundationEditor({
               </strong>
               {typeof value === "boolean" ? (
                 <input
+                  ref={fieldRef(key)}
                   aria-label={key}
                   aria-describedby={`field-${key}-label${error ? ` field-${key}-error` : ""}`}
                   aria-invalid={!!error}
@@ -203,6 +224,7 @@ export function FoundationEditor({
                 />
               ) : options ? (
                 <select
+                  ref={fieldRef(key)}
                   aria-label={key}
                   aria-describedby={`field-${key}-label${error ? ` field-${key}-error` : ""}`}
                   aria-invalid={!!error}
@@ -215,6 +237,7 @@ export function FoundationEditor({
                 </select>
               ) : (
                 <input
+                  ref={fieldRef(key)}
                   aria-label={key}
                   aria-describedby={`field-${key}-label${error ? ` field-${key}-error` : ""}`}
                   aria-invalid={!!error}
