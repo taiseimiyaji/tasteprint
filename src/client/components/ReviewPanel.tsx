@@ -527,10 +527,12 @@ export function ReviewPanel({
                         selectedId: undefined,
                         findingIds: undefined,
                       }));
-                      await refresh();
                     } finally {
                       if (mounted.current) onApplyingChange(false);
                     }
+                    // Keep the Review action guarded while rereading, but the
+                    // committed design no longer needs the Workspace write lock.
+                    await refresh();
                   })
                 }
               >
