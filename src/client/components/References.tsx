@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useId } from "react";
+import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   aspects,
@@ -281,14 +282,22 @@ export function References({
   useEffect(() => {
     if (query.data) onChange(query.data.references);
   }, [query.data]);
-  async function run(action: () => Promise<unknown>) {
+  async function run(
+    action: () => Promise<unknown>,
+    options?: { backgroundRead?: boolean },
+  ) {
     setError("");
     setBusy(true);
     onBusyChange?.(true);
     let failure: string | undefined;
     try {
       await action();
-      await client.invalidateQueries({ queryKey: ["references", scope.id] });
+      const refresh = client.invalidateQueries({
+        queryKey: ["references", scope.id],
+      });
+      // Shared adoption has committed the Reference reply and updated the
+      // Profile draft. Its supplemental read must not block saving that draft.
+      if (!options?.backgroundRead) await refresh;
     } catch (e) {
       failure = e instanceof Error ? e.message : "処理に失敗しました。";
       setError(failure);
@@ -637,7 +646,10 @@ function ReferenceCard({
   saveJob: SaveJob;
   removeReference: (id: string) => Promise<void>;
   jobs: Job[];
-  run: (action: () => Promise<unknown>) => Promise<void>;
+  run: (
+    action: () => Promise<unknown>,
+    options?: { backgroundRead?: boolean },
+  ) => Promise<void>;
   busy: boolean;
   clearError: () => void;
 }) {
@@ -967,22 +979,28 @@ function ReferenceCard({
                   : r.accepted.includes(i))
               }
               onClick={() =>
-                void run(() =>
-                  saveProjectReference
-                    ? saveProjectReference(r, i)
-                    : saveReference(`/${r.id}/accept`, "POST", {
-                        version: r.version,
-                        index: i,
-                      }).then(() => {
-                        onAdopt?.({
-                          id: `reference:${r.id}:${i}`,
-                          target: finding.aspect,
-                          text: finding.recommendation,
-                          reason: finding.interpretation,
-                          sources: [r.url || r.name, finding.evidence],
-                          locked: false,
-                        });
-                      }),
+                void run(
+                  () =>
+                    saveProjectReference
+                      ? saveProjectReference(r, i)
+                      : saveReference(`/${r.id}/accept`, "POST", {
+                          version: r.version,
+                          index: i,
+                        }).then(() => {
+                          // Commit the Profile draft and its storage checks
+                          // before releasing a queued navigation in run().
+                          flushSync(() =>
+                            onAdopt?.({
+                              id: `reference:${r.id}:${i}`,
+                              target: finding.aspect,
+                              text: finding.recommendation,
+                              reason: finding.interpretation,
+                              sources: [r.url || r.name, finding.evidence],
+                              locked: false,
+                            }),
+                          );
+                        }),
+                  { backgroundRead: !saveProjectReference },
                 )
               }
             >
