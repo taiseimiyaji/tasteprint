@@ -181,6 +181,7 @@ export function Workspace({
     if (!unpersistedDesign && !newReferenceUrl) setNavigationNotice("");
   }, [unpersistedDesign, newReferenceUrl]);
   const foundationReadVersion = useRef(0);
+  const historyReadVersion = useRef(0);
   const busy =
     saving ||
     historyLoading ||
@@ -234,8 +235,11 @@ export function Workspace({
     };
   }, [path]);
   async function refreshHistory() {
+    const version = ++historyReadVersion.current;
     try {
       const data = await foundationRequest<{ history: Revision[] }>("/");
+      if (!workspaceMounted.current || version !== historyReadVersion.current)
+        return;
       setRevisions((previous) =>
         [
           ...new Map(
@@ -245,10 +249,13 @@ export function Workspace({
       );
       setHistoryError("");
     } catch {
+      if (!workspaceMounted.current || version !== historyReadVersion.current)
+        return;
       setHistoryError("設計は保存済みですが、履歴を更新できませんでした。");
     }
   }
   async function commit(path: string, body: unknown) {
+    let committed = false;
     foundationReadVersion.current++;
     setBusy(true);
     setFoundationError("");
@@ -284,7 +291,7 @@ export function Workspace({
       await commitProjectRevision(queryClient, scope.id, result);
       void queryClient.invalidateQueries({ queryKey: ["project", scope.id] });
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      await refreshHistory();
+      committed = true;
     } catch (e) {
       setFoundationError(e instanceof Error ? e.message : "保存に失敗しました");
       if ((e as { status?: number }).status === 409) {
@@ -305,6 +312,9 @@ export function Workspace({
       foundationReadVersion.current++;
       setBusy(false);
     }
+    // The accepted revision is usable while its supplementary history is read.
+    // This read must not retain or release a later write's saving lock.
+    if (committed) await refreshHistory();
   }
   const [tab, setTab] = useState("Colors");
   const [screen, setScreen] = useState("list");
