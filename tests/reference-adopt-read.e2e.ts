@@ -113,6 +113,26 @@ async function persistedPrinciple(page: Page, id: string, reason: string) {
     .toBe(true);
 }
 
+async function removeFixtureReference(page: Page, id: string) {
+  // All E2E files share one temporary Profile DB with a 20-Reference limit.
+  // Remove only this case's synthetic source, retaining immutable snapshots.
+  const references = (
+    await (await page.request.get("/api/profile/references")).json()
+  ).references;
+  const reference = references.find((r: { id: string }) => r.id === id);
+  if (reference) {
+    const removed = await page.request.delete(`/api/profile/references/${id}`, {
+      data: { version: reference.version },
+    });
+    expect(removed.ok()).toBe(true);
+  }
+  expect(
+    (
+      await (await page.request.get("/api/profile/references")).json()
+    ).references.some((r: { id: string }) => r.id === id),
+  ).toBe(false);
+}
+
 for (const outcome of ["success", "failure"] as const) {
   test(`Profile saves an adopted Reference while its supplemental read awaits ${outcome}`, async ({
     page,
@@ -197,6 +217,7 @@ for (const outcome of ["success", "failure"] as const) {
     } finally {
       gate.releasePost();
       gate.releaseRead();
+      await removeFixtureReference(page, reference.id);
     }
   });
 
@@ -252,6 +273,7 @@ for (const outcome of ["success", "failure"] as const) {
     } finally {
       gate.releasePost();
       gate.releaseRead();
+      await removeFixtureReference(page, reference.id);
     }
   });
 }
@@ -301,5 +323,6 @@ test("An adopted Profile draft that cannot be persisted still cancels navigation
   } finally {
     gate.releasePost();
     gate.releaseRead();
+    await removeFixtureReference(page, reference.id);
   }
 });
