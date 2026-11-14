@@ -443,7 +443,8 @@ export function Workspace({
       );
       await commitConversation(queryClient, message);
       setCommittedPrompts((previous) => new Set([...previous, text]));
-      await conversation.refetch();
+      // The saved request is already available; history must not gate generation.
+      void conversation.refetch();
       const data = await foundationRequest<{ candidates: Candidate[] }>(
         "/proposals",
         { baseRevision: saved.revision, prompt: text },
