@@ -42,8 +42,12 @@ it.each([
     "preview-10",
     "8dfd2af44c0f1e1e55e6cac443b97856df3bf08ff6d24156a9d9d0fc22119a78",
   ],
+  [
+    "preview-16",
+    "25efdfcca7469b33cd76c354e135f270eb9203a49216c4c55408a248278dbd45",
+  ],
 ])(
-  "preserves the actual stored %s archive and revision while generating and reusing preview-16",
+  "preserves the actual stored %s archive and revision while generating and reusing preview-17",
   async (version, digest) => {
     const bytes = readFileSync(
       new URL(`./fixtures/${version}.zip`, import.meta.url),
@@ -78,13 +82,13 @@ it.each([
       const next = await service.exportBundle(project.id, 1, "omit");
       expect(next.id).not.toBe(old.id);
       expect(next.templateVersion).toBe(templateVersion);
-      expect(templateVersion).toBe("preview-16");
+      expect(templateVersion).toBe("preview-17");
       expect(next.files["ui--styles.css"]).toContain(
         ":where(.tasteprint-runtime)",
       );
       expect(next.files["tokens--variables.css"]).not.toContain(":root");
       expect(JSON.parse(next.files["manifest.json"]).templateVersion).toBe(
-        "preview-16",
+        "preview-17",
       );
       const zipName = next.binaryFiles!.find((name) => name.endsWith(".zip"))!;
       const entries = unzipSync(Buffer.from(next.files[zipName], "base64"));

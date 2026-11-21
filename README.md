@@ -97,6 +97,17 @@ captureと分析はスコープごとにそれぞれ同時1件です。中断後
 
 プロジェクトの Export で「一括 ZIP を生成・再試行」を選ぶと、保存済み revision を固定して DESIGN.md、design-system.json、DTCG 2025.10 tokens、CSS、React components / patterns、一覧・設定・フォームのコードと PNG、manifest、導入用 README を生成します。出力中の保存・未採用提案は混ざりません。PNG は Preview と同じレンダラーを1440 × 1000の表示領域で初期表示し、全ページを撮影します。PNGの高さは内容によって伸びます。失敗した出力は保存されず、再試行か明示的な「画像なし ZIP」を選べます。
 
+新規生成するDESIGN.mdは、[Google Labsのドラフト形式](https://github.com/google-labs-code/design.md)向けの最小YAML front matterに、プロジェクト名、確定版のアクセント色（`colors.primary`）、本文の字体とpxサイズ（`typography.body-md`）を記録します。既存本文・revisionメタデータ・同梱DTCGは保持します。ZIPは`preview-17`として生成し、過去ZIPを書き換えません。既存の個別Exportは同じrevisionで再要求すると保存済み内容を返すため、新形式は同じ確定revisionの新テンプレートZIPからも取得できます。
+
+限定互換性の検証は公式`@google/design.md@0.4.0`のlintとDTCG変換で、合成の保存値`#206493`・`16px`を比較しています。Stitchへの実インポート、他ツール・他版、エージェントによる見た目の再現は未検証です。公式CLIはアプリ依存に追加していません。以下の任意検証は、一時領域の公式CLIで実ZIPと単体Markdownのトークン値・単位を比較します。
+
+```sh
+design_md_cli_dir="$(mktemp -d)"
+design_md_evidence_dir="$(mktemp -d)"
+npm install --prefix "$design_md_cli_dir" --registry=https://registry.npmjs.org --ignore-scripts --no-audit --no-fund --save-exact @google/design.md@0.4.0
+node --import tsx tests/verify-design-md.ts "$design_md_cli_dir/node_modules/@google/design.md" "$design_md_evidence_dir"
+```
+
 現在のテンプレートは Preview と共有する Button / Input / Select と3画面のパターンです。個別の Components / Patterns 仕様・全状態・実アプリでのレビューは未確認として Draft に記録します。出力時に AI は呼び出しません。ZIP には採用した参考の出典と理由のみを含め、参考画像・会話ログ・URL の認証情報やクエリは含めません。
 
 [Export配布物の限定統合レビュー](./docs/reviews/export-consumer.md)では、生成ZIPを独立Reactフォームと3画面に組み込み、1440px / 390pxで状態・キーボード操作を確認しています。Tabs切り替え・Dialogの開閉だけでは親フォームを送信しません。全部品・全状態の確認は引き続き未完了です。

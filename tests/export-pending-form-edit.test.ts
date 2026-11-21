@@ -37,7 +37,7 @@ it.each(["preview-14", "preview-15"])(
       db.prepare("INSERT INTO exports VALUES (?,?)").run(old.id, raw);
 
       const current = await service.exportBundle(project.id, 1, "omit");
-      expect(templateVersion).toBe("preview-16");
+      expect(templateVersion).toBe("preview-17");
       expect(current.id).not.toBe(old.id);
       expect(current.templateVersion).toBe(templateVersion);
       const zipName = current.binaryFiles!.find((name) =>

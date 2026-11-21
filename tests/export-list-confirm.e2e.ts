@@ -7,7 +7,7 @@ for (const width of [1440, 390]) {
   }) => {
     await page.setViewportSize({ width, height: 1000 });
     const { record } = await openExportConsumer(page, "list");
-    expect(record.templateVersion).toBe("preview-16");
+    expect(record.templateVersion).toBe("preview-17");
     const opener = page.getByRole("button", {
       name: "New project",
       exact: true,
