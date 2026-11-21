@@ -1,6 +1,14 @@
 import { designMarkdown, type Design } from "./design";
 import type { ProjectSnapshot } from "./projects";
 import type { SavedReference } from "./reference";
+
+// Use JSON quotes, escaping YAML line breaks and non-printable characters too.
+const yamlString = (value: string) =>
+  JSON.stringify(value).replace(
+    /[\u007f-\u009f\u2028\u2029\ufffe\uffff]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+
 export function projectMarkdown(revision: {
   revision: number;
   design: Design;
@@ -29,6 +37,7 @@ export function projectMarkdown(revision: {
       )
       .join("\n") || "未設定";
   return (
+    `---\nname: ${yamlString(s.brief.name)}\ncolors:\n  primary: ${yamlString(revision.design.accent)}\ntypography:\n  body-md:\n    fontFamily: ${yamlString(revision.design.fontFamily)}\n    fontSize: ${revision.design.fontSize}px\n---\n` +
     `<!-- ${JSON.stringify({ projectId: s.projectId, revision: revision.revision, sourceTasteProfileRevision: s.sourceTasteProfileRevision })} -->\n` +
     designMarkdown(revision.design, s.taste.answers, refs, revision) +
     `\n## Project\n\n- 名前: ${s.brief.name}\n- 用途: ${s.brief.purpose}\n- 対象ユーザー: ${s.brief.audience}\n- 目指す印象: ${s.brief.desired}\n- 避けたい印象: ${s.brief.avoid}\n\n## 共通の好みから採用\n\n参照版: ${s.sourceTasteProfileRevision ?? "なし"}\n質問版: ${s.taste.questionVersion}\n確認状態: ${s.taste.confirmed ? "確定" : "未確認"}\n\n${rules(s.taste.principles)}\n\n## このプロジェクト固有の方針・例外\n\n${rules(s.policies)}\n\n## 共通更新で維持した判断\n\n${s.maintained.map((m) => `- ${m.key}: ${m.reason}`).join("\n") || "なし"}\n\n## Tasteの回答と理由\n\n${s.taste.comparisons.map((q) => `- ${q.id} (${q.context}): ${s.taste.answers[q.id] ?? "未回答"} — ${s.taste.reasons[q.id] || "理由未記入"}`).join("\n")}\n`
